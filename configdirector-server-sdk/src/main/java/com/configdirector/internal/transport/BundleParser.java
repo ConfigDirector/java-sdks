@@ -157,8 +157,6 @@ public final class BundleParser {
         : new NumericTypeConstraints.Bound(relation, magnitude);
   }
 
-  // -- JSON access ----------------------------------------------------------------------------
-
   private static <T> List<T> map(JsonElement raw, java.util.function.Function<JsonElement, T> parse) {
     if (raw == null || !raw.isJsonArray()) {
       return List.of();
