@@ -1,4 +1,4 @@
-package com.configdirector.internal.eventsource;
+package com.configdirector.testing;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -20,11 +20,9 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 
-/**
- * A raw-socket HTTP server, because an SSE test needs to write a response body a piece at a time,
- * hold it open, and drop it mid-read -- none of which a fixed-body mock server does.
- */
-final class SseTestServer implements AutoCloseable {
+// A raw-socket HTTP server, because these tests need to write a response body a piece at a time,
+// hold it open, and drop it mid-read -- none of which a fixed-body mock server does.
+public final class TestHttpServer implements AutoCloseable {
 
   private final ServerSocket serverSocket;
   private final Thread acceptor;
@@ -33,7 +31,7 @@ final class SseTestServer implements AutoCloseable {
   private final AtomicInteger connections = new AtomicInteger();
   private volatile boolean running = true;
 
-  private SseTestServer(Consumer<Session> handler) throws IOException {
+  private TestHttpServer(Consumer<Session> handler) throws IOException {
     this.handler = handler;
     this.serverSocket = new ServerSocket(0, 0, InetAddress.getLoopbackAddress());
     this.acceptor = new Thread(this::acceptLoop, "sse-test-server");
@@ -41,21 +39,21 @@ final class SseTestServer implements AutoCloseable {
     this.acceptor.start();
   }
 
-  static SseTestServer start(Consumer<Session> handler) throws IOException {
-    return new SseTestServer(handler);
+  public static TestHttpServer start(Consumer<Session> handler) throws IOException {
+    return new TestHttpServer(handler);
   }
 
   /** Queues each connection for the test to drive by hand. */
-  static Queued startQueued() throws IOException {
+  public static Queued startQueued() throws IOException {
     BlockingQueue<Session> queue = new LinkedBlockingQueue<>();
-    return new Queued(new SseTestServer(queue::add), queue);
+    return new Queued(new TestHttpServer(queue::add), queue);
   }
 
-  String url(String path) {
+  public String url(String path) {
     return "http://127.0.0.1:" + serverSocket.getLocalPort() + path;
   }
 
-  int connectionCount() {
+  public int connectionCount() {
     return connections.get();
   }
 
@@ -102,9 +100,9 @@ final class SseTestServer implements AutoCloseable {
     }
   }
 
-  record Queued(SseTestServer server, BlockingQueue<Session> sessions) implements AutoCloseable {
+  public record Queued(TestHttpServer server, BlockingQueue<Session> sessions) implements AutoCloseable {
 
-    Session next() throws InterruptedException {
+    public Session next() throws InterruptedException {
       Session session = sessions.poll(5, TimeUnit.SECONDS);
       if (session == null) {
         throw new AssertionError("No connection arrived within 5s");
@@ -112,11 +110,11 @@ final class SseTestServer implements AutoCloseable {
       return session;
     }
 
-    String url(String path) {
+    public String url(String path) {
       return server.url(path);
     }
 
-    int connectionCount() {
+    public int connectionCount() {
       return server.connectionCount();
     }
 
@@ -126,7 +124,7 @@ final class SseTestServer implements AutoCloseable {
     }
   }
 
-  static final class Session implements AutoCloseable {
+  public static final class Session implements AutoCloseable {
 
     private final Socket socket;
     private final OutputStream out;
@@ -157,28 +155,28 @@ final class SseTestServer implements AutoCloseable {
       this.body = in.readNBytes(length);
     }
 
-    String method() {
+    public String method() {
       return method;
     }
 
-    String path() {
+    public String path() {
       return path;
     }
 
-    String header(String name) {
+    public String header(String name) {
       return headers.get(name.toLowerCase(java.util.Locale.ROOT));
     }
 
-    String bodyAsString() {
+    public String bodyAsString() {
       return new String(body, StandardCharsets.UTF_8);
     }
 
     /** No Content-Length or Transfer-Encoding, so the body ends when the socket closes. */
-    void respondStreaming() {
+    public void respondStreaming() {
       respond(200, "Content-Type: text/event-stream", "Cache-Control: no-store");
     }
 
-    void respond(int status, String... responseHeaders) {
+    public void respond(int status, String... responseHeaders) {
       StringBuilder head = new StringBuilder("HTTP/1.1 " + status + " " + reason(status) + "\r\n");
       for (String header : responseHeaders) {
         head.append(header).append("\r\n");
@@ -187,11 +185,11 @@ final class SseTestServer implements AutoCloseable {
       write(head.toString().getBytes(StandardCharsets.US_ASCII));
     }
 
-    void send(String text) {
+    public void send(String text) {
       write(text.getBytes(StandardCharsets.UTF_8));
     }
 
-    void send(byte... bytes) {
+    public void send(byte... bytes) {
       write(bytes);
     }
 

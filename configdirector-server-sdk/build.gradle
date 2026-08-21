@@ -20,6 +20,10 @@ dependencies {
     // A facade only. The consuming application supplies the binding.
     api libs.slf4j.api
 
+    // Reads the config bundle. Kept off the API surface: no Gson type appears in this SDK's own,
+    // so a consumer on a different Gson version has nothing to collide with.
+    implementation libs.gson
+
     testImplementation libs.junit.jupiter
     testImplementation libs.assertj.core
     testImplementation libs.awaitility

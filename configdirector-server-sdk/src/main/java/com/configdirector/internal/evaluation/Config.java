@@ -9,7 +9,7 @@ public record Config(
     ConfigType type,
     TargetingRules target,
     List<Variation> variations,
-    Object typeConstraints) {
+    TypeConstraints typeConstraints) {
 
   public Config {
     variations = variations == null ? List.of() : List.copyOf(variations);

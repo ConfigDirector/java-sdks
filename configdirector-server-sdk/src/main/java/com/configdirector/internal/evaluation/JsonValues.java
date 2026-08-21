@@ -2,19 +2,19 @@ package com.configdirector.internal.evaluation;
 
 import java.math.BigDecimal;
 
-final class JsonValues {
+public final class JsonValues {
 
   private static final double MAX_PLAIN_INTEGER = 1e21;
 
   private JsonValues() {}
 
-  static boolean isScalar(Object value) {
+  public static boolean isScalar(Object value) {
     return value instanceof String || value instanceof Number || value instanceof Boolean;
   }
 
   // Must spell values exactly as the other SDKs do, or the same config would resolve to different
   // text depending on which one read it.
-  static String toJsonString(Object value) {
+  public static String toJsonString(Object value) {
     if (value == null) {
       return "null";
     }

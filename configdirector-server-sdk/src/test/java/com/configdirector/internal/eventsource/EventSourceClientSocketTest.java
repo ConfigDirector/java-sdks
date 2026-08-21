@@ -1,6 +1,8 @@
 package com.configdirector.internal.eventsource;
 
 import static org.assertj.core.api.Assertions.assertThat;
+
+import com.configdirector.testing.TestHttpServer;
 import static org.awaitility.Awaitility.await;
 
 import java.time.Duration;
@@ -50,9 +52,9 @@ class EventSourceClientSocketTest {
 
   @Test
   void delivers_events_as_the_server_sends_them() throws Exception {
-    BlockingQueue<SseTestServer.Session> live = new LinkedBlockingQueue<>();
-    try (SseTestServer server =
-        SseTestServer.start(
+    BlockingQueue<TestHttpServer.Session> live = new LinkedBlockingQueue<>();
+    try (TestHttpServer server =
+        TestHttpServer.start(
             session -> {
               session.respondStreaming();
               live.add(session);
@@ -61,7 +63,7 @@ class EventSourceClientSocketTest {
       client = clientBuilder(server.url("/stream")).build();
       client.connect();
 
-      SseTestServer.Session session = live.poll(5, TimeUnit.SECONDS);
+      TestHttpServer.Session session = live.poll(5, TimeUnit.SECONDS);
       assertThat(session).isNotNull();
       await().atMost(TIMEOUT).until(() -> client.readyState() == ReadyState.OPEN);
 
@@ -77,9 +79,9 @@ class EventSourceClientSocketTest {
 
   @Test
   void close_returns_promptly_while_a_read_is_parked() throws Exception {
-    BlockingQueue<SseTestServer.Session> live = new LinkedBlockingQueue<>();
-    try (SseTestServer server =
-        SseTestServer.start(
+    BlockingQueue<TestHttpServer.Session> live = new LinkedBlockingQueue<>();
+    try (TestHttpServer server =
+        TestHttpServer.start(
             session -> {
               session.respondStreaming();
               live.add(session);
@@ -103,9 +105,9 @@ class EventSourceClientSocketTest {
 
   @Test
   void does_not_reconnect_while_the_stream_is_merely_quiet() throws Exception {
-    BlockingQueue<SseTestServer.Session> live = new LinkedBlockingQueue<>();
-    try (SseTestServer server =
-        SseTestServer.start(
+    BlockingQueue<TestHttpServer.Session> live = new LinkedBlockingQueue<>();
+    try (TestHttpServer server =
+        TestHttpServer.start(
             session -> {
               session.respondStreaming();
               live.add(session);
@@ -113,7 +115,7 @@ class EventSourceClientSocketTest {
 
       client = clientBuilder(server.url("/stream")).build();
       client.connect();
-      SseTestServer.Session session = live.poll(5, TimeUnit.SECONDS);
+      TestHttpServer.Session session = live.poll(5, TimeUnit.SECONDS);
       assertThat(session).isNotNull();
       await().atMost(TIMEOUT).until(() -> client.readyState() == ReadyState.OPEN);
 
@@ -132,8 +134,8 @@ class EventSourceClientSocketTest {
   @Test
   void reconnects_when_the_server_drops_the_stream() throws Exception {
     AtomicInteger served = new AtomicInteger();
-    try (SseTestServer server =
-        SseTestServer.start(
+    try (TestHttpServer server =
+        TestHttpServer.start(
             session -> {
               session.respondStreaming();
               session.send("data: event " + served.incrementAndGet() + "\n\n");
@@ -151,8 +153,8 @@ class EventSourceClientSocketTest {
   @Test
   void resumes_from_the_last_event_id_after_a_drop() throws Exception {
     List<String> sentIds = Collections.synchronizedList(new ArrayList<>());
-    try (SseTestServer server =
-        SseTestServer.start(
+    try (TestHttpServer server =
+        TestHttpServer.start(
             session -> {
               sentIds.add(session.header("Last-Event-ID"));
               session.respondStreaming();
@@ -172,8 +174,8 @@ class EventSourceClientSocketTest {
 
   @Test
   void stops_without_retrying_on_no_content() throws Exception {
-    try (SseTestServer server =
-        SseTestServer.start(
+    try (TestHttpServer server =
+        TestHttpServer.start(
             session -> {
               session.respond(204);
               session.close();
@@ -192,8 +194,8 @@ class EventSourceClientSocketTest {
 
   @Test
   void a_fatal_status_can_stop_the_client() throws Exception {
-    try (SseTestServer server =
-        SseTestServer.start(
+    try (TestHttpServer server =
+        TestHttpServer.start(
             session -> {
               session.respond(401, "Content-Length: 0", "Connection: close");
               session.close();

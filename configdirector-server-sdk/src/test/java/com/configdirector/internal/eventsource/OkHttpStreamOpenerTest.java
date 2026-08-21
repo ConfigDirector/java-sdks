@@ -1,6 +1,8 @@
 package com.configdirector.internal.eventsource;
 
 import static org.assertj.core.api.Assertions.assertThat;
+
+import com.configdirector.testing.TestHttpServer;
 import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 import static org.assertj.core.api.Assertions.assertThatNullPointerException;
 import static org.awaitility.Awaitility.await;
@@ -51,11 +53,11 @@ class OkHttpStreamOpenerTest {
 
   @Test
   void reads_a_body_the_server_writes_a_piece_at_a_time() throws Exception {
-    try (SseTestServer.Queued server = SseTestServer.startQueued()) {
+    try (TestHttpServer.Queued server = TestHttpServer.startQueued()) {
       AtomicReference<ResponseStream> opened = new AtomicReference<>();
       Thread client = openOn(server.url("/stream"), opened);
 
-      SseTestServer.Session session = server.next();
+      TestHttpServer.Session session = server.next();
       session.respondStreaming();
       client.join(TIMEOUT.toMillis());
 
@@ -76,7 +78,7 @@ class OkHttpStreamOpenerTest {
 
   @Test
   void sends_the_method_headers_and_body() throws Exception {
-    try (SseTestServer.Queued server = SseTestServer.startQueued()) {
+    try (TestHttpServer.Queued server = TestHttpServer.startQueued()) {
       byte[] body = "{\"sdkKey\":\"abc\"}".getBytes(StandardCharsets.UTF_8);
       StreamRequest request =
           new StreamRequest(
@@ -91,7 +93,7 @@ class OkHttpStreamOpenerTest {
       AtomicReference<ResponseStream> opened = new AtomicReference<>();
       Thread client = openOn(request, opened);
 
-      SseTestServer.Session session = server.next();
+      TestHttpServer.Session session = server.next();
       assertThat(session.method()).isEqualTo("POST");
       assertThat(session.header("Accept")).isEqualTo("text/event-stream");
       assertThat(session.header("Last-Event-ID")).isEqualTo("77");
@@ -105,8 +107,8 @@ class OkHttpStreamOpenerTest {
 
   @Test
   void an_error_status_is_returned_rather_than_thrown() throws Exception {
-    try (SseTestServer server =
-        SseTestServer.start(
+    try (TestHttpServer server =
+        TestHttpServer.start(
             session -> {
               session.respond(503, "Content-Length: 0");
               session.close();
@@ -120,8 +122,8 @@ class OkHttpStreamOpenerTest {
 
   @Test
   void no_content_is_returned_as_a_status() throws Exception {
-    try (SseTestServer server =
-        SseTestServer.start(
+    try (TestHttpServer server =
+        TestHttpServer.start(
             session -> {
               session.respond(204);
               session.close();
@@ -135,7 +137,7 @@ class OkHttpStreamOpenerTest {
 
   @Test
   void a_redirect_is_followed_by_default() throws Exception {
-    try (SseTestServer server = SseTestServer.start(OkHttpStreamOpenerTest::redirectOnce)) {
+    try (TestHttpServer server = TestHttpServer.start(OkHttpStreamOpenerTest::redirectOnce)) {
       try (ResponseStream stream = opener.open(request(server.url("/start")))) {
         assertThat(stream.status()).isEqualTo(200);
         assertThat(readAll(stream)).isEqualTo("data: arrived\n\n");
@@ -146,7 +148,7 @@ class OkHttpStreamOpenerTest {
 
   @Test
   void a_redirect_is_a_status_when_following_is_disabled() throws Exception {
-    try (SseTestServer server = SseTestServer.start(OkHttpStreamOpenerTest::redirectOnce)) {
+    try (TestHttpServer server = TestHttpServer.start(OkHttpStreamOpenerTest::redirectOnce)) {
       StreamRequest request =
           new StreamRequest(
               server.url("/start"),
@@ -163,7 +165,7 @@ class OkHttpStreamOpenerTest {
     }
   }
 
-  private static void redirectOnce(SseTestServer.Session session) {
+  private static void redirectOnce(TestHttpServer.Session session) {
     if (session.path().equals("/start")) {
       // Connection: close, or OkHttp would keep the socket for the follow-up and find it shut.
       session.respond(302, "Location: /stream", "Content-Length: 0", "Connection: close");
@@ -176,10 +178,10 @@ class OkHttpStreamOpenerTest {
 
   @Test
   void cancel_unblocks_a_parked_read() throws Exception {
-    try (SseTestServer.Queued server = SseTestServer.startQueued()) {
+    try (TestHttpServer.Queued server = TestHttpServer.startQueued()) {
       AtomicReference<ResponseStream> opened = new AtomicReference<>();
       Thread client = openOn(server.url("/stream"), opened);
-      SseTestServer.Session session = server.next();
+      TestHttpServer.Session session = server.next();
       session.respondStreaming();
       client.join(TIMEOUT.toMillis());
 
@@ -216,7 +218,7 @@ class OkHttpStreamOpenerTest {
 
   @Test
   void a_silent_stream_past_the_read_timeout_is_reported_as_stalled() throws Exception {
-    try (SseTestServer.Queued server = SseTestServer.startQueued()) {
+    try (TestHttpServer.Queued server = TestHttpServer.startQueued()) {
       StreamRequest request =
           new StreamRequest(
               server.url("/stream"),
@@ -229,7 +231,7 @@ class OkHttpStreamOpenerTest {
 
       AtomicReference<ResponseStream> opened = new AtomicReference<>();
       Thread client = openOn(request, opened);
-      SseTestServer.Session session = server.next();
+      TestHttpServer.Session session = server.next();
       session.respondStreaming();
       client.join(TIMEOUT.toMillis());
 
@@ -242,10 +244,10 @@ class OkHttpStreamOpenerTest {
 
   @Test
   void a_multibyte_character_split_across_reads_survives() throws Exception {
-    try (SseTestServer.Queued server = SseTestServer.startQueued()) {
+    try (TestHttpServer.Queued server = TestHttpServer.startQueued()) {
       AtomicReference<ResponseStream> opened = new AtomicReference<>();
       Thread client = openOn(server.url("/stream"), opened);
-      SseTestServer.Session session = server.next();
+      TestHttpServer.Session session = server.next();
       session.respondStreaming();
       client.join(TIMEOUT.toMillis());
       ResponseStream stream = opened.get();
@@ -299,8 +301,8 @@ class OkHttpStreamOpenerTest {
                 })
             .build();
 
-    try (SseTestServer server =
-        SseTestServer.start(
+    try (TestHttpServer server =
+        TestHttpServer.start(
             session -> {
               session.respond(204);
               session.close();
