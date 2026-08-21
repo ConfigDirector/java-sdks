@@ -1,0 +1,47 @@
+plugins {
+    id 'java-library'
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    // OkHttp owns sockets, connection pooling, TLS, redirects and per-read timeouts. The SSE
+    // protocol on top of it is ours, so it stays behind the StreamOpener seam and no OkHttp type
+    // appears in this SDK's own API.
+    api libs.okhttp
+
+    // A facade only. The consuming application supplies the binding.
+    api libs.slf4j.api
+
+    testImplementation libs.junit.jupiter
+    testImplementation libs.assertj.core
+    testImplementation libs.awaitility
+    testRuntimeOnly libs.logback.classic
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+java {
+    // Java 17 is the compilation target; the toolchain compiles against exactly that API rather
+    // than against whichever JDK happens to be installed.
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(17)
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+    options.compilerArgs << '-Xlint:all' << '-Werror'
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
+    // Several tests park a reader on a real socket, so a threading bug would surface as a suite
+    // that never finishes rather than as a failure. This turns that back into a failure.
+    timeout = Duration.ofMinutes(5)
+    testLogging {
+        events 'failed'
+        exceptionFormat = 'full'
+    }
+}
