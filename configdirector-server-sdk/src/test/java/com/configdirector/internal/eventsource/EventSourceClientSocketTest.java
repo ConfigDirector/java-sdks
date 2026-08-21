@@ -31,6 +31,16 @@ class EventSourceClientSocketTest {
     }
   }
 
+
+  // synchronizedList guards single operations, not iteration: the reader thread is still appending
+  // while AssertJ walks the list, which surfaces as a ConcurrentModificationException. Every
+  // assertion works from a copy taken under the list's own lock instead.
+  private static <T> List<T> snapshot(List<T> shared) {
+    synchronized (shared) {
+      return new ArrayList<>(shared);
+    }
+  }
+
   private EventSourceClient.Builder clientBuilder(String url) {
     return EventSourceClient.builder(url)
         .onMessage(messages::add)
@@ -61,7 +71,7 @@ class EventSourceClientSocketTest {
       session.send(": keepalive\n\ndata: two\n\n");
       await().atMost(TIMEOUT).until(() -> messages.size() == 2);
 
-      assertThat(messages).extracting(EventSourceMessage::data).containsExactly("one", "two");
+      assertThat(snapshot(messages)).extracting(EventSourceMessage::data).containsExactly("one", "two");
     }
   }
 
@@ -134,7 +144,7 @@ class EventSourceClientSocketTest {
       client.connect();
 
       await().atMost(TIMEOUT).until(() -> messages.size() >= 3);
-      assertThat(messages).extracting(EventSourceMessage::data).startsWith("event 1", "event 2");
+      assertThat(snapshot(messages)).extracting(EventSourceMessage::data).startsWith("event 1", "event 2");
     }
   }
 
@@ -154,8 +164,9 @@ class EventSourceClientSocketTest {
       client.connect();
 
       await().atMost(TIMEOUT).until(() -> sentIds.size() >= 2);
-      assertThat(sentIds.get(0)).isNull();
-      assertThat(sentIds.get(1)).isEqualTo("42");
+      List<String> seen = snapshot(sentIds);
+      assertThat(seen.get(0)).isNull();
+      assertThat(seen.get(1)).isEqualTo("42");
     }
   }
 
@@ -200,7 +211,7 @@ class EventSourceClientSocketTest {
       client.connect();
 
       await().atMost(TIMEOUT).until(() -> client.readyState() == ReadyState.CLOSED);
-      assertThat(statuses).containsExactly(401);
+      assertThat(snapshot(statuses)).containsExactly(401);
       assertThat(server.connectionCount()).isEqualTo(1);
     }
   }

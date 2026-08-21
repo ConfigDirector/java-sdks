@@ -57,6 +57,16 @@ class EventSourceClientTest {
     return client;
   }
 
+
+  // synchronizedList guards single operations, not iteration: the reader thread is still appending
+  // while AssertJ walks the list, which surfaces as a ConcurrentModificationException. Every
+  // assertion works from a copy taken under the list's own lock instead.
+  private static <T> List<T> snapshot(List<T> shared) {
+    synchronized (shared) {
+      return new ArrayList<>(shared);
+    }
+  }
+
   private static void awaitUntil(Callable<Boolean> condition) {
     await().atMost(TIMEOUT).pollInterval(Duration.ofMillis(2)).until(condition);
   }
@@ -181,7 +191,7 @@ class EventSourceClientTest {
       stream.push("data: one\n\ndata: two\n\ndata: three\n\n");
 
       awaitUntil(() -> messages.size() == 3);
-      assertThat(messages)
+      assertThat(snapshot(messages))
           .extracting(EventSourceMessage::data)
           .containsExactly("one", "two", "three");
     }
@@ -196,7 +206,7 @@ class EventSourceClientTest {
       stream.push(": keepalive\n");
 
       awaitUntil(() -> comments.size() == 1);
-      assertThat(comments).containsExactly("keepalive");
+      assertThat(snapshot(comments)).containsExactly("keepalive");
     }
 
     @Test
@@ -297,7 +307,7 @@ class EventSourceClientTest {
       connected(clientBuilder());
 
       awaitUntil(() -> !errors.isEmpty());
-      assertThat(errors).first().isSameAs(failure);
+      assertThat(snapshot(errors)).first().isSameAs(failure);
     }
 
     @Test
@@ -307,7 +317,7 @@ class EventSourceClientTest {
       connected(clientBuilder());
 
       awaitUntil(() -> opener.attemptCount() >= 3);
-      assertThat(errors).isEmpty();
+      assertThat(snapshot(errors)).isEmpty();
     }
 
     @Test
@@ -317,7 +327,7 @@ class EventSourceClientTest {
       connected(clientBuilder().calculateReconnectDelay(state -> Duration.ofHours(2)));
 
       awaitUntil(() -> !errors.isEmpty());
-      assertThat(errors).first().isInstanceOf(ValueOutOfRangeException.class);
+      assertThat(snapshot(errors)).first().isInstanceOf(ValueOutOfRangeException.class);
     }
 
     @Test
@@ -327,7 +337,7 @@ class EventSourceClientTest {
       connected(clientBuilder().calculateReconnectDelay(state -> null));
 
       awaitUntil(() -> !errors.isEmpty());
-      assertThat(errors).first().isInstanceOf(ValueOutOfRangeException.class);
+      assertThat(snapshot(errors)).first().isInstanceOf(ValueOutOfRangeException.class);
     }
 
     @Test
@@ -337,7 +347,7 @@ class EventSourceClientTest {
       connected(clientBuilder().calculateReconnectDelay(state -> Duration.ofMillis(1)));
 
       awaitUntil(() -> opener.attemptCount() >= 3);
-      assertThat(errors).isEmpty();
+      assertThat(snapshot(errors)).isEmpty();
     }
 
     @Test
@@ -402,7 +412,7 @@ class EventSourceClientTest {
       stream.push("data: " + "a".repeat(200));
 
       awaitUntil(() -> !errors.isEmpty());
-      assertThat(errors).first().isInstanceOf(StreamTooLargeException.class);
+      assertThat(snapshot(errors)).first().isInstanceOf(StreamTooLargeException.class);
       awaitUntil(() -> opener.attemptCount() >= 2);
     }
   }
@@ -425,7 +435,7 @@ class EventSourceClientTest {
                   }));
 
       awaitUntil(() -> disconnects.get() == 1);
-      assertThat(seen).containsExactly(503, 503);
+      assertThat(snapshot(seen)).containsExactly(503, 503);
     }
 
     @Test
@@ -442,7 +452,7 @@ class EventSourceClientTest {
                   }));
 
       awaitUntil(() -> !seen.isEmpty());
-      ReconnectionState state = seen.get(0);
+      ReconnectionState state = snapshot(seen).get(0);
       assertThat(state.status()).isEqualTo(200);
       assertThat(state.error()).isInstanceOf(StreamClosedException.class);
     }
@@ -484,7 +494,7 @@ class EventSourceClientTest {
                   }));
 
       awaitUntil(() -> attempts.size() >= 3);
-      assertThat(attempts.subList(0, 3)).containsExactly(1, 2, 3);
+      assertThat(snapshot(attempts).subList(0, 3)).containsExactly(1, 2, 3);
     }
 
     @Test
@@ -506,7 +516,7 @@ class EventSourceClientTest {
                   }));
 
       awaitUntil(() -> attempts.size() >= 4);
-      assertThat(attempts.subList(0, 4)).containsExactly(1, 2, 1, 2);
+      assertThat(snapshot(attempts).subList(0, 4)).containsExactly(1, 2, 1, 2);
     }
 
     @Test
@@ -527,7 +537,7 @@ class EventSourceClientTest {
       client.connect();
 
       awaitUntil(() -> !attempts.isEmpty());
-      assertThat(attempts.get(0)).isEqualTo(1);
+      assertThat(snapshot(attempts).get(0)).isEqualTo(1);
     }
 
     @Test
@@ -544,7 +554,7 @@ class EventSourceClientTest {
                   }));
 
       awaitUntil(() -> !delays.isEmpty());
-      assertThat(delays.get(0)).isEqualTo(Duration.ofSeconds(7));
+      assertThat(snapshot(delays).get(0)).isEqualTo(Duration.ofSeconds(7));
     }
 
     @Test
@@ -561,7 +571,7 @@ class EventSourceClientTest {
                   }));
 
       awaitUntil(() -> !delays.isEmpty());
-      assertThat(delays.get(0)).isEqualTo(Duration.ofSeconds(2));
+      assertThat(snapshot(delays).get(0)).isEqualTo(Duration.ofSeconds(2));
     }
 
     @Test
