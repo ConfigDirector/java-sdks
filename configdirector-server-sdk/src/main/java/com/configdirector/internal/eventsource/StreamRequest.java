@@ -4,11 +4,9 @@ import java.time.Duration;
 import java.util.Map;
 import java.util.Objects;
 
-/**
- * {@code connectTimeout} covers establishing the connection only; {@code readTimeout} is how long
- * an open stream may stay silent before it counts as dead. {@link Duration#ZERO} means no limit for
- * either. {@code body} is not copied.
- */
+// connectTimeout covers establishing the connection only; readTimeout is how long an open stream
+// may stay silent before it counts as dead. Duration.ZERO means no limit for either. body is a
+// carrier: it is neither copied nor part of this record's equality.
 public record StreamRequest(
     String url,
     String method,

@@ -2,6 +2,7 @@ package com.configdirector.internal.eventsource;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
+import static org.assertj.core.api.Assertions.assertThatNullPointerException;
 import static org.awaitility.Awaitility.await;
 
 import java.io.IOException;
@@ -10,7 +11,9 @@ import java.time.Duration;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import okhttp3.OkHttpClient;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
@@ -282,6 +285,46 @@ class OkHttpStreamOpenerTest {
       stream.cancel();
       stream.close();
     }
+  }
+
+  @Test
+  void uses_a_supplied_client_and_leaves_it_usable_after_close() throws Exception {
+    AtomicInteger intercepted = new AtomicInteger();
+    OkHttpClient shared =
+        new OkHttpClient.Builder()
+            .addInterceptor(
+                chain -> {
+                  intercepted.incrementAndGet();
+                  return chain.proceed(chain.request());
+                })
+            .build();
+
+    try (SseTestServer server =
+        SseTestServer.start(
+            session -> {
+              session.respond(204);
+              session.close();
+            })) {
+
+      OkHttpStreamOpener supplied = new OkHttpStreamOpener(shared);
+      try (ResponseStream stream = supplied.open(request(server.url("/stream")))) {
+        assertThat(stream.status()).isEqualTo(204);
+      }
+      assertThat(intercepted).hasValue(1);
+
+      // close() evicts pooled connections rather than shutting the client down, so a caller that
+      // shared its own client still has a working one.
+      supplied.close();
+      try (ResponseStream stream = supplied.open(request(server.url("/stream")))) {
+        assertThat(stream.status()).isEqualTo(204);
+      }
+      assertThat(intercepted).hasValue(2);
+    }
+  }
+
+  @Test
+  void rejects_a_null_client() {
+    assertThatNullPointerException().isThrownBy(() -> new OkHttpStreamOpener(null));
   }
 
   @Test

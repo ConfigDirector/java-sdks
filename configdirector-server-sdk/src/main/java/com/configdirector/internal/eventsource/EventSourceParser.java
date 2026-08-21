@@ -3,7 +3,7 @@ package com.configdirector.internal.eventsource;
 import java.util.function.Consumer;
 import java.util.function.IntConsumer;
 
-/** Not thread safe. One parser belongs to one connection, and only its reader touches it. */
+// Not thread safe. One parser belongs to one connection, and only its reader touches it.
 public final class EventSourceParser {
 
   public static final int DEFAULT_MAX_LINE_CHARS = 1 << 20;
@@ -11,7 +11,7 @@ public final class EventSourceParser {
 
   private static final char BYTE_ORDER_MARK = 0xFEFF;
 
-  /** Some servers emit the mark's UTF-8 bytes without them being decoded as one character. */
+  // Some servers emit the mark's UTF-8 bytes without them being decoded as one character.
   private static final char[] UNDECODED_BYTE_ORDER_MARK = {0xEF, 0xBB, 0xBF};
 
   private final Consumer<EventSourceMessage> onEvent;
@@ -88,7 +88,7 @@ public final class EventSourceParser {
     }
   }
 
-  /** An event needs a terminating blank line, so anything still buffered is discarded. */
+  // An event needs a terminating blank line, so anything still buffered is discarded.
   public void finish() {
     line.setLength(0);
     pendingLineFeed = false;
@@ -206,7 +206,7 @@ public final class EventSourceParser {
     dataLines = 0;
   }
 
-  /** Character.isDigit accepts Unicode digits that Integer.parseInt then rejects. */
+  // Character.isDigit accepts Unicode digits that Integer.parseInt then rejects.
   private static boolean isAsciiDigits(String value) {
     if (value.isEmpty()) {
       return false;
@@ -220,7 +220,7 @@ public final class EventSourceParser {
     return true;
   }
 
-  /** A single space after the colon is part of the delimiter, not of the value. */
+  // A single space after the colon is part of the delimiter, not of the value.
   private static String fieldValue(String text, int start) {
     if (start < text.length() && text.charAt(start) == ' ') {
       return text.substring(start + 1);
@@ -248,7 +248,7 @@ public final class EventSourceParser {
       return this;
     }
 
-    /** Receives the server's requested reconnect delay, in milliseconds. */
+    // Receives the server's requested reconnect delay, in milliseconds.
     public Builder onRetry(IntConsumer handler) {
       this.onRetry = handler;
       return this;

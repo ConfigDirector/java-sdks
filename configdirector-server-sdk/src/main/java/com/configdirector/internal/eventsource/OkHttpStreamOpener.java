@@ -13,7 +13,7 @@ import okhttp3.Request;
 import okhttp3.RequestBody;
 import okhttp3.Response;
 
-/** The only class in this package that knows OkHttp exists. */
+// The only class in this package that knows OkHttp exists.
 public final class OkHttpStreamOpener implements StreamOpener {
 
   private final OkHttpClient client;

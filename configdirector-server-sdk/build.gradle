@@ -18,7 +18,12 @@ dependencies {
     testImplementation libs.junit.jupiter
     testImplementation libs.assertj.core
     testImplementation libs.awaitility
-    testRuntimeOnly libs.logback.classic
+    // Used only by the conformance harness that targeting-rules-contract copies in for `make
+    // check-java`. Test scope; the SDK itself has no JSON parser yet.
+    testImplementation libs.jackson.databind
+    // A binding at runtime, and a ListAppender for the tests that assert the SDK reports a
+    // problem rather than swallowing it.
+    testImplementation libs.logback.classic
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
 
@@ -34,6 +39,11 @@ java {
 // CI's runtime matrix mean anything: without it the pinned toolchain would run every job.
 def testJavaVersion = providers.gradleProperty('testJavaVersion')
 
+// Where the cross-SDK contract cases live. ConformanceTest skips itself without it, since the
+// file belongs to the targeting-rules-contract repository rather than to this one.
+def conformanceCases = providers.environmentVariable('CONFORMANCE_CASES')
+def conformanceOutput = providers.environmentVariable('CONFORMANCE_OUTPUT')
+
 tasks.withType(JavaCompile).configureEach {
     options.encoding = 'UTF-8'
     options.compilerArgs << '-Xlint:all' << '-Werror'
@@ -41,6 +51,12 @@ tasks.withType(JavaCompile).configureEach {
 
 tasks.named('test') {
     useJUnitPlatform()
+    if (conformanceCases.present) {
+        environment 'CONFORMANCE_CASES', conformanceCases.get()
+    }
+    if (conformanceOutput.present) {
+        environment 'CONFORMANCE_OUTPUT', conformanceOutput.get()
+    }
     if (testJavaVersion.present) {
         javaLauncher = javaToolchains.launcherFor {
             languageVersion = JavaLanguageVersion.of(testJavaVersion.get() as Integer)

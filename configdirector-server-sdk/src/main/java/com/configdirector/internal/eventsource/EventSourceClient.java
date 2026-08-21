@@ -12,11 +12,9 @@ import java.util.function.Predicate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-/**
- * Keeps an SSE stream open, reconnecting when it drops. Handlers run on the reader thread, so one
- * that blocks stalls delivery. {@link #connect()} and {@link #close()} are safe from any thread,
- * including from inside a handler.
- */
+// Keeps an SSE stream open, reconnecting when it drops. Handlers run on the reader thread, so one
+// that blocks stalls delivery. connect() and close() are safe from any thread, including from
+// inside a handler.
 public final class EventSourceClient implements AutoCloseable {
 
   private static final int READ_SIZE = 1 << 13;
@@ -40,7 +38,7 @@ public final class EventSourceClient implements AutoCloseable {
 
   private final StreamOpener opener;
 
-  /** A supplied opener belongs to whoever supplied it, and may outlive this client. */
+  // A supplied opener belongs to whoever supplied it, and may outlive this client.
   private final boolean ownsOpener;
 
   private final Runnable onConnect;
@@ -51,10 +49,8 @@ public final class EventSourceClient implements AutoCloseable {
   private final Predicate<ReconnectionState> shouldReconnect;
   private final Function<ReconnectionState, Duration> calculateReconnectDelay;
 
-  /**
-   * Guards the compound parts of connect and close against each other, and publishes the response
-   * the reader is parked on. Everything else is a single volatile read or write.
-   */
+  // Guards the compound parts of connect and close against each other, and publishes the response
+  // the reader is parked on. Everything else is a single volatile read or write.
   private final Object lock = new Object();
 
   private volatile ReadyState readyState = ReadyState.CLOSED;
@@ -182,7 +178,7 @@ public final class EventSourceClient implements AutoCloseable {
     }
   }
 
-  /** Null means the loop should stop; a Failure means try again. */
+  // Null means the loop should stop; a Failure means try again.
   private Failure connectOnce(StopSignal signal) {
     ResponseStream stream;
     try {
@@ -309,7 +305,7 @@ public final class EventSourceClient implements AutoCloseable {
     notifyHandler("onDisconnect", onDisconnect);
   }
 
-  /** A reader that has been stopped must not resurrect the state it was closed out of. */
+  // A reader that has been stopped must not resurrect the state it was closed out of.
   private void setState(ReadyState state, StopSignal signal) {
     if (!signal.isSet()) {
       readyState = state;
@@ -383,7 +379,7 @@ public final class EventSourceClient implements AutoCloseable {
 
   private record Failure(Integer status, Throwable error) {}
 
-  /** Says whether a given reader should still be running, and doubles as its sleep. */
+  // Says whether a given reader should still be running, and doubles as its sleep.
   private static final class StopSignal {
 
     private final CountDownLatch latch = new CountDownLatch(1);
@@ -402,7 +398,7 @@ public final class EventSourceClient implements AutoCloseable {
       latch.countDown();
     }
 
-    /** True if the signal was set before {@code timeout} elapsed. */
+    // True if the signal was set before the timeout elapsed.
     boolean awaitFor(Duration timeout) {
       try {
         return latch.await(timeout.toNanos(), TimeUnit.NANOSECONDS);
@@ -446,7 +442,7 @@ public final class EventSourceClient implements AutoCloseable {
       return this;
     }
 
-    /** Merged over {@code Accept: text/event-stream}, which a caller may therefore override. */
+    // Merged over Accept: text/event-stream, which a caller may therefore override.
     public Builder headers(Map<String, String> headers) {
       this.headers = Map.copyOf(headers);
       return this;
@@ -462,16 +458,14 @@ public final class EventSourceClient implements AutoCloseable {
       return this;
     }
 
-    /** {@link Duration#ZERO} means no limit. */
+    // Duration.ZERO means no limit.
     public Builder connectTimeout(Duration connectTimeout) {
       this.connectTimeout = Objects.requireNonNull(connectTimeout, "connectTimeout");
       return this;
     }
 
-    /**
-     * How long an open stream may stay silent before it is treated as dead. {@link Duration#ZERO},
-     * the default, waits indefinitely, which is what a stream fed by server keepalives wants.
-     */
+    // How long an open stream may stay silent before it is treated as dead. Duration.ZERO,
+    // the default, waits indefinitely, which is what a stream fed by server keepalives wants.
     public Builder readTimeout(Duration readTimeout) {
       this.readTimeout = Objects.requireNonNull(readTimeout, "readTimeout");
       return this;
@@ -482,7 +476,7 @@ public final class EventSourceClient implements AutoCloseable {
       return this;
     }
 
-    /** An opener passed here stays the caller's to close. */
+    // An opener passed here stays the caller's to close.
     public Builder opener(StreamOpener opener) {
       this.opener = opener;
       return this;
@@ -523,22 +517,20 @@ public final class EventSourceClient implements AutoCloseable {
       return this;
     }
 
-    /** An HTTP error status is not an error here; it reaches shouldReconnect as a status. */
+    // An HTTP error status is not an error here; it reaches shouldReconnect as a status.
     public Builder onError(Consumer<Throwable> handler) {
       this.onError = Objects.requireNonNull(handler, "onError");
       return this;
     }
 
-    /** Defaults to always. A handler that throws is treated as having said yes. */
+    // Defaults to always. A handler that throws is treated as having said yes.
     public Builder shouldReconnect(Predicate<ReconnectionState> handler) {
       this.shouldReconnect = Objects.requireNonNull(handler, "shouldReconnect");
       return this;
     }
 
-    /**
-     * Defaults to the delay the server asked for. A delay outside one millisecond to one hour is
-     * reported through onError and replaced by the server's.
-     */
+    // Defaults to the delay the server asked for. A delay outside one millisecond to one hour is
+    // reported through onError and replaced by the server's.
     public Builder calculateReconnectDelay(Function<ReconnectionState, Duration> handler) {
       this.calculateReconnectDelay = Objects.requireNonNull(handler, "calculateReconnectDelay");
       return this;
