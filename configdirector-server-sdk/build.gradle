@@ -30,6 +30,10 @@ java {
     }
 }
 
+// The bytecode is always Java 17. This runs the suite on a different JVM, which is what makes
+// CI's runtime matrix mean anything: without it the pinned toolchain would run every job.
+def testJavaVersion = providers.gradleProperty('testJavaVersion')
+
 tasks.withType(JavaCompile).configureEach {
     options.encoding = 'UTF-8'
     options.compilerArgs << '-Xlint:all' << '-Werror'
@@ -37,6 +41,11 @@ tasks.withType(JavaCompile).configureEach {
 
 tasks.named('test') {
     useJUnitPlatform()
+    if (testJavaVersion.present) {
+        javaLauncher = javaToolchains.launcherFor {
+            languageVersion = JavaLanguageVersion.of(testJavaVersion.get() as Integer)
+        }
+    }
     // Several tests park a reader on a real socket, so a threading bug would surface as a suite
     // that never finishes rather than as a failure. This turns that back into a failure.
     timeout = Duration.ofMinutes(5)
