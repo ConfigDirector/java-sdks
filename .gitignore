@@ -10,3 +10,6 @@ build
 .claude
 .vscode
 .idea
+
+# Secrets. .env.example is the template for each sample.
+.env

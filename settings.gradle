@@ -7,3 +7,6 @@ plugins {
 rootProject.name = 'configdirector-java-server-sdk'
 
 include('configdirector-server-sdk')
+
+// Not published. Built with the SDK so a breaking API change fails here first.
+include('samples:spring-boot')
