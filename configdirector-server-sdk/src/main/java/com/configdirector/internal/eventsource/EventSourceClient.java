@@ -122,14 +122,17 @@ public final class EventSourceClient implements AutoCloseable {
     Thread reader;
     ResponseStream open;
     synchronized (lock) {
-      readyState = ReadyState.CLOSED;
       signal = stop;
+      // Set under the same lock that writes the state below. Setting it afterwards leaves a
+      // window where a reader has already passed its own isSet() check and publishes CONNECTING
+      // last, stranding the client in a state every later connect() refuses.
+      signal.set();
+      readyState = ReadyState.CLOSED;
       reader = worker;
       open = response;
       worker = null;
     }
 
-    signal.set();
     // Drops the connection under the reader so a read blocked waiting for the next event gives up,
     // rather than holding close() until the server happens to send something.
     if (open != null) {
@@ -176,7 +179,7 @@ public final class EventSourceClient implements AutoCloseable {
     } catch (Exception error) {
       // A state left at OPEN would have callers believing there is still a reader on the stream,
       // and the reader must not die without saying why. An Error propagates as itself.
-      readyState = ReadyState.CLOSED;
+      setState(ReadyState.CLOSED, signal);
       logger.error("[EventSource] The connection loop stopped unexpectedly", error);
     }
   }
@@ -305,16 +308,26 @@ public final class EventSourceClient implements AutoCloseable {
     serverDelay = Duration.ofMillis(milliseconds);
   }
 
+  @SuppressWarnings("ReferenceEquality")
   private void disconnected(StopSignal signal) {
-    readyState = ReadyState.CLOSED;
-    signal.set();
+    synchronized (lock) {
+      signal.set();
+      if (stop == signal) {
+        readyState = ReadyState.CLOSED;
+      }
+    }
+    // Outside the lock: a handler is free to call close(), which takes it.
     notifyHandler("onDisconnect", onDisconnect);
   }
 
-  // A reader that has been stopped must not resurrect the state it was closed out of.
+  // Only the reader that is still the current one may publish a state, and never once it has
+  // been stopped: either would resurrect a state the client was closed out of.
+  @SuppressWarnings("ReferenceEquality")
   private void setState(ReadyState state, StopSignal signal) {
-    if (!signal.isSet()) {
-      readyState = state;
+    synchronized (lock) {
+      if (!signal.isSet() && stop == signal) {
+        readyState = state;
+      }
     }
   }
 
