@@ -6,6 +6,7 @@ import com.configdirector.ConfigDirectorValidationException;
 import com.configdirector.ConfigEvaluatedEvent;
 import com.configdirector.ConfigEvaluation;
 import com.configdirector.ConfigState;
+import com.configdirector.ConfigType;
 import com.configdirector.ConfigsUpdatedEvent;
 import com.configdirector.ConnectionMode;
 import com.configdirector.ConnectionOptions;
@@ -13,10 +14,14 @@ import com.configdirector.Context;
 import com.configdirector.EvaluationReason;
 import com.configdirector.Metadata;
 import com.configdirector.Subscription;
+import com.configdirector.TelemetryOptions;
 import com.configdirector.internal.SdkIdentity;
 import com.configdirector.internal.evaluation.Config;
 import com.configdirector.internal.evaluation.ConfigEvaluator;
 import com.configdirector.internal.evaluation.EvaluationContext;
+import com.configdirector.internal.telemetry.TelemetryCollector;
+import com.configdirector.internal.telemetry.TelemetryCollectorOptions;
+import com.configdirector.internal.telemetry.TelemetryValue;
 import com.configdirector.internal.transport.ConfigBundle;
 import com.configdirector.internal.transport.HttpClient;
 import com.configdirector.internal.transport.Transport;
@@ -48,6 +53,7 @@ public final class DefaultConfigDirectorClient implements ConfigDirectorClient {
   private final HttpClient http;
   private final ConfigEvaluator evaluator;
   private final Transport transport;
+  private final TelemetryCollector telemetry;
 
   private final Object lock = new Object();
   private final CountDownLatch ready = new CountDownLatch(1);
@@ -62,7 +68,11 @@ public final class DefaultConfigDirectorClient implements ConfigDirectorClient {
   private boolean closed;
 
   public DefaultConfigDirectorClient(
-      String serverSdkKey, Metadata metadata, ConnectionOptions connection, Logger logger) {
+      String serverSdkKey,
+      Metadata metadata,
+      ConnectionOptions connection,
+      TelemetryOptions telemetry,
+      Logger logger) {
     if (serverSdkKey == null || serverSdkKey.isBlank()) {
       throw new ConfigDirectorValidationException(
           "No server SDK key was provided, the client cannot be instantiated without a valid "
@@ -75,8 +85,9 @@ public final class DefaultConfigDirectorClient implements ConfigDirectorClient {
     this.baseUrl = validatedUrl(this.connection.url());
     this.evaluator = new ConfigEvaluator(logger);
 
-    // One pool for every request/response call this client makes. Owned here so close() releases
-    // the connections it opened, rather than leaving them in a pool shared across the process.
+    // One pool for every request/response call this client makes -- polling and telemetry both.
+    // Owned here so close() releases the connections it opened, rather than leaving them in a pool
+    // shared across the process.
     this.http = new HttpClient();
     this.transport =
         Transports.create(
@@ -89,6 +100,18 @@ public final class DefaultConfigDirectorClient implements ConfigDirectorClient {
                 this::onBundle,
                 http,
                 this.connection.pollingInterval()));
+
+    TelemetryOptions telemetryOptions = telemetry == null ? TelemetryOptions.defaults() : telemetry;
+    this.telemetry =
+        new TelemetryCollector(
+            new TelemetryCollectorOptions(
+                serverSdkKey,
+                baseUrl,
+                logger,
+                http,
+                telemetryOptions.eventQueueLimit(),
+                telemetryOptions.flushInterval(),
+                TelemetryCollector.INITIAL_FLUSH_DELAY));
   }
 
   @Override
@@ -165,6 +188,9 @@ public final class DefaultConfigDirectorClient implements ConfigDirectorClient {
     // Releases anyone still blocked in initialize().
     ready.countDown();
     transport.close();
+    // Reports whatever was evaluated since the last flush. Before the pool closes: that final
+    // report is the client's last request, and it needs the pool still open to send it.
+    telemetry.close();
     http.close();
     logger.debug("[ConfigDirectorClient] close() has been called, the client is now closed");
   }
@@ -330,33 +356,41 @@ public final class DefaultConfigDirectorClient implements ConfigDirectorClient {
       logger.debug(
           "[ConfigDirectorClient] No config state found for {}, returning the default value",
           configKey);
-      emitEvaluation(configKey, defaultValue, true, reason, null, context);
+      report(
+          new ConfigEvaluation(
+              configKey,
+              defaultValue,
+              true,
+              reason,
+              TelemetryValue.idFor(defaultValue, null),
+              context),
+          defaultValue,
+          null);
       return defaultValue;
     }
 
     ConfigState state = evaluator.evaluate(definition, new EvaluationContext(context, metadata));
     ParseResult result = ValueParser.parse(state, defaultValue);
     logger.debug("[ConfigDirectorClient] Evaluated {} to {}", configKey, result.value());
-    emitEvaluation(
-        configKey, result.value(), result.usedDefault(), result.reason(), result.valueId(), context);
+    // The server identifies every value it sends, so the fallback only comes into play for a
+    // default returned from here and for a payload that predates value IDs.
+    String valueId =
+        result.valueId() == null
+            ? TelemetryValue.idFor(result.value(), state.type())
+            : result.valueId();
+    report(
+        new ConfigEvaluation(
+            configKey, result.value(), result.usedDefault(), result.reason(), valueId, context),
+        defaultValue,
+        state.type());
     return result.value();
   }
 
-  private void emitEvaluation(
-      String configKey,
-      Object value,
-      boolean isDefault,
-      EvaluationReason reason,
-      String valueId,
-      Context context) {
-    if (evaluationHandlers.isEmpty()) {
-      return;
+  private void report(ConfigEvaluation evaluation, Object defaultValue, ConfigType type) {
+    telemetry.recordEvaluation(evaluation, defaultValue, type);
+    if (!evaluationHandlers.isEmpty()) {
+      emit(evaluationHandlers, new ConfigEvaluatedEvent(evaluation), "configEvaluated");
     }
-    emit(
-        evaluationHandlers,
-        new ConfigEvaluatedEvent(
-            new ConfigEvaluation(configKey, value, isDefault, reason, valueId, context)),
-        "configEvaluated");
   }
 
   @Override

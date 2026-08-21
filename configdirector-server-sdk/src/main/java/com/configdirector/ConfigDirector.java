@@ -50,6 +50,10 @@ public final class ConfigDirector {
     ClientOptions options = new ClientOptions();
     configure.accept(options);
     return new DefaultConfigDirectorClient(
-        serverSdkKey, options.metadata(), options.connection(), options.logger());
+        serverSdkKey,
+        options.metadata(),
+        options.connection(),
+        options.telemetry(),
+        options.logger());
   }
 }

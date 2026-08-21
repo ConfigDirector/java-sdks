@@ -9,6 +9,7 @@ import com.configdirector.ConfigDirectorClient;
 import com.configdirector.ConfigDirectorValidationException;
 import com.configdirector.ConnectionMode;
 import com.configdirector.ConnectionOptions;
+import com.configdirector.TelemetryOptions;
 import java.time.Duration;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.junit.jupiter.api.DisplayName;
@@ -94,6 +95,68 @@ class ClientOptionsTest {
   }
 
   @Nested
+  @DisplayName("telemetry settings")
+  class Telemetry {
+
+    @Test
+    void are_left_at_their_defaults_when_untouched() {
+      TelemetryOptions defaults = TelemetryOptions.defaults();
+
+      assertThat(defaults.eventQueueLimit()).isEqualTo(TelemetryOptions.DEFAULT_EVENT_QUEUE_LIMIT);
+      assertThat(defaults.flushInterval()).isEqualTo(TelemetryOptions.DEFAULT_FLUSH_INTERVAL);
+    }
+
+    @Test
+    void can_be_tuned_through_the_nested_lambda() {
+      try (ConfigDirectorClient client =
+          ConfigDirector.client(
+              "sdk-key",
+              options ->
+                  options.telemetry(
+                      telemetry ->
+                          telemetry.eventQueueLimit(200).flushInterval(Duration.ofSeconds(5))))) {
+        assertThat(client).isNotNull();
+      }
+    }
+
+    @Test
+    void can_be_supplied_ready_built_for_reuse() {
+      TelemetryOptions shared = TelemetryOptions.builder().eventQueueLimit(200).build();
+
+      try (ConfigDirectorClient first = ConfigDirector.client("k", options -> options.telemetry(shared));
+          ConfigDirectorClient second =
+              ConfigDirector.client("k", options -> options.telemetry(shared))) {
+        assertThat(first).isNotSameAs(second);
+      }
+    }
+
+    @Test
+    void an_event_queue_limit_out_of_range_is_rejected() {
+      assertThatExceptionOfType(ConfigDirectorValidationException.class)
+          .isThrownBy(() -> TelemetryOptions.builder().eventQueueLimit(99).build())
+          .withMessageContaining("between 100 and 100000");
+      assertThatExceptionOfType(ConfigDirectorValidationException.class)
+          .isThrownBy(() -> TelemetryOptions.builder().eventQueueLimit(100_001).build());
+    }
+
+    @Test
+    void a_flush_interval_that_is_not_positive_is_rejected() {
+      assertThatExceptionOfType(ConfigDirectorValidationException.class)
+          .isThrownBy(() -> TelemetryOptions.builder().flushInterval(Duration.ZERO).build());
+      assertThatExceptionOfType(ConfigDirectorValidationException.class)
+          .isThrownBy(() -> TelemetryOptions.builder().flushInterval(Duration.ofSeconds(-1)).build());
+    }
+
+    @Test
+    void the_bounds_are_inclusive() {
+      assertThat(TelemetryOptions.builder().eventQueueLimit(100).build().eventQueueLimit())
+          .isEqualTo(100);
+      assertThat(TelemetryOptions.builder().eventQueueLimit(100_000).build().eventQueueLimit())
+          .isEqualTo(100_000);
+    }
+  }
+
+  @Nested
   @DisplayName("rejections")
   class Rejections {
 
@@ -119,6 +182,9 @@ class ClientOptionsTest {
       assertThatNullPointerException()
           .isThrownBy(
               () -> ConfigDirector.client("k", options -> options.connection((ConnectionOptions) null)));
+      assertThatNullPointerException()
+          .isThrownBy(
+              () -> ConfigDirector.client("k", options -> options.telemetry((TelemetryOptions) null)));
     }
 
     @Test

@@ -15,6 +15,7 @@ public final class ClientOptions {
 
   private Metadata metadata = Metadata.empty();
   private ConnectionOptions connection = ConnectionOptions.defaults();
+  private TelemetryOptions telemetry = TelemetryOptions.defaults();
   private Logger logger = LoggerFactory.getLogger(ConfigDirector.LOGGER_NAME);
 
   ClientOptions() {}
@@ -44,6 +45,20 @@ public final class ClientOptions {
     return this;
   }
 
+  public ClientOptions telemetry(Consumer<TelemetryOptions.Builder> configure) {
+    Objects.requireNonNull(configure, "configure");
+    TelemetryOptions.Builder builder = TelemetryOptions.builder();
+    configure.accept(builder);
+    this.telemetry = builder.build();
+    return this;
+  }
+
+  /** For settings built once and shared by several clients. */
+  public ClientOptions telemetry(TelemetryOptions telemetry) {
+    this.telemetry = Objects.requireNonNull(telemetry, "telemetry");
+    return this;
+  }
+
   /** Defaults to the SLF4J logger named {@value ConfigDirector#LOGGER_NAME}. */
   public ClientOptions logger(Logger logger) {
     this.logger = Objects.requireNonNull(logger, "logger");
@@ -56,6 +71,10 @@ public final class ClientOptions {
 
   ConnectionOptions connection() {
     return connection;
+  }
+
+  TelemetryOptions telemetry() {
+    return telemetry;
   }
 
   Logger logger() {
