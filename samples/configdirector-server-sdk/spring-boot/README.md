@@ -7,13 +7,13 @@ evaluates a handful of configs and returns them as JSON.
 ## Running it
 
 ```bash
-./gradlew :samples:spring-boot:bootRun
+./gradlew :samples:configdirector-server-sdk:spring-boot:bootRun
 ```
 
 To point it at a real ConfigDirector environment, copy the template and fill in your key:
 
 ```bash
-cd samples/spring-boot
+cd samples/configdirector-server-sdk/spring-boot
 cp .env.example .env
 ```
 
@@ -42,7 +42,7 @@ matching `Context` fields, and anything else becomes a trait:
 /configs?id=user-123&name=Ada&plan=pro&region=eu
 ```
 
-Run the smoke tests with `./gradlew :samples:spring-boot:test`.
+Run the smoke tests with `./gradlew :samples:configdirector-server-sdk:spring-boot:test`.
 
 ## The client is a singleton
 
@@ -132,8 +132,9 @@ spring.config.import=optional:file:.env[.properties]
 `[.properties]` tells Spring to parse the file as `KEY=value` pairs, and `optional:` means the app
 still starts when there is no `.env` at all.
 
-**Put `.env` next to this README**, at `samples/spring-boot/.env` — `bootRun` runs with the module
-directory as its working directory, and `file:.env` is resolved relative to that.
+**Put `.env` next to this README**, at `samples/configdirector-server-sdk/spring-boot/.env` —
+`bootRun` runs with the module directory as its working directory, and `file:.env` is resolved
+relative to that.
 
 Anything in it overrides the defaults baked into `application.properties`:
 
@@ -153,7 +154,7 @@ which is what you want in production, where the platform injects secrets rather 
 `.env`:
 
 ```bash
-CONFIGDIRECTOR_MODE=one-time ./gradlew :samples:spring-boot:bootRun
+CONFIGDIRECTOR_MODE=one-time ./gradlew :samples:configdirector-server-sdk:spring-boot:bootRun
 ```
 
 The tests set `spring.config.import=` to empty, so a `.env` on your machine cannot change what

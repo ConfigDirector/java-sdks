@@ -8,5 +8,6 @@ rootProject.name = 'configdirector-java-server-sdk'
 
 include('configdirector-server-sdk')
 
-// Not published. Built with the SDK so a breaking API change fails here first.
-include('samples:spring-boot')
+// Not published. Built with the SDK so a breaking API change fails here first. Samples are grouped
+// by the artifact they demonstrate, since this repository will hold more than one.
+include('samples:configdirector-server-sdk:spring-boot')
