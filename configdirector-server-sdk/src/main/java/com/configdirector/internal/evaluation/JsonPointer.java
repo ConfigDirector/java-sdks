@@ -5,7 +5,11 @@ import java.util.Map;
 
 final class JsonPointer {
 
-  private static final Object MISSING = new Object();
+  // Distinguishes "no such member" from a member whose value is JSON null. An enum rather than a
+  // bare Object so the identity comparisons read as deliberate.
+  private enum Missing {
+    TOKEN
+  }
 
   private JsonPointer() {}
 
@@ -20,7 +24,7 @@ final class JsonPointer {
       // ~1 before ~0, so that "~01" resolves to "~1" rather than to "/".
       String token = rawToken.replace("~1", "/").replace("~0", "~");
       current = step(current, token);
-      if (current == MISSING) {
+      if (current == Missing.TOKEN) {
         return null;
       }
     }
@@ -30,21 +34,21 @@ final class JsonPointer {
   private static Object step(Object current, String token) {
     if (current instanceof Map<?, ?> map) {
       Object value = map.get(token);
-      return value == null && !map.containsKey(token) ? MISSING : value;
+      return value == null && !map.containsKey(token) ? Missing.TOKEN : value;
     }
     if (current instanceof List<?> list) {
       int index;
       try {
         index = Integer.parseInt(token);
       } catch (NumberFormatException notAnIndex) {
-        return MISSING;
+        return Missing.TOKEN;
       }
       // RFC 6901 indexes are unsigned; Java's negative indexing must not leak in.
       if (index < 0 || index >= list.size()) {
-        return MISSING;
+        return Missing.TOKEN;
       }
       return list.get(index);
     }
-    return MISSING;
+    return Missing.TOKEN;
   }
 }

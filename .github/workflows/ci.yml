@@ -18,9 +18,9 @@ defaults:
     shell: bash
 
 env:
-  # The version the library compiles against. The toolchain in the module's build.gradle pins the same
-  # one, so installing it here is what keeps CI from downloading a JDK on every run.
-  BUILD_JDK: '17'
+  # Runs the build and its tooling; Error Prone needs 21. What the SDK itself may use is pinned to
+  # 17 by options.release, not by this. Matches the toolchain so CI never provisions a JDK.
+  BUILD_JDK: '21'
 
 jobs:
   build:
@@ -89,14 +89,15 @@ jobs:
             configdirector-server-sdk/build/test-results/test
 
   runtime-compatibility:
-    # Same Java 17 bytecode, run on the later LTS releases a consumer may deploy on.
+    # The SDK targets 17 but is no longer compiled by a 17 javac, so running the suite on 17 is
+    # what proves the floor still holds. 25 is the other end; the build job already covers 21.
     name: Test (JDK ${{ matrix.java }} runtime)
     runs-on: ubuntu-latest
     timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
-        java: ['21', '25']
+        java: ['17', '25']
     steps:
       - uses: actions/checkout@v5
 

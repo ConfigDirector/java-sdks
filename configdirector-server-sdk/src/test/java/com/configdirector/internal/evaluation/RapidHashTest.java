@@ -14,7 +14,7 @@ import org.junit.jupiter.params.provider.MethodSource;
 /**
  * Vectors pinning the port against the reference implementation.
  * They cover each short-input length, the 16/17-byte boundary, the 112-byte
- * block loop and its remainder cases, and multi-byte UTF-8.
+ * block loop and its remainder cases, and multibyte UTF-8.
  */
 class RapidHashTest {
 

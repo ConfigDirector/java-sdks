@@ -89,7 +89,7 @@ class JsonPointerTest {
 
     @Test
     void tilde_zero_one_is_a_literal_tilde_one() {
-      // Unescaping ~0 first would turn this into "/" instead.
+      // Un-escaping ~0 first would turn this into "/" instead.
       Map<String, Object> document = Map.of("~1", "literal");
 
       assertThat(JsonPointer.findByPointer("/~01", document)).isEqualTo("literal");

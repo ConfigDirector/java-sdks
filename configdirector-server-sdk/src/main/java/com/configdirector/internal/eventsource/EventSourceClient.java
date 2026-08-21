@@ -56,7 +56,6 @@ public final class EventSourceClient implements AutoCloseable {
   private volatile ReadyState readyState = ReadyState.CLOSED;
   private volatile String lastEventId;
   private volatile Duration serverDelay = DEFAULT_SERVER_DELAY;
-  private volatile int attempt;
 
   private StopSignal stop = StopSignal.alreadyStopped();
   private Thread worker;
@@ -105,7 +104,6 @@ public final class EventSourceClient implements AutoCloseable {
         return;
       }
       readyState = ReadyState.CONNECTING;
-      attempt = 0;
 
       // A fresh signal per reader: the one the last reader was closed out of stays set forever.
       StopSignal signal = new StopSignal();
@@ -116,6 +114,8 @@ public final class EventSourceClient implements AutoCloseable {
     }
   }
 
+  // Identity is the question being asked: whether this is the very same thread, not an equal one.
+  @SuppressWarnings("ReferenceEquality")
   @Override
   public void close() {
     StopSignal signal;
@@ -150,6 +150,9 @@ public final class EventSourceClient implements AutoCloseable {
   }
 
   private void run(StopSignal signal) {
+    // Consecutive failures, owned by this loop alone. A connection that opened resets the count,
+    // so a stream that comes back and drops again starts over at one.
+    int attempt = 0;
     try {
       while (true) {
         Failure failure = connectOnce(signal);
@@ -157,10 +160,10 @@ public final class EventSourceClient implements AutoCloseable {
           return;
         }
 
-        attempt++;
+        attempt = failure.streamOpened() ? 1 : attempt + 1;
         ReconnectionState state =
             new ReconnectionState(attempt, serverDelay, failure.status(), failure.error());
-        if (!askShouldReconnect(state)) {
+        if (!evaluateShouldReconnect(state)) {
           disconnected(signal);
           return;
         }
@@ -179,6 +182,8 @@ public final class EventSourceClient implements AutoCloseable {
   }
 
   // Null means the loop should stop; a Failure means try again.
+  // Identity again: only this attempt's own stream may be cleared from the shared field.
+  @SuppressWarnings("ReferenceEquality")
   private Failure connectOnce(StopSignal signal) {
     ResponseStream stream;
     try {
@@ -188,17 +193,18 @@ public final class EventSourceClient implements AutoCloseable {
         return null;
       }
       notifyError(error);
-      return new Failure(null, error);
+      return new Failure(null, error, false);
     }
 
     int status = stream.status();
+    boolean opened = false;
     try {
       if (status == HTTP_NO_CONTENT) {
         disconnected(signal);
         return null;
       }
       if (status >= HTTP_BAD_REQUEST) {
-        return new Failure(status, null);
+        return new Failure(status, null, false);
       }
 
       // Published before the first read, so close() has something to interrupt.
@@ -212,13 +218,14 @@ public final class EventSourceClient implements AutoCloseable {
       }
 
       beginStream(signal);
+      opened = true;
       read(stream, signal);
     } catch (Exception error) {
       if (signal.isSet()) {
         return null;
       }
       notifyError(error);
-      return new Failure(status, error);
+      return new Failure(status, error, opened);
     } finally {
       synchronized (lock) {
         if (response == stream) {
@@ -231,7 +238,7 @@ public final class EventSourceClient implements AutoCloseable {
     if (signal.isSet()) {
       return null;
     }
-    return new Failure(status, new StreamClosedException("The event stream was closed"));
+    return new Failure(status, new StreamClosedException("The event stream was closed"), opened);
   }
 
   private ResponseStream open(StopSignal signal) {
@@ -255,7 +262,6 @@ public final class EventSourceClient implements AutoCloseable {
 
   private void beginStream(StopSignal signal) {
     setState(ReadyState.OPEN, signal);
-    attempt = 0;
     notifyHandler("onConnect", onConnect);
   }
 
@@ -314,7 +320,7 @@ public final class EventSourceClient implements AutoCloseable {
 
   private Duration reconnectDelay(ReconnectionState state) {
     Duration fallback = serverDelay;
-    Duration delay = askReconnectDelay(state, fallback);
+    Duration delay = evaluateReconnectDelay(state, fallback);
     if (delay == null
         || delay.compareTo(MIN_RECONNECT_DELAY) < 0
         || delay.compareTo(MAX_RECONNECT_DELAY) > 0) {
@@ -342,7 +348,7 @@ public final class EventSourceClient implements AutoCloseable {
     notifyHandler("onError", () -> onError.accept(error));
   }
 
-  private boolean askShouldReconnect(ReconnectionState state) {
+  private boolean evaluateShouldReconnect(ReconnectionState state) {
     try {
       return shouldReconnect.test(state);
     } catch (Exception error) {
@@ -351,7 +357,7 @@ public final class EventSourceClient implements AutoCloseable {
     }
   }
 
-  private Duration askReconnectDelay(ReconnectionState state, Duration fallback) {
+  private Duration evaluateReconnectDelay(ReconnectionState state, Duration fallback) {
     try {
       return calculateReconnectDelay.apply(state);
     } catch (Exception error) {
@@ -377,7 +383,7 @@ public final class EventSourceClient implements AutoCloseable {
     }
   }
 
-  private record Failure(Integer status, Throwable error) {}
+  private record Failure(Integer status, Throwable error, boolean streamOpened) {}
 
   // Says whether a given reader should still be running, and doubles as its sleep.
   private static final class StopSignal {

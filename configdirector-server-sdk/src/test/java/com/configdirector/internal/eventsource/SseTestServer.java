@@ -35,7 +35,7 @@ final class SseTestServer implements AutoCloseable {
 
   private SseTestServer(Consumer<Session> handler) throws IOException {
     this.handler = handler;
-    this.serverSocket = new ServerSocket(0, 0, InetAddress.getByName("127.0.0.1"));
+    this.serverSocket = new ServerSocket(0, 0, InetAddress.getLoopbackAddress());
     this.acceptor = new Thread(this::acceptLoop, "sse-test-server");
     this.acceptor.setDaemon(true);
     this.acceptor.start();
@@ -140,8 +140,8 @@ final class SseTestServer implements AutoCloseable {
       this.out = socket.getOutputStream();
       InputStream in = socket.getInputStream();
 
-      String[] head = readHead(in).split("\r\n");
-      String[] requestLine = head[0].split(" ");
+      String[] head = readHead(in).split("\r\n", -1);
+      String[] requestLine = head[0].split(" ", -1);
       this.method = requestLine[0];
       this.path = requestLine.length > 1 ? requestLine[1] : "/";
       for (int i = 1; i < head.length; i++) {

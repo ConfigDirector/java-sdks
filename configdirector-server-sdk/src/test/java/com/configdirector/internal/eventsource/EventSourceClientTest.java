@@ -396,7 +396,7 @@ class EventSourceClientTest {
                     throw new IllegalStateException("handler blew up");
                   }));
 
-      // The fallback is the two second server default, so one retry is all this can observe
+      // The fallback is the two-second server default, so one retry is all this can observe
       // without waiting on it.
       awaitUntil(() -> opener.attemptCount() >= 1);
       assertThat(client.readyState()).isEqualTo(ReadyState.CONNECTING);

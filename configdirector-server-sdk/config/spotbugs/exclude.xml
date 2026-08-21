@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<FindBugsFilter>
+  <!--
+    EI/EI2 fire on every field that holds or hands back a mutable object. They are aimed at
+    defending a class from hostile callers, which is not a threat model an internal parameter
+    object has. Ours are deliberate: request bodies are carriers passed straight to the transport,
+    and ReconnectionState exists precisely to hand the caller the Throwable that ended the stream.
+  -->
+  <Match>
+    <Bug pattern="EI_EXPOSE_REP,EI_EXPOSE_REP2"/>
+  </Match>
+</FindBugsFilter>

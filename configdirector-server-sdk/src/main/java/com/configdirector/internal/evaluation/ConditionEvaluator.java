@@ -5,18 +5,22 @@ import java.util.Map;
 
 public final class ConditionEvaluator {
 
-  // An attribute the context does not carry. Compared as "", so a negative operator such as
-  // "does NOT equal" can still match.
-  private static final Object ABSENT = new Object();
+  // Stands in for a resolved value where there is none. An enum rather than a bare Object so the
+  // identity comparisons below read as deliberate; no trait value can ever be one of these.
+  private enum Unresolved {
+    // The context does not carry the attribute. Compared as "", so a negative operator such as
+    // "does NOT equal" can still match.
+    ABSENT,
 
-  // An attribute this SDK version does not know about. Unlike an absent value it is not compared
-  // at all -- there is nothing sensible to compare it against.
-  private static final Object UNKNOWN_ATTRIBUTE = new Object();
+    // This SDK version does not know the attribute. Unlike an absent value it is not compared at
+    // all -- there is nothing sensible to compare it against.
+    UNKNOWN_ATTRIBUTE
+  }
 
   public boolean evaluate(Condition condition, EvaluationContext context) {
     EvaluationContext resolved = context == null ? EvaluationContext.empty() : context;
     Object value = resolve(condition, resolved);
-    if (value == UNKNOWN_ATTRIBUTE) {
+    if (value == Unresolved.UNKNOWN_ATTRIBUTE) {
       return false;
     }
 
@@ -38,28 +42,28 @@ public final class ConditionEvaluator {
       case "appName" -> orAbsent(context.metadataOrEmpty().appName());
       case "appVersion" -> orAbsent(context.metadataOrEmpty().appVersion());
       case "traits" -> resolveTrait(condition, subject.traits());
-      default -> UNKNOWN_ATTRIBUTE;
+      default -> Unresolved.UNKNOWN_ATTRIBUTE;
     };
   }
 
   private static Object resolveTrait(Condition condition, Map<String, Object> traits) {
     String trait = condition.trait();
     if (trait == null || trait.isEmpty()) {
-      return ABSENT;
+      return Unresolved.ABSENT;
     }
     return orAbsent(JsonPointer.findByPointer(trait, traits));
   }
 
   private static Object orAbsent(Object value) {
-    return value == null ? ABSENT : value;
+    return value == null ? Unresolved.ABSENT : value;
   }
 
   private static Object unwrap(Object value) {
-    return value == ABSENT ? null : value;
+    return value == Unresolved.ABSENT ? null : value;
   }
 
   private static String render(Object value) {
-    if (value == ABSENT || value == null) {
+    if (value == Unresolved.ABSENT || value == null) {
       return "";
     }
     // Lists and maps have no text form, so they render empty rather than as an object address.

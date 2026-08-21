@@ -1,5 +1,10 @@
+import com.github.spotbugs.snom.Confidence
+import com.github.spotbugs.snom.Effort
+
 plugins {
     id 'java-library'
+    alias libs.plugins.errorprone
+    alias libs.plugins.spotbugs
 }
 
 repositories {
@@ -25,13 +30,15 @@ dependencies {
     // problem rather than swallowing it.
     testImplementation libs.logback.classic
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+
+    errorprone libs.errorprone.core
 }
 
 java {
-    // Java 17 is the compilation target; the toolchain compiles against exactly that API rather
-    // than against whichever JDK happens to be installed.
+    // 21 runs the build's tooling -- Error Prone needs it. What the SDK itself may use is pinned
+    // by options.release below, not by this.
     toolchain {
-        languageVersion = JavaLanguageVersion.of(17)
+        languageVersion = JavaLanguageVersion.of(21)
     }
 }
 
@@ -46,7 +53,26 @@ def conformanceOutput = providers.environmentVariable('CONFORMANCE_OUTPUT')
 
 tasks.withType(JavaCompile).configureEach {
     options.encoding = 'UTF-8'
+
+    // The minimum Java the SDK supports. --release checks against the real 17 API rather than
+    // just emitting 17 bytecode, so a call to anything newer fails the build here rather than
+    // NoSuchMethodError-ing in a consumer running 17.
+    options.release = 17
+
     options.compilerArgs << '-Xlint:all' << '-Werror'
+
+    options.errorprone {
+        // Findings are warnings, which -Werror above turns into build failures.
+        disableWarningsInGeneratedCode = true
+    }
+}
+
+// Bytecode analysis, which reaches things a javac plugin cannot -- notably a constructor that
+// stores a caller's mutable collection rather than copying it.
+spotbugs {
+    effort = Effort.valueOf('MAX')
+    reportLevel = Confidence.valueOf('DEFAULT')
+    excludeFilter = file('config/spotbugs/exclude.xml')
 }
 
 tasks.named('test') {

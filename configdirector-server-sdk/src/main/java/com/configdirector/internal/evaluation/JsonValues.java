@@ -22,7 +22,7 @@ final class JsonValues {
       return text;
     }
     if (value instanceof Boolean flag) {
-      return flag ? "true" : "false";
+      return flag.toString();
     }
     if (value instanceof Double || value instanceof Float) {
       return renderDouble(((Number) value).doubleValue());

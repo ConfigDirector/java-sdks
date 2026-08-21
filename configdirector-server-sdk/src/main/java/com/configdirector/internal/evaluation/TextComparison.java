@@ -22,7 +22,7 @@ final class TextComparison {
     String first = targetValues.isEmpty() ? null : targetValues.get(0);
 
     return switch (operator.toLowerCase(Locale.ROOT)) {
-      case "=", "equals" -> first != null && value.equals(first);
+      case "=", "equals" -> value.equals(first);
       case "!=", "does not equal" -> first != null && !value.equals(first);
       case "is one of" -> targetValues.contains(value);
       case "is not one of" -> !targetValues.contains(value);
