@@ -1,4 +1,4 @@
-name: java-server-sdk
+name: configdirector-server-sdk
 
 on:
   push:
