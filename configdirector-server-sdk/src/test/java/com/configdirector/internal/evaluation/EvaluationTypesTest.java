@@ -69,6 +69,50 @@ class EvaluationTypesTest {
     }
 
     @Test
+    void targeting_rules_come_back_ordered() {
+      // Sorted here rather than on every evaluation, so the evaluator can walk the list as it is.
+      TargetingRules target =
+          new TargetingRules(
+              "fallback",
+              null,
+              List.of(
+                  new PercentageRule("third", 9, List.of()),
+                  new PercentageRule("last", null, List.of()),
+                  new PercentageRule("first", 1, List.of())));
+
+      assertThat(target.rules()).extracting(Rule::id).containsExactly("first", "third", "last");
+    }
+
+    @Test
+    void targeting_rules_keep_the_order_the_server_sent_for_rules_that_share_one() {
+      TargetingRules target =
+          new TargetingRules(
+              "fallback",
+              null,
+              List.of(
+                  new PercentageRule("a", 2, List.of()),
+                  new PercentageRule("b", 2, List.of()),
+                  new PercentageRule("c", 1, List.of())));
+
+      assertThat(target.rules()).extracting(Rule::id).containsExactly("c", "a", "b");
+    }
+
+    @Test
+    void a_condition_splits_its_trait_pointer_once() {
+      // Derived rather than supplied: a bundle carries the pointer, not the path.
+      Condition condition =
+          new Condition("c", "traits", "equals", "text", List.of("pro"), "/billing/x~1y");
+
+      assertThat(condition.traitPath()).containsExactly("billing", "x/y");
+    }
+
+    @Test
+    void a_condition_on_something_other_than_a_trait_has_no_path() {
+      assertThat(new Condition("c", "identifier", "equals", "text", List.of("a"), null).traitPath())
+          .isNull();
+    }
+
+    @Test
     void a_config_normalizes_a_null_variation_list() {
       Config config = new Config("id", "key", ConfigType.STRING, null, null, null);
 

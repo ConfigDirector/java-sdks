@@ -1,5 +1,6 @@
 package com.configdirector.internal.evaluation;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -13,16 +14,37 @@ final class JsonPointer {
 
   private JsonPointer() {}
 
-  static Object findByPointer(String pointer, Object document) {
-    if (pointer == null || !pointer.startsWith("/")) {
+  // Null for a pointer that addresses nothing, which is what findByPointer resolves to. Split
+  // once, when the config is parsed: the pointer is a constant of the condition, and resolving it
+  // runs on the caller's thread for every condition of every config read.
+  static List<String> parse(String pointer) {
+    if (pointer == null || pointer.isEmpty() || pointer.charAt(0) != '/') {
+      return null;
+    }
+
+    List<String> tokens = new ArrayList<>();
+    int from = 1;
+    while (true) {
+      int separator = pointer.indexOf('/', from);
+      // A trailing empty token addresses a member whose name is the empty string.
+      int end = separator < 0 ? pointer.length() : separator;
+      String raw = pointer.substring(from, end);
+      // ~1 before ~0, so that "~01" resolves to "~1" rather than to "/".
+      tokens.add(raw.indexOf('~') < 0 ? raw : raw.replace("~1", "/").replace("~0", "~"));
+      if (separator < 0) {
+        return List.copyOf(tokens);
+      }
+      from = separator + 1;
+    }
+  }
+
+  static Object findByPath(List<String> path, Object document) {
+    if (path == null) {
       return null;
     }
 
     Object current = document;
-    // -1 keeps a trailing empty token, which addresses a member whose name is the empty string.
-    for (String rawToken : pointer.substring(1).split("/", -1)) {
-      // ~1 before ~0, so that "~01" resolves to "~1" rather than to "/".
-      String token = rawToken.replace("~1", "/").replace("~0", "~");
+    for (String token : path) {
       current = step(current, token);
       if (current == Missing.TOKEN) {
         return null;

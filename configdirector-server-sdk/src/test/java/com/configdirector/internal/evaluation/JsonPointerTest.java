@@ -32,8 +32,10 @@ class JsonPointerTest {
     return root;
   }
 
+  // Parsed then resolved, which is how a condition uses it: the pointer is split once when the
+  // config is parsed, and only the path reaches the evaluation.
   private static Object find(String pointer) {
-    return JsonPointer.findByPointer(pointer, DOCUMENT);
+    return JsonPointer.findByPath(JsonPointer.parse(pointer), DOCUMENT);
   }
 
   @Nested
@@ -92,7 +94,8 @@ class JsonPointerTest {
       // Un-escaping ~0 first would turn this into "/" instead.
       Map<String, Object> document = Map.of("~1", "literal");
 
-      assertThat(JsonPointer.findByPointer("/~01", document)).isEqualTo("literal");
+      assertThat(JsonPointer.findByPath(JsonPointer.parse("/~01"), document))
+          .isEqualTo("literal");
     }
   }
 
@@ -137,8 +140,17 @@ class JsonPointerTest {
 
     @Test
     void a_null_pointer_or_document_is_null() {
-      assertThat(JsonPointer.findByPointer(null, DOCUMENT)).isNull();
-      assertThat(JsonPointer.findByPointer("/a", null)).isNull();
+      assertThat(JsonPointer.parse(null)).isNull();
+      assertThat(JsonPointer.findByPath(null, DOCUMENT)).isNull();
+      assertThat(JsonPointer.findByPath(JsonPointer.parse("/a"), null)).isNull();
+    }
+
+    @Test
+    void a_pointer_is_split_once_and_carries_its_escapes_already_resolved() {
+      assertThat(JsonPointer.parse("/a/b")).containsExactly("a", "b");
+      assertThat(JsonPointer.parse("/x~1y")).containsExactly("x/y");
+      assertThat(JsonPointer.parse("/x~0y")).containsExactly("x~y");
+      assertThat(JsonPointer.parse("/a/")).containsExactly("a", "");
     }
   }
 }

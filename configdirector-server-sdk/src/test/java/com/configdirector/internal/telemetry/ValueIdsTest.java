@@ -47,6 +47,17 @@ class ValueIdsTest {
           .allMatch(character -> BASE62.indexOf(character) >= 0);
     }
 
+    @ParameterizedTest
+    @CsvSource({
+      "seek-438, 01HIHOQ1EOGUUUxjw3XzTY",
+      "seek-465, 00LlHyAvF0ZgWilmdRpxJb",
+    })
+    void pads_a_digest_with_leading_zero_bytes(String value, String expected) {
+      // These hash to a number small enough that its base62 form is shorter than the fixed width,
+      // so the leading zeros have to be written rather than dropped.
+      assertThat(ValueIds.generate(value)).isEqualTo(expected);
+    }
+
     @Test
     void is_deterministic() {
       assertThat(ValueIds.generate("my-value")).isEqualTo(ValueIds.generate("my-value"));

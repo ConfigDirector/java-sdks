@@ -5,7 +5,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.configdirector.ConfigState;
 import com.configdirector.ConfigType;
 import com.configdirector.Context;
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.IntStream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -349,6 +352,25 @@ class ConfigEvaluatorTest {
       ConfigState state = evaluator.evaluate(config(target), new EvaluationContext(null, null));
 
       assertThat(state.value()).isEqualTo("on");
+    }
+
+    @Test
+    void an_anonymous_context_is_spread_across_the_buckets() {
+      // The bucket is drawn rather than derived, so it is neither stable nor always the same one.
+      // Ten equal buckets over a thousand draws: landing in only one of them would not be chance.
+      List<Percentage> buckets = new ArrayList<>();
+      for (int index = 0; index < 10; index++) {
+        buckets.add(new Percentage("b" + index, 10.0, "bucket-" + index, null));
+      }
+      TargetingRules target = new TargetingRules("fallback", null, List.of(rule(buckets)));
+      Config config = config(target);
+
+      Set<String> seen = new HashSet<>();
+      for (int draw = 0; draw < 1_000; draw++) {
+        seen.add(evaluator.evaluate(config, new EvaluationContext(null, null)).value());
+      }
+
+      assertThat(seen).hasSize(10);
     }
   }
 

@@ -31,9 +31,11 @@ import com.configdirector.internal.value.ParseResult;
 import com.configdirector.internal.value.ValueParser;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -55,6 +57,8 @@ public final class DefaultConfigDirectorClient implements ConfigDirectorClient {
   private final Transport transport;
   private final TelemetryCollector telemetry;
 
+  // Held by whatever replaces config state -- a bundle, or close(). Readers do not take it:
+  // they read the snapshot below, which is only ever swapped, never edited in place.
   private final Object lock = new Object();
   private final CountDownLatch ready = new CountDownLatch(1);
   private final Map<String, List<Watcher>> watchers = new ConcurrentHashMap<>();
@@ -63,9 +67,10 @@ public final class DefaultConfigDirectorClient implements ConfigDirectorClient {
   private final List<Consumer<ConfigEvaluatedEvent>> evaluationHandlers = new CopyOnWriteArrayList<>();
 
   // Null until the first bundle arrives, which is what separates "not ready" from "ready but the
-  // server does not know this key".
-  private Map<String, Config> configs;
-  private boolean closed;
+  // server does not know this key". Immutable once published, so a config read is a volatile read
+  // and a map lookup -- no lock on the path every getX() call takes.
+  private volatile Map<String, Config> configs;
+  private volatile boolean closed;
 
   public DefaultConfigDirectorClient(
       String serverSdkKey,
@@ -159,16 +164,12 @@ public final class DefaultConfigDirectorClient implements ConfigDirectorClient {
 
   @Override
   public boolean isReady() {
-    synchronized (lock) {
-      return !closed && configs != null;
-    }
+    return !closed && configs != null;
   }
 
   @Override
   public boolean isClosed() {
-    synchronized (lock) {
-      return closed;
-    }
+    return closed;
   }
 
   @Override
@@ -210,13 +211,19 @@ public final class DefaultConfigDirectorClient implements ConfigDirectorClient {
       if (closed) {
         return;
       }
-      if (configs == null || bundle.kind() == ConfigBundle.BundleKind.FULL) {
-        configs = new LinkedHashMap<>(bundle.configs());
+      Map<String, Config> current = configs;
+      Map<String, Config> merged;
+      if (current == null || bundle.kind() == ConfigBundle.BundleKind.FULL) {
+        merged = new LinkedHashMap<>(bundle.configs());
         firstBundle = ready.getCount() > 0;
       } else {
-        configs.putAll(bundle.configs());
+        // A delta merges onto a copy rather than onto the live map: readers hold a reference to
+        // whatever was published last, and it has to stay whole while they walk it.
+        merged = new LinkedHashMap<>(current);
+        merged.putAll(bundle.configs());
         firstBundle = false;
       }
+      configs = Collections.unmodifiableMap(merged);
     }
 
     // Snapshotted outside the lock, so a user callback cannot observe the list being edited from
@@ -342,10 +349,8 @@ public final class DefaultConfigDirectorClient implements ConfigDirectorClient {
     validateConfigKey(configKey);
     validateDefault(defaultValue);
 
-    Config definition;
-    synchronized (lock) {
-      definition = configs == null ? null : configs.get(configKey);
-    }
+    Map<String, Config> snapshot = configs;
+    Config definition = snapshot == null ? null : snapshot.get(configKey);
     return evaluate(configKey, definition, defaultValue, context);
   }
 
@@ -405,20 +410,23 @@ public final class DefaultConfigDirectorClient implements ConfigDirectorClient {
 
   @Override
   public Map<String, ConfigState> getAllConfigs(Context context, List<String> configKeys) {
-    Map<String, Config> definitions;
-    synchronized (lock) {
-      if (closed || configs == null) {
-        return Map.of();
-      }
-      definitions = new LinkedHashMap<>(configs);
-    }
-    if (configKeys != null) {
-      definitions.keySet().retainAll(List.copyOf(configKeys));
+    Map<String, Config> definitions = configs;
+    if (closed || definitions == null) {
+      return Map.of();
     }
 
+    // A set, so filtering stays linear in the number of configs rather than scanning the requested
+    // keys once per config. Iterating the definitions rather than the request keeps the result in
+    // config order and collapses a key asked for twice.
+    Set<String> requested = configKeys == null ? null : Set.copyOf(configKeys);
     EvaluationContext evaluationContext = new EvaluationContext(context, metadata);
     Map<String, ConfigState> evaluated = new LinkedHashMap<>();
-    definitions.forEach((key, config) -> evaluated.put(key, evaluator.evaluate(config, evaluationContext)));
+    definitions.forEach(
+        (key, config) -> {
+          if (requested == null || requested.contains(key)) {
+            evaluated.put(key, evaluator.evaluate(config, evaluationContext));
+          }
+        });
     return evaluated;
   }
 

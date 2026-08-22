@@ -130,11 +130,15 @@ class EventQueueTest {
   @DisplayName("under concurrency")
   class Concurrency {
 
+    // push() does not wait for the lock: a push that loses the race is counted as dropped rather
+    // than recorded, so that no caller is ever parked here. The limit is far above what is pushed,
+    // so anything missing from the snapshot was skipped for a busy lock rather than evicted for
+    // space -- and a report still accounts for it.
     @Test
-    void every_push_lands() throws Exception {
-      EventQueue queue = new EventQueue(1_000);
+    void a_push_is_either_recorded_or_counted_as_dropped() throws Exception {
+      EventQueue queue = new EventQueue(1_000_000);
       int threads = 8;
-      int perThread = 100;
+      int perThread = 10_000;
       CountDownLatch start = new CountDownLatch(1);
       CountDownLatch finished = new CountDownLatch(threads);
 
@@ -161,8 +165,7 @@ class EventQueueTest {
       assertThat(finished.await(10, TimeUnit.SECONDS)).isTrue();
 
       EventQueue.Snapshot snapshot = queue.takeSnapshot();
-      assertThat(snapshot.events()).hasSize(threads * perThread);
-      assertThat(snapshot.droppedCount()).isZero();
+      assertThat(snapshot.events().size() + snapshot.droppedCount()).isEqualTo(threads * perThread);
     }
   }
 }

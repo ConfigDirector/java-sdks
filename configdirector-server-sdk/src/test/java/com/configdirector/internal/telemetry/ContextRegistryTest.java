@@ -45,6 +45,20 @@ class ContextRegistryTest {
     }
 
     @Test
+    void an_equal_context_seen_again_is_not_a_second_entry() {
+      // A server builds a fresh Context per request, so the same caller arrives as a new object
+      // holding the same details. add() reads before it writes; the entry must come out unchanged.
+      ContextRegistry registry = new ContextRegistry(10);
+      registry.add("a", Context.builder().id("a").name("Ada").trait("plan", "pro").build());
+      registry.add("a", Context.builder().id("a").name("Ada").trait("plan", "pro").build());
+      add(registry, "b");
+
+      assertThat(registry.takeSnapshot().contexts())
+          .containsExactly(
+              Context.builder().id("a").name("Ada").trait("plan", "pro").build(), context("b"));
+    }
+
+    @Test
     void a_snapshot_starts_the_next_batch_over() {
       ContextRegistry registry = new ContextRegistry(10);
       add(registry, "a");

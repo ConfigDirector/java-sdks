@@ -1,6 +1,7 @@
 package com.configdirector.internal.evaluation;
 
 import com.configdirector.Context;
+import java.util.List;
 import java.util.Map;
 
 public final class ConditionEvaluator {
@@ -47,11 +48,11 @@ public final class ConditionEvaluator {
   }
 
   private static Object resolveTrait(Condition condition, Map<String, Object> traits) {
-    String trait = condition.trait();
-    if (trait == null || trait.isEmpty()) {
+    List<String> path = condition.traitPath();
+    if (path == null) {
       return Unresolved.ABSENT;
     }
-    return orAbsent(JsonPointer.findByPointer(trait, traits));
+    return orAbsent(JsonPointer.findByPath(path, traits));
   }
 
   private static Object orAbsent(Object value) {

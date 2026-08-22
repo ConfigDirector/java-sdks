@@ -1,18 +1,12 @@
 package com.configdirector.internal.evaluation;
 
 import com.configdirector.ConfigState;
-import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
-import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public final class ConfigEvaluator {
-
-  private static final Comparator<Rule> BY_ORDER =
-      Comparator.comparing(Rule::order, Comparator.nullsLast(Comparator.naturalOrder()));
 
   private final ConditionEvaluator conditionEvaluator = new ConditionEvaluator();
   private final Logger logger;
@@ -39,11 +33,8 @@ public final class ConfigEvaluator {
       return new Selection(null, null);
     }
 
-    // A stable sort, so rules sharing an order keep the sequence the server sent them in.
-    List<Rule> rules = new ArrayList<>(target.rules());
-    rules.sort(BY_ORDER);
-
-    for (Rule rule : rules) {
+    // Already ordered by TargetingRules, which sorts once at parse time.
+    for (Rule rule : target.rules()) {
       Selection selected = evaluateRule(rule, config, context);
       if (selected != null) {
         return selected;
@@ -74,9 +65,13 @@ public final class ConfigEvaluator {
 
   private Selection evaluateConditionalRule(
       ConditionalRule rule, Config config, EvaluationContext context) {
-    boolean anyConditionMatched =
-        rule.conditions().stream()
-            .anyMatch(condition -> conditionEvaluator.evaluate(condition, context));
+    boolean anyConditionMatched = false;
+    for (Condition condition : rule.conditions()) {
+      if (conditionEvaluator.evaluate(condition, context)) {
+        anyConditionMatched = true;
+        break;
+      }
+    }
     if (!anyConditionMatched) {
       return null;
     }
@@ -92,12 +87,12 @@ public final class ConfigEvaluator {
   private Selection evaluatePercentage(
       List<Percentage> percentages, Config config, EvaluationContext context) {
     String identifier = context == null ? null : context.contextOrEmpty().id();
-    if (identifier == null) {
-      // An anonymous caller still gets a bucket, just not a stable one.
-      identifier = UUID.randomUUID().toString();
-    }
 
-    double assigned = PercentHashing.assignPercentage(config.id(), identifier);
+    // An anonymous caller still gets a bucket, just not a stable one.
+    double assigned =
+        identifier == null
+            ? PercentHashing.arbitraryPercentage()
+            : PercentHashing.assignPercentage(config.id(), identifier);
 
     // A bucket spans [total, total + percentage). Strict, so a context landing exactly on a
     // boundary belongs to the bucket that starts there -- which is what keeps a 0% bucket
