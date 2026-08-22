@@ -110,40 +110,13 @@ class TextComparisonTest {
   }
 
   @Nested
-  @DisplayName("regex")
-  class Regex {
+  @DisplayName("retired operators")
+  class Retired {
 
     @Test
-    void searches_anywhere_in_the_value_rather_than_anchoring() {
-      assertThat(compare("hello world", "matches regex", "wor")).isTrue();
-      assertThat(compare("hello world", "matches regex", "^hello")).isTrue();
-      assertThat(compare("hello world", "matches regex", "^world")).isFalse();
-    }
-
-    @Test
-    void the_negative_operator_is_the_inverse() {
-      assertThat(compare("hello", "does not match regex", "^x")).isTrue();
-      assertThat(compare("hello", "does not match regex", "^h")).isFalse();
-    }
-
-    @Test
-    void an_invalid_pattern_matches_nothing_rather_than_throwing() {
-      assertThat(compare("hello", "matches regex", "(unclosed")).isFalse();
-      // The negative operator reads false too: the pattern never matched, but nor did it hold.
-      assertThat(compare("hello", "does not match regex", "(unclosed")).isTrue();
-    }
-
-    @Test
-    void an_empty_target_list_matches_nothing() {
-      assertThat(withNoTargets("hello", "matches regex")).isFalse();
-      assertThat(withNoTargets("hello", "does not match regex")).isFalse();
-    }
-
-    @Test
-    void the_same_pattern_is_reusable_across_calls() {
-      for (int i = 0; i < 5; i++) {
-        assertThat(compare("hello" + i, "matches regex", "^hello")).isTrue();
-      }
+    void the_regex_operators_no_longer_match() {
+      assertThat(compare("hello world", "matches regex", "^hello")).isFalse();
+      assertThat(compare("hello world", "does not match regex", "^x")).isFalse();
     }
   }
 
