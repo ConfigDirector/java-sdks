@@ -5,33 +5,26 @@ plugins {
     id 'java-library'
     alias libs.plugins.errorprone
     alias libs.plugins.spotbugs
+    alias libs.plugins.maven.publish
 }
+
+group = 'com.configdirector'
+version = '0.1.0'
 
 repositories {
     mavenCentral()
 }
 
 dependencies {
-    // OkHttp owns sockets, connection pooling, TLS, redirects and per-read timeouts. The SSE
-    // protocol on top of it is ours, so it stays behind the StreamOpener seam and no OkHttp type
-    // appears in this SDK's own API.
     api libs.okhttp
-
-    // A facade only. The consuming application supplies the binding.
     api libs.slf4j.api
 
-    // Reads the config bundle. Kept off the API surface: no Gson type appears in this SDK's own,
-    // so a consumer on a different Gson version has nothing to collide with.
     implementation libs.gson
 
     testImplementation libs.junit.jupiter
     testImplementation libs.assertj.core
     testImplementation libs.awaitility
-    // Used only by the conformance harness that targeting-rules-contract copies in for `make
-    // check-java`. Test scope; the SDK itself has no JSON parser yet.
     testImplementation libs.jackson.databind
-    // A binding at runtime, and a ListAppender for the tests that assert the SDK reports a
-    // problem rather than swallowing it.
     testImplementation libs.logback.classic
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 
@@ -71,6 +64,37 @@ tasks.withType(JavaCompile).configureEach {
     }
 }
 
+tasks.named('javadoc') {
+    // What a consumer can call. com.configdirector.internal is implementation detail: it carries
+    // no docs by convention, and publishing it would invite calls into it.
+    exclude 'com/configdirector/internal/**'
+    options.encoding = 'UTF-8'
+    // The published API is what javadoc.io renders, so an undocumented member or a stale @param
+    // fails the build here rather than showing up there.
+    options.addBooleanOption('Xwerror', true)
+}
+
+// Not wired in by default, so without this the -Xwerror above would only bite at release time,
+// when the javadoc jar is built.
+tasks.named('check') {
+    dependsOn tasks.named('javadoc')
+}
+
+tasks.named('jar') {
+    manifest {
+        attributes(
+            'Implementation-Title': 'configdirector-server-sdk',
+            'Implementation-Version': project.version,
+            // Without this, a consumer on the module path gets a module name derived from the
+            // file name, which changes whenever the artifact is renamed.
+            'Automatic-Module-Name': 'com.configdirector'
+        )
+    }
+    from(rootProject.file('LICENSE')) {
+        into 'META-INF'
+    }
+}
+
 // Bytecode analysis, which reaches things a javac plugin cannot -- notably a constructor that
 // stores a caller's mutable collection rather than copying it.
 spotbugs {
@@ -98,5 +122,51 @@ tasks.named('test') {
     testLogging {
         events 'failed'
         exceptionFormat = 'full'
+    }
+}
+
+mavenPublishing {
+    // Uploads a signed bundle to the Central Portal and stops there: the deployment is released
+    // by hand, so a green pipeline is not by itself a published version.
+    publishToMavenCentral()
+
+    // Central requires signatures, and only the release pipeline holds the key. Publishing to the
+    // local cache to try a build against a consumer must not need one, so this is conditional
+    // rather than unconditional; an unsigned bundle is rejected by the Portal, not published.
+    if (providers.gradleProperty('signingInMemoryKey').present
+            || providers.gradleProperty('signing.keyId').present) {
+        signAllPublications()
+    }
+
+    coordinates(group.toString(), 'configdirector-server-sdk', version.toString())
+
+    pom {
+        name = 'ConfigDirector Java Server SDK'
+        description = 'Java server SDK for ConfigDirector. ConfigDirector is a remote ' +
+            'configuration and feature flag service.'
+        url = 'https://github.com/ConfigDirector/java-sdks'
+        inceptionYear = '2026'
+
+        licenses {
+            license {
+                name = 'MIT License'
+                url = 'https://github.com/ConfigDirector/java-sdks/blob/main/LICENSE'
+                distribution = 'repo'
+            }
+        }
+
+        developers {
+            developer {
+                id = 'configdirector'
+                name = 'ConfigDirector'
+                url = 'https://www.configdirector.com'
+            }
+        }
+
+        scm {
+            url = 'https://github.com/ConfigDirector/java-sdks'
+            connection = 'scm:git:https://github.com/ConfigDirector/java-sdks.git'
+            developerConnection = 'scm:git:ssh://git@github.com/ConfigDirector/java-sdks.git'
+        }
     }
 }

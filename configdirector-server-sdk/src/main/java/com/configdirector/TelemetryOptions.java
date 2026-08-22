@@ -18,9 +18,13 @@ public final class TelemetryOptions {
   /** The default queue limit, split between evaluations and the contexts they were made against. */
   public static final int DEFAULT_EVENT_QUEUE_LIMIT = 5_000;
 
+  /** The smallest queue limit accepted. */
   public static final int MIN_EVENT_QUEUE_LIMIT = 100;
+
+  /** The largest queue limit accepted. */
   public static final int MAX_EVENT_QUEUE_LIMIT = 100_000;
 
+  /** How often events are reported unless configured otherwise. */
   public static final Duration DEFAULT_FLUSH_INTERVAL = Duration.ofSeconds(30);
 
   private static final TelemetryOptions DEFAULTS = builder().build();
@@ -33,22 +37,43 @@ public final class TelemetryOptions {
     this.flushInterval = builder.flushInterval;
   }
 
+  /**
+   * Starts from the defaults.
+   *
+   * @return a builder to adjust
+   */
   public static Builder builder() {
     return new Builder();
   }
 
+  /**
+   * The settings a client uses when none are supplied.
+   *
+   * @return a queue limit of {@value #DEFAULT_EVENT_QUEUE_LIMIT} and a 30 second flush interval
+   */
   public static TelemetryOptions defaults() {
     return DEFAULTS;
   }
 
+  /**
+   * How many events are held between flushes.
+   *
+   * @return the queue limit
+   */
   public int eventQueueLimit() {
     return eventQueueLimit;
   }
 
+  /**
+   * How often events are reported.
+   *
+   * @return the flush interval
+   */
   public Duration flushInterval() {
     return flushInterval;
   }
 
+  /** Collects telemetry settings. Every setter returns this, so calls chain. */
   public static final class Builder {
 
     private int eventQueueLimit = DEFAULT_EVENT_QUEUE_LIMIT;
@@ -65,6 +90,9 @@ public final class TelemetryOptions {
      *
      * <p>Between {@value #MIN_EVENT_QUEUE_LIMIT} and {@value #MAX_EVENT_QUEUE_LIMIT}. Defaults to
      * {@value #DEFAULT_EVENT_QUEUE_LIMIT}.
+     *
+     * @param eventQueueLimit how many events to hold between flushes
+     * @return this builder, so calls chain
      */
     public Builder eventQueueLimit(int eventQueueLimit) {
       this.eventQueueLimit = eventQueueLimit;
@@ -75,6 +103,9 @@ public final class TelemetryOptions {
      * How often events are flushed and sent over the network. Decrease it if your application
      * consistently captures a large number of events in short bursts, to keep the event queue
      * small. Defaults to 30 seconds.
+     *
+     * @param flushInterval how often to report
+     * @return this builder, so calls chain
      */
     public Builder flushInterval(Duration flushInterval) {
       this.flushInterval = Objects.requireNonNull(flushInterval, "flushInterval");
@@ -84,6 +115,7 @@ public final class TelemetryOptions {
     /**
      * Validates the settings and builds them.
      *
+     * @return the settings as configured
      * @throws ConfigDirectorValidationException if a setting is out of range
      */
     public TelemetryOptions build() {

@@ -27,5 +27,5 @@ on. Start with
 Reach out to us via https://www.configdirector.com/support
 
 [//]: # "links"
-[ci-badge]: https://github.com/ConfigDirector/java-server-sdk/actions/workflows/configdirector-server-sdk.yml/badge.svg
-[ci]: https://github.com/ConfigDirector/java-server-sdk/actions/workflows/configdirector-server-sdk.yml
+[ci-badge]: https://github.com/ConfigDirector/java-sdks/actions/workflows/configdirector-server-sdk.yml/badge.svg
+[ci]: https://github.com/ConfigDirector/java-sdks/actions/workflows/configdirector-server-sdk.yml

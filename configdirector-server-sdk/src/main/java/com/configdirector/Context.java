@@ -34,30 +34,56 @@ public final class Context {
     this.anonymous = builder.anonymous;
   }
 
+  /**
+   * Starts an empty context.
+   *
+   * @return a builder to add an id, a name, and traits to
+   */
   public static Builder builder() {
     return new Builder();
   }
 
+  /**
+   * A context carrying nothing, which matches only rules that need no user detail.
+   *
+   * @return the shared empty context
+   */
   public static Context empty() {
     return EMPTY;
   }
 
-  /** May be null, in which case a percentage rollout assigns an unstable bucket. */
+  /**
+   * The user's identifier.
+   *
+   * @return the id, or null, in which case a percentage rollout assigns an unstable bucket
+   */
   public String id() {
     return id;
   }
 
-  /** May be null. */
+  /**
+   * The user's display name.
+   *
+   * @return the name, or null
+   */
   public String name() {
     return name;
   }
 
-  /** May be null. Unmodifiable when present. */
+  /**
+   * The user's traits, evaluated against targeting rules.
+   *
+   * @return the traits, unmodifiable, or null when none were set
+   */
   public Map<String, Object> traits() {
     return traits;
   }
 
-  /** When true the context is evaluated but never persisted, so it stays out of the dashboard. */
+  /**
+   * Whether the context stays out of the dashboard.
+   *
+   * @return true when the context is evaluated but never persisted
+   */
   public boolean anonymous() {
     return anonymous;
   }
@@ -84,6 +110,7 @@ public final class Context {
     return "Context[id=" + id + ", name=" + name + ", traits=" + traits + ", anonymous=" + anonymous + "]";
   }
 
+  /** Collects the user's details. Every setter returns this, so calls chain. */
   public static final class Builder {
 
     private String id;
@@ -93,22 +120,46 @@ public final class Context {
 
     private Builder() {}
 
+    /**
+     * The user's identifier, which decides their bucket in a percentage rollout.
+     *
+     * @param id the identifier, or null for an unstable bucket
+     * @return this builder, so calls chain
+     */
     public Builder id(String id) {
       this.id = id;
       return this;
     }
 
+    /**
+     * The user's display name.
+     *
+     * @param name the name, or null
+     * @return this builder, so calls chain
+     */
     public Builder name(String name) {
       this.name = name;
       return this;
     }
 
-    /** Replaces any traits set so far. */
+    /**
+     * Sets every trait at once, replacing any set so far.
+     *
+     * @param traits JSON-shaped values, or null to clear them
+     * @return this builder, so calls chain
+     */
     public Builder traits(Map<String, Object> traits) {
       this.traits = traits == null ? null : new HashMap<>(traits);
       return this;
     }
 
+    /**
+     * Adds one trait, keeping the rest.
+     *
+     * @param key the trait's name, as targeting rules reference it
+     * @param value a JSON-shaped value
+     * @return this builder, so calls chain
+     */
     public Builder trait(String key, Object value) {
       if (traits == null) {
         traits = new HashMap<>();
@@ -117,11 +168,23 @@ public final class Context {
       return this;
     }
 
+    /**
+     * Keeps the context out of the dashboard: it is evaluated but never persisted, and telemetry
+     * reports neither the context nor its id.
+     *
+     * @param anonymous true to evaluate without persisting
+     * @return this builder, so calls chain
+     */
     public Builder anonymous(boolean anonymous) {
       this.anonymous = anonymous;
       return this;
     }
 
+    /**
+     * Builds the context. Traits are copied, so the builder can be reused.
+     *
+     * @return the context as configured
+     */
     public Context build() {
       return new Context(this);
     }

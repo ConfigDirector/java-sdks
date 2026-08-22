@@ -1,0 +1,51 @@
+name: Release configdirector-server-sdk
+
+# Deliberately manual. The version is whatever configdirector-server-sdk/build.gradle says, so a
+# release is two steps: merge the version bump, then run this against main.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  BUILD_JDK: '21'
+
+jobs:
+  publish:
+    name: Publish to Maven Central
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: ${{ env.BUILD_JDK }}
+
+      - uses: gradle/actions/wrapper-validation@v4
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      # The same checks CI runs. A version nobody can build is not worth uploading.
+      - run: ./gradlew build
+
+      # Uploads a signed bundle to the Central Portal and stops. The deployment is released from
+      # the Portal by hand, which is the last chance to look at what is about to become permanent.
+      - name: Publish to the Central Portal
+        run: ./gradlew publishToMavenCentral --no-configuration-cache
+        env:
+          ORG_GRADLE_PROJECT_mavenCentralUsername: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
+          ORG_GRADLE_PROJECT_mavenCentralPassword: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
+          ORG_GRADLE_PROJECT_signingInMemoryKey: ${{ secrets.SIGNING_KEY }}
+          ORG_GRADLE_PROJECT_signingInMemoryKeyPassword: ${{ secrets.SIGNING_KEY_PASSWORD }}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: jar
+          path: configdirector-server-sdk/build/libs/*.jar

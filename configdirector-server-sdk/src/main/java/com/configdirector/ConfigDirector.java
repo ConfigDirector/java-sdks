@@ -34,6 +34,7 @@ public final class ConfigDirector {
    * SLF4J logger named {@value #LOGGER_NAME}.
    *
    * @param serverSdkKey a secret; do not commit it to source control
+   * @return a client that has not connected yet
    */
   public static ConfigDirectorClient client(String serverSdkKey) {
     return client(serverSdkKey, options -> {});
@@ -44,6 +45,7 @@ public final class ConfigDirector {
    *
    * @param serverSdkKey a secret; do not commit it to source control
    * @param configure receives the settings to adjust before the client is built
+   * @return a client that has not connected yet
    */
   public static ConfigDirectorClient client(String serverSdkKey, Consumer<ClientOptions> configure) {
     Objects.requireNonNull(configure, "configure");
