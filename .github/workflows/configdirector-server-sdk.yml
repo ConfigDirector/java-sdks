@@ -22,6 +22,11 @@ env:
   # 17 by options.release, not by this. Matches the toolchain so CI never provisions a JDK.
   BUILD_JDK: '21'
 
+  # Points the sample at configdirector-server-sdk/ in this checkout rather than at its release on
+  # Central, so a breaking API change fails here rather than after it ships. Set as a Gradle
+  # project property through the environment, which every ./gradlew below picks up.
+  ORG_GRADLE_PROJECT_useLocalSdk: 'true'
+
 jobs:
   build:
     name: Build + Test

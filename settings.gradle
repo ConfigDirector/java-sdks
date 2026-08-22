@@ -8,6 +8,8 @@ rootProject.name = 'configdirector-java-server-sdk'
 
 include('configdirector-server-sdk')
 
-// Not published. Built with the SDK so a breaking API change fails here first. Samples are grouped
-// by the artifact they demonstrate, since this repository will hold more than one.
+// Not published. It depends on the SDK release on Maven Central, the way a real consumer does;
+// -PuseLocalSdk swaps in the module above instead, which is how CI makes a breaking API change
+// fail here first. Samples are grouped by the artifact they demonstrate, since this repository
+// will hold more than one.
 include('samples:configdirector-server-sdk:spring-boot')

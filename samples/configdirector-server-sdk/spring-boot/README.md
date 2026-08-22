@@ -44,6 +44,24 @@ matching `Context` fields, and anything else becomes a trait:
 
 Run the smoke tests with `./gradlew :samples:configdirector-server-sdk:spring-boot:test`.
 
+## Which SDK it builds against
+
+By default the sample depends on the released artifact, exactly as your own app would:
+
+```groovy
+implementation 'com.configdirector:configdirector-server-sdk:0.1.0'
+```
+
+Pass `-PuseLocalSdk` to build it against
+[`configdirector-server-sdk/`](../../../configdirector-server-sdk/) in this repository instead:
+
+```bash
+./gradlew :samples:configdirector-server-sdk:spring-boot:bootRun -PuseLocalSdk
+```
+
+That is how to try an unreleased SDK change against a real consumer, and CI sets it on every job
+so a breaking API change fails here before it ships.
+
 ## The client is a singleton
 
 This is the single most important thing the sample shows, so it lives in its own class:

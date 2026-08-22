@@ -9,11 +9,31 @@ repositories {
 }
 
 dependencies {
-    implementation project(':configdirector-server-sdk')
+    // The latest released SDK, which is what a reader copying this line wants. It deliberately
+    // lags the version in configdirector-server-sdk/build.gradle between a version bump and the
+    // release that publishes it -- naming an unpublished version here leaves the sample
+    // unresolvable for everyone who is not passing -PuseLocalSdk below.
+    implementation 'com.configdirector:configdirector-server-sdk:0.1.0'
     implementation 'org.springframework.boot:spring-boot-starter-web'
 
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+// -PuseLocalSdk builds against configdirector-server-sdk/ in this repository instead of the
+// release on Central. CI sets it so that a breaking API change fails here first; locally it is
+// how you try an unreleased SDK change against a real consumer.
+def useLocalSdk = providers.gradleProperty('useLocalSdk')
+    .map { it.isEmpty() || Boolean.parseBoolean(it) }
+    .getOrElse(false)
+
+if (useLocalSdk) {
+    configurations.configureEach {
+        resolutionStrategy.dependencySubstitution {
+            substitute(module('com.configdirector:configdirector-server-sdk'))
+                .using(project(':configdirector-server-sdk'))
+        }
+    }
 }
 
 java {

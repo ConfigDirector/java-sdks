@@ -16,6 +16,10 @@ env:
   BUILD_JDK: "21"
   ARTIFACT: configdirector-server-sdk
 
+  # The build below must exercise the sample against the SDK being released, not against whatever
+  # version is already on Central.
+  ORG_GRADLE_PROJECT_useLocalSdk: "true"
+
 jobs:
   publish:
     name: Publish to Maven Central
