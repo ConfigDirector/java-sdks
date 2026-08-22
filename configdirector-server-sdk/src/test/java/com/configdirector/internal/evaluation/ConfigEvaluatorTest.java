@@ -212,6 +212,49 @@ class ConfigEvaluatorTest {
       }
     }
 
+    // A bucket spans [start, end), so a 0% bucket is empty and unreachable no matter who asks.
+    // With an inclusive boundary it would take one of the 1000 reachable hash values, and a
+    // variation turned down to 0% would still serve roughly 0.1% of traffic.
+    @Test
+    void a_zero_percent_bucket_is_unreachable_for_every_identifier() {
+      TargetingRules target =
+          new TargetingRules(
+              "fallback",
+              null,
+              List.of(
+                  rule(
+                      List.of(
+                          new Percentage("none", 0.0, "never", null),
+                          new Percentage("all", 100.0, "always", null)))));
+
+      for (int i = 0; i < 4_000; i++) {
+        assertThat(evaluate(target, "user-" + i).value()).isEqualTo("always");
+      }
+    }
+
+    @Test
+    void a_context_landing_on_a_boundary_takes_the_bucket_that_starts_there() {
+      // Only 1000 values are reachable, so an identifier landing exactly on 50.0 exists.
+      String onBoundary = null;
+      for (int i = 0; i < 100_000 && onBoundary == null; i++) {
+        if (PercentHashing.assignPercentage(CONFIG_ID, "u" + i) == 50.0) {
+          onBoundary = "u" + i;
+        }
+      }
+      assertThat(onBoundary).as("an identifier hashing to exactly 50.0").isNotNull();
+
+      TargetingRules target =
+          new TargetingRules(
+              "fallback",
+              null,
+              List.of(
+                  rule(
+                      List.of(
+                          new Percentage("a", 50.0, "a", null), new Percentage("b", 50.0, "b", null)))));
+
+      assertThat(evaluate(target, onBoundary).value()).isEqualTo("b");
+    }
+
     @Test
     void an_empty_leading_bucket_is_skipped() {
       TargetingRules target =

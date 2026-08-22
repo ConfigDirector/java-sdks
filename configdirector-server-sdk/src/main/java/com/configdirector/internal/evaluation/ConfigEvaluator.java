@@ -99,10 +99,13 @@ public final class ConfigEvaluator {
 
     double assigned = PercentHashing.assignPercentage(config.id(), identifier);
 
+    // A bucket spans [total, total + percentage). Strict, so a context landing exactly on a
+    // boundary belongs to the bucket that starts there -- which is what keeps a 0% bucket
+    // unreachable and each bucket's share exact. See SEMANTICS.md 7.1 in targeting-rules-contract.
     Percentage bucket = null;
     double total = 0.0;
     for (Percentage percentage : percentages) {
-      if (assigned <= percentage.percentage() + total) {
+      if (assigned < percentage.percentage() + total) {
         bucket = percentage;
         break;
       }
