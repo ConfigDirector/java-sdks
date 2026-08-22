@@ -11,6 +11,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
@@ -248,6 +249,75 @@ class StreamingTransportTest {
       transport.close();
 
       assertThat(transport.isConnected()).isFalse();
+    }
+  }
+
+  @Nested
+  @DisplayName("reconnect backoff")
+  class Backoff {
+
+    private static final int SAMPLES = 500;
+
+    // EventSourceClient replaces a delay outside this range with the server's own, which would
+    // quietly undo the backoff.
+    private static final Duration MIN_ACCEPTED = Duration.ofMillis(1);
+    private static final Duration MAX_ACCEPTED = Duration.ofHours(1);
+
+    private static List<Duration> sample(int attempt) {
+      List<Duration> delays = new ArrayList<>(SAMPLES);
+      for (int i = 0; i < SAMPLES; i++) {
+        delays.add(StreamingTransport.backoffDelay(attempt));
+      }
+      return delays;
+    }
+
+    @Test
+    void a_delay_falls_between_half_the_ceiling_and_the_ceiling() {
+      for (int attempt = 1; attempt <= 9; attempt++) {
+        Duration ceiling = Duration.ofSeconds(1L << attempt);
+        assertThat(sample(attempt))
+            .allSatisfy(
+                delay ->
+                    assertThat(delay)
+                        .isGreaterThanOrEqualTo(ceiling.dividedBy(2))
+                        .isLessThan(ceiling));
+      }
+    }
+
+    @Test
+    void the_ceiling_stops_growing_past_the_cap() {
+      Duration ceiling = Duration.ofSeconds(512);
+      assertThat(sample(50))
+          .allSatisfy(
+              delay ->
+                  assertThat(delay).isGreaterThanOrEqualTo(ceiling.dividedBy(2)).isLessThan(ceiling));
+    }
+
+    // The point of the jitter: a fleet that lost the stream together must not come back together.
+    // Sampling cannot prove dispersion, so this asserts the two things lockstep would break,
+    // that the delays take many different values, and that they spread across the whole window.
+    @Test
+    void delays_spread_across_the_window_rather_than_landing_together() {
+      for (int attempt : new int[] {1, 9}) {
+        List<Duration> delays = sample(attempt);
+        Duration ceiling = Duration.ofSeconds(1L << attempt);
+        Duration window = ceiling.dividedBy(2);
+
+        assertThat(Set.copyOf(delays)).hasSizeGreaterThan(SAMPLES / 4);
+        Duration lowest = delays.stream().min(Duration::compareTo).orElseThrow();
+        Duration highest = delays.stream().max(Duration::compareTo).orElseThrow();
+        assertThat(highest.minus(lowest)).isGreaterThan(window.dividedBy(2));
+      }
+    }
+
+    @Test
+    void every_delay_stays_within_the_range_the_event_source_accepts() {
+      for (int attempt : new int[] {1, 5, 9, 50}) {
+        assertThat(sample(attempt))
+            .allSatisfy(
+                delay ->
+                    assertThat(delay).isBetween(MIN_ACCEPTED, MAX_ACCEPTED));
+      }
     }
   }
 }

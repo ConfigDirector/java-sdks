@@ -6,6 +6,7 @@ import com.configdirector.internal.eventsource.ReadyState;
 import com.configdirector.internal.eventsource.ReconnectionState;
 import java.time.Duration;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import org.slf4j.Logger;
@@ -16,6 +17,11 @@ public final class StreamingTransport implements Transport {
 
   // 2^9 = 512 seconds, which caps the backoff just under 10 minutes.
   private static final int MAX_BACKOFF_EXPONENT = 9;
+
+  // How much of each delay is fixed; the rest is drawn at random. Half and half keeps the delay
+  // growing with every attempt while spreading a fleet that all lost the stream at the same
+  // moment.
+  private static final double FIXED_SHARE = 0.5;
 
   // Past this many attempts a reconnect is no longer routine and deserves a louder log level.
   private static final int QUIET_ATTEMPTS = 5;
@@ -122,8 +128,16 @@ public final class StreamingTransport implements Transport {
     return false;
   }
 
+  // Package private so the distribution can be sampled without a stream behind it.
+  static Duration backoffDelay(int attempt) {
+    int exponent = Math.min(Math.max(attempt, 1), MAX_BACKOFF_EXPONENT);
+    long ceiling = TimeUnit.SECONDS.toMillis(1L << exponent);
+    long fixed = (long) (ceiling * FIXED_SHARE);
+    return Duration.ofMillis(fixed + ThreadLocalRandom.current().nextLong(ceiling - fixed));
+  }
+
   private Duration reconnectDelay(ReconnectionState state) {
-    Duration delay = Duration.ofSeconds(1L << Math.min(state.attempt(), MAX_BACKOFF_EXPONENT));
+    Duration delay = backoffDelay(state.attempt());
     if (state.attempt() <= QUIET_ATTEMPTS) {
       logger.info(
           "[StreamingTransport] Scheduling reconnect attempt #{} in {}.", state.attempt(), delay);
