@@ -96,6 +96,11 @@ public final class StreamingTransport implements Transport {
     ConfigBundle bundle;
     try {
       bundle = BundleParser.parse(message.data(), logger);
+    } catch (NotAConfigBundleException notABundle) {
+      // A heartbeat, or any other frame the stream carries alongside config updates. Skipped
+      // rather than applied: an empty bundle would read as a full one and clear config state.
+      logger.debug("[StreamingTransport] Ignoring a '{}' event", message.type());
+      return;
     } catch (RuntimeException error) {
       logger.error("[StreamingTransport] Error parsing a config update", error);
       return;

@@ -70,10 +70,16 @@ class BundleParserTest {
     }
 
     @Test
-    void missing_or_unusable_configs_yield_an_empty_bundle() {
-      assertThat(parse("{}").configs()).isEmpty();
-      assertThat(parse("{\"configs\":null}").configs()).isEmpty();
-      assertThat(parse("{\"configs\":[]}").configs()).isEmpty();
+    void an_explicitly_empty_configs_object_yields_an_empty_bundle() {
+      assertThat(parse("{\"configs\":{}}").configs()).isEmpty();
+    }
+
+    // Without a configs object there is nothing to apply. Treating one as an empty bundle would
+    // let any other message the server sends -- a heartbeat, an error frame -- wipe config state.
+    @ParameterizedTest
+    @ValueSource(strings = {"{}", "{\"configs\":null}", "{\"configs\":[]}", "{\"type\":\"heartbeat\"}"})
+    void a_payload_carrying_no_configs_object_is_rejected(String payload) {
+      assertThatExceptionOfType(NotAConfigBundleException.class).isThrownBy(() -> parse(payload));
     }
 
     @ParameterizedTest

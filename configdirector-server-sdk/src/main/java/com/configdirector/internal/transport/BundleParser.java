@@ -42,8 +42,13 @@ public final class BundleParser {
     }
 
     JsonObject root = document.getAsJsonObject();
+    JsonElement configs = root.get("configs");
+    if (configs == null || !configs.isJsonObject()) {
+      throw new NotAConfigBundleException("The payload carries no configs object");
+    }
+
     return new ConfigBundle(
-        parseConfigs(root.get("configs"), logger),
+        parseConfigs(configs, logger),
         "delta".equals(optionalString(root.get("kind")))
             ? ConfigBundle.BundleKind.DELTA
             : ConfigBundle.BundleKind.FULL,
@@ -53,10 +58,6 @@ public final class BundleParser {
   }
 
   private static Map<String, Config> parseConfigs(JsonElement raw, Logger logger) {
-    if (raw == null || !raw.isJsonObject()) {
-      return Map.of();
-    }
-
     Map<String, Config> configs = new LinkedHashMap<>();
     for (Map.Entry<String, JsonElement> entry : raw.getAsJsonObject().entrySet()) {
       try {

@@ -24,6 +24,9 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
@@ -55,6 +58,10 @@ class ConfigDirectorClientTest {
 
   private static String bundleOf(String configsJson) {
     return "{\"timestamp\":\"t1\",\"configs\":{" + configsJson + "}}";
+  }
+
+  private static String deltaOf(String configsJson) {
+    return "{\"kind\":\"delta\",\"timestamp\":\"t2\",\"configs\":{" + configsJson + "}}";
   }
 
   private static String config(String key, String type, String defaultValue) {
@@ -326,6 +333,45 @@ class ConfigDirectorClientTest {
 
       assertThat(client.isReady()).isFalse();
       assertThat(client.getBoolean("flag", true)).isTrue();
+    }
+  }
+
+  @Nested
+  @DisplayName("streaming")
+  class Streaming {
+
+    private ConfigDirectorClient streamingClient(BlockingQueue<TestHttpServer.Session> live) {
+      server =
+          start(
+              session -> {
+                session.respondStreaming();
+                live.add(session);
+              });
+      String url = server.url("/");
+      return build(connection -> connection.mode(ConnectionMode.STREAMING).url(url));
+    }
+
+    // A frame the server sends for any other reason carries no configs object. Applying it as an
+    // empty full bundle would leave the client ready but holding nothing.
+    @Test
+    void a_frame_that_is_not_a_config_bundle_leaves_config_state_intact() throws Exception {
+      BlockingQueue<TestHttpServer.Session> live = new LinkedBlockingQueue<>();
+      client = streamingClient(live);
+      client.initialize();
+
+      TestHttpServer.Session session = live.poll(5, TimeUnit.SECONDS);
+      assertThat(session).isNotNull();
+      session.send("data: " + bundleOf(config("flag", "boolean", "\"true\"")) + "\n\n");
+      await().atMost(TIMEOUT).until(client::isReady);
+      assertThat(client.getBoolean("flag", false)).isTrue();
+
+      // The delta that follows is the sync point: once its key lands, the heartbeat ahead of it
+      // has certainly been processed, so the flag below is not merely a message still in flight.
+      session.send("data: {\"type\":\"heartbeat\"}\n\n");
+      session.send("data: " + deltaOf(config("other", "string", "\"x\"")) + "\n\n");
+      await().atMost(TIMEOUT).until(() -> "x".equals(client.getString("other", "")));
+
+      assertThat(client.getBoolean("flag", false)).isTrue();
     }
   }
 
