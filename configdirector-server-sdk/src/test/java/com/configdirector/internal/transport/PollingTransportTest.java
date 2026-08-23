@@ -318,6 +318,41 @@ class PollingTransportTest {
     }
 
     @Test
+    void close_stops_waiting_once_its_budget_runs_out() throws Exception {
+      AtomicInteger connections = new AtomicInteger();
+      java.util.concurrent.CountDownLatch release = new java.util.concurrent.CountDownLatch(1);
+      // Answers the first fetch so the poller starts, then never answers another. close() then
+      // has a live polling thread to join, and it is stuck in a request with 30 seconds to run.
+      try (TestHttpServer server =
+          start(
+              session -> {
+                if (connections.incrementAndGet() == 1) {
+                  respondWith(session, BUNDLE);
+                  return;
+                }
+                try {
+                  release.await(30, java.util.concurrent.TimeUnit.SECONDS);
+                } catch (InterruptedException interrupted) {
+                  Thread.currentThread().interrupt();
+                }
+              })) {
+        transport = new PollingTransport(optionsFor(server.url("/"), Duration.ofMillis(50)));
+        transport.connect(Duration.ofSeconds(30));
+        await().atMost(TIMEOUT).until(() -> connections.get() > 1);
+
+        try {
+          long start = System.nanoTime();
+          transport.close(Duration.ofMillis(200));
+          Duration took = Duration.ofNanos(System.nanoTime() - start);
+
+          assertThat(took).isLessThan(Duration.ofSeconds(2));
+        } finally {
+          release.countDown();
+        }
+      }
+    }
+
+    @Test
     void close_is_idempotent() throws Exception {
       try (TestHttpServer server = serverReturning(200, BUNDLE)) {
         transport = new PollingTransport(optionsFor(server.url("/"), Duration.ofMillis(50)));

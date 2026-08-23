@@ -11,9 +11,6 @@ public class PollingTransport implements Transport {
 
   private static final String PATH = "server/polling/v1";
 
-  // How long close() waits for a poll already in flight to return.
-  private static final Duration JOIN_TIMEOUT = Duration.ofSeconds(5);
-
   // The server has nothing newer than the timestamp that was sent.
   private static final int HTTP_NO_CONTENT = 204;
 
@@ -29,9 +26,8 @@ public class PollingTransport implements Transport {
   private CountDownLatch stop = new CountDownLatch(0);
   private Thread poller;
 
-  // Whether close() has been called since the last connect(). The first fetch happens before the
-  // poller starts, so without this a close() landing in that gap finds no thread to stop and the
-  // fetch goes on to start one that nothing will ever stop again.
+  // The first fetch happens before the poller starts, so without this a close() landing in that
+  // gap finds no thread to stop and the fetch then starts one nothing will stop.
   private boolean closed;
 
   public PollingTransport(TransportOptions options) {
@@ -69,7 +65,7 @@ public class PollingTransport implements Transport {
   // Identity is the question being asked: whether this is the very same thread, not an equal one.
   @SuppressWarnings("ReferenceEquality")
   @Override
-  public void close() {
+  public void close(Duration timeout) {
     Thread thread;
     CountDownLatch signal;
     synchronized (lock) {
@@ -80,12 +76,18 @@ public class PollingTransport implements Transport {
     }
     signal.countDown();
     // Joining from the polling thread itself would deadlock.
-    if (thread != null && thread != Thread.currentThread()) {
-      try {
-        thread.join(JOIN_TIMEOUT.toMillis());
-      } catch (InterruptedException interrupted) {
-        Thread.currentThread().interrupt();
-      }
+    if (thread == null || thread == Thread.currentThread()) {
+      return;
+    }
+    // Guarded because join(0) waits forever, and a spent budget means the opposite.
+    long millis = timeout.toMillis();
+    if (millis <= 0L) {
+      return;
+    }
+    try {
+      thread.join(millis);
+    } catch (InterruptedException interrupted) {
+      Thread.currentThread().interrupt();
     }
   }
 

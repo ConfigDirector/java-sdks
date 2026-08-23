@@ -35,6 +35,7 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.ConcurrentHashMap;
@@ -47,6 +48,8 @@ import org.slf4j.Logger;
 public final class DefaultConfigDirectorClient implements ConfigDirectorClient {
 
   private static final String DEFAULT_BASE_URL = "https://server-sdk-api.configdirector.com";
+
+  private static final Duration CLOSE_TIMEOUT = Duration.ofSeconds(5);
 
   // The longest timeout OkHttp accepts. ConnectionOptions bounds the one it carries; this bounds
   // the one a caller hands straight to initialize. Past it OkHttp rejects the request, which
@@ -190,6 +193,12 @@ public final class DefaultConfigDirectorClient implements ConfigDirectorClient {
 
   @Override
   public void close() {
+    close(CLOSE_TIMEOUT);
+  }
+
+  @Override
+  public void close(Duration timeout) {
+    Objects.requireNonNull(timeout, "timeout");
     synchronized (lock) {
       if (closed) {
         return;
@@ -204,12 +213,20 @@ public final class DefaultConfigDirectorClient implements ConfigDirectorClient {
 
     // Releases anyone still blocked in initialize().
     ready.countDown();
-    transport.close();
-    // Reports whatever was evaluated since the last flush. Before the pool closes: that final
-    // report is the client's last request, and it needs the pool still open to send it.
-    telemetry.close();
+
+    // One budget for both waits, so close() costs what it was given rather than the sum of what
+    // each step would wait on its own.
+    long deadline = System.nanoTime() + Math.max(timeout.toNanos(), 0L);
+    transport.close(timeout);
+    // Before the pool closes: the last telemetry report needs it still open.
+    telemetry.close(remainingUntil(deadline));
     http.close();
     logger.debug("[ConfigDirectorClient] close() has been called, the client is now closed");
+  }
+
+  private static Duration remainingUntil(long deadline) {
+    long left = deadline - System.nanoTime();
+    return left <= 0 ? Duration.ZERO : Duration.ofNanos(left);
   }
 
   private void awaitReady(Duration timeout) {

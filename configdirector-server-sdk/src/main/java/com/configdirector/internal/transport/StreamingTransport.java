@@ -26,11 +26,8 @@ public final class StreamingTransport implements Transport {
   // Past this many attempts a reconnect is no longer routine and deserves a louder log level.
   private static final int QUIET_ATTEMPTS = 5;
 
-  // The server keeps the stream alive with a comment every 15 seconds, so silence for three of
-  // those in a row is not an idle stream, it is a dead one -- typically a connection an idle
-  // timeout somewhere in the middle dropped without telling either end. Waiting indefinitely
-  // instead, which is what Duration.ZERO would mean, leaves the SDK reading from a socket that
-  // will never produce another byte and serving whatever config it last received.
+  // The server sends a keepalive comment every 15 seconds, so three missed in a row means a dead
+  // connection rather than a quiet one. Duration.ZERO here would wait forever.
   private static final Duration READ_TIMEOUT = Duration.ofSeconds(45);
 
   private final TransportOptions options;
@@ -100,10 +97,10 @@ public final class StreamingTransport implements Transport {
   }
 
   @Override
-  public void close() {
+  public void close(Duration timeout) {
     EventSourceClient stream = client.getAndSet(null);
     if (stream != null) {
-      stream.close();
+      stream.close(timeout);
     }
   }
 

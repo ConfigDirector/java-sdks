@@ -278,4 +278,21 @@ public interface ConfigDirectorClient extends AutoCloseable {
    */
   @Override
   void close();
+
+  /**
+   * Closes the client, spending no more than {@code timeout} on the whole shutdown.
+   *
+   * <p>Stopping the connection and sending the last telemetry report both come out of this one
+   * budget, rather than each waiting out a timeout of its own. A shutdown therefore takes at most
+   * about as long as it is given, which is what makes it safe to call from a handler running
+   * under a container's termination grace period.
+   *
+   * <p>Whatever the budget does not stretch to is given up rather than waited for: a connection
+   * still unwinding is left to its own daemon thread, and a final telemetry report with no time
+   * left to send it is dropped. {@link Duration#ZERO} closes without waiting for anything.
+   *
+   * @param timeout how long the whole shutdown may take; zero or negative waits for nothing
+   * @throws NullPointerException if timeout is null
+   */
+  void close(Duration timeout);
 }

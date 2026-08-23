@@ -26,8 +26,10 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
@@ -376,6 +378,62 @@ class ConfigDirectorClientTest {
       client.close();
 
       assertThat(client.getBoolean("flag", false)).isFalse();
+    }
+
+    @Test
+    void close_returns_within_its_budget_when_the_server_stops_answering() throws Exception {
+      AtomicInteger connections = new AtomicInteger();
+      CountDownLatch release = new CountDownLatch(1);
+      // Answers the first poll and then goes quiet: the requests still go out, and nothing ever
+      // comes back. This is the state a shutdown is most likely to find the network in.
+      server =
+          start(
+              session -> {
+                if (connections.incrementAndGet() == 1) {
+                  respond(session, bundleOf(config("a", "string", "\"1\"")));
+                  return;
+                }
+                try {
+                  release.await(30, TimeUnit.SECONDS);
+                } catch (InterruptedException interrupted) {
+                  Thread.currentThread().interrupt();
+                }
+              });
+      String url = server.url("/");
+      client =
+          build(
+              connection ->
+                  connection
+                      .mode(ConnectionMode.POLLING)
+                      .url(url)
+                      .pollingInterval(Duration.ofMillis(50))
+                      // Generous on purpose: a poll stuck on the wire has a long way to run, and
+                      // close() must not inherit it.
+                      .timeout(Duration.ofSeconds(30)));
+
+      try {
+        client.initialize();
+        client.getString("a", "fallback");
+        await().atMost(TIMEOUT).until(() -> connections.get() > 1);
+
+        long start = System.nanoTime();
+        client.close(Duration.ofMillis(300));
+        Duration took = Duration.ofNanos(System.nanoTime() - start);
+
+        assertThat(took).isLessThan(Duration.ofSeconds(2));
+        assertThat(client.isClosed()).isTrue();
+      } finally {
+        release.countDown();
+      }
+    }
+
+    @Test
+    void a_budget_of_zero_closes_without_waiting_for_anything() {
+      client = clientServing(bundleOf(config("a", "string", "\"1\"")));
+      client.initialize();
+
+      assertThatNoException().isThrownBy(() -> client.close(Duration.ZERO));
+      assertThat(client.isClosed()).isTrue();
     }
 
     @Test

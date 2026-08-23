@@ -19,7 +19,6 @@ public final class TelemetryCollector implements AutoCloseable {
   // evaluated.
   public static final Duration INITIAL_FLUSH_DELAY = Duration.ofSeconds(5);
 
-  // How long close() waits for a report already in flight to return.
   private static final Duration SHUTDOWN_TIMEOUT = Duration.ofSeconds(5);
 
   // The queue limit is split between the two things a report carries. Evaluations outnumber the
@@ -120,6 +119,15 @@ public final class TelemetryCollector implements AutoCloseable {
   // Reports whatever is left and stops collecting. Safe to call more than once.
   @Override
   public void close() {
+    close(SHUTDOWN_TIMEOUT);
+  }
+
+  // The same, on a budget: waiting for a report already in flight and sending the last one both
+  // come out of `timeout`, rather than each having a timeout of its own for the caller to pay.
+  // The same, waiting no longer than `timeout` for the last report. That report is best effort:
+  // a caller with no time to spare abandons it, on a daemon thread that will not hold the
+  // process open.
+  public void close(Duration timeout) {
     if (!closed.compareAndSet(false, true)) {
       return;
     }
@@ -127,26 +135,29 @@ public final class TelemetryCollector implements AutoCloseable {
 
     ScheduledFuture<?> pending = pendingFlush;
     if (pending != null) {
-      // Not an interrupt: a report already in flight is left to finish, and the wait below is for
-      // exactly that.
+      // Not an interrupt: a report already in flight is left to finish.
       pending.cancel(false);
+    }
+    // On the scheduler rather than inline, so the await below is the only wait close() does.
+    if (wasCollecting) {
+      submitFinalReport();
     }
     scheduler.shutdown();
     try {
-      if (!scheduler.awaitTermination(SHUTDOWN_TIMEOUT.toMillis(), TimeUnit.MILLISECONDS)) {
-        scheduler.shutdownNow();
-      }
+      scheduler.awaitTermination(Math.max(timeout.toMillis(), 0L), TimeUnit.MILLISECONDS);
     } catch (InterruptedException interrupted) {
       Thread.currentThread().interrupt();
-      scheduler.shutdownNow();
-    }
-
-    // Nothing left to say to a server that already rejected us.
-    if (wasCollecting) {
-      flush();
     }
     events.clear();
     contexts.clear();
+  }
+
+  private void submitFinalReport() {
+    try {
+      scheduler.execute(this::flush);
+    } catch (RejectedExecutionException alreadyStopping) {
+      logger.debug("[TelemetryCollector] The scheduler was already stopping; no final report");
+    }
   }
 
   private static EventQueue.Snapshot compacted(EventQueue.Snapshot snapshot) {

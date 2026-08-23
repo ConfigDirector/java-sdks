@@ -114,10 +114,14 @@ public final class EventSourceClient implements AutoCloseable {
     }
   }
 
-  // Identity is the question being asked: whether this is the very same thread, not an equal one.
-  @SuppressWarnings("ReferenceEquality")
   @Override
   public void close() {
+    close(CLOSE_TIMEOUT);
+  }
+
+  // Identity is the question being asked: whether this is the very same thread, not an equal one.
+  @SuppressWarnings("ReferenceEquality")
+  public void close(Duration timeout) {
     StopSignal signal;
     Thread reader;
     ResponseStream open;
@@ -139,9 +143,11 @@ public final class EventSourceClient implements AutoCloseable {
       cancelQuietly(open);
     }
     // Joining from the reader itself would deadlock, and close() is reachable from a handler.
-    if (reader != null && reader != Thread.currentThread()) {
+    // Guarded because join(0) waits forever, and a spent budget means the opposite.
+    long millis = timeout.toMillis();
+    if (millis > 0 && reader != null && reader != Thread.currentThread()) {
       try {
-        reader.join(CLOSE_TIMEOUT.toMillis());
+        reader.join(millis);
       } catch (InterruptedException interrupted) {
         Thread.currentThread().interrupt();
       }
