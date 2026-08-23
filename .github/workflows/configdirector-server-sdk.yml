@@ -18,7 +18,8 @@ defaults:
     shell: bash
 
 env:
-  BUILD_JDK: "25"
+  GRADLE_JDK: "25"
+  SDK_TOOLCHAIN_JDK: "21"
 
   # Points the sample at configdirector-server-sdk/ in this checkout rather than at its release on
   # Central, so a breaking API change fails here rather than after it ships. Set as a Gradle
@@ -33,18 +34,28 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - uses: actions/setup-java@v5
+      - name: Set up the SDK toolchain JDK
+        id: sdk-toolchain-jdk
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
-          java-version: ${{ env.BUILD_JDK }}
+          java-version: ${{ env.SDK_TOOLCHAIN_JDK }}
+
+      - name: Set up the Gradle JDK
+        id: gradle-jdk
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: ${{ env.GRADLE_JDK }}
 
       # gradle-wrapper.jar is a binary in the repo, so its checksum is worth verifying.
       - uses: gradle/actions/wrapper-validation@v4
 
       - uses: gradle/actions/setup-gradle@v4
 
-      # Compiles under -Werror, runs the suite, and assembles the jar.
-      - run: ./gradlew build
+      - run: >
+          ./gradlew build
+          -Porg.gradle.java.installations.paths=${{ steps.gradle-jdk.outputs.path }},${{ steps.sdk-toolchain-jdk.outputs.path }}
 
       - uses: actions/upload-artifact@v4
         with:
@@ -73,14 +84,25 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - uses: actions/setup-java@v5
+      - name: Set up the SDK toolchain JDK
+        id: sdk-toolchain-jdk
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
-          java-version: ${{ env.BUILD_JDK }}
+          java-version: ${{ env.SDK_TOOLCHAIN_JDK }}
+
+      - name: Set up the Gradle JDK
+        id: gradle-jdk
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: ${{ env.GRADLE_JDK }}
 
       - uses: gradle/actions/setup-gradle@v4
 
-      - run: ./gradlew test
+      - run: >
+          ./gradlew test
+          -Porg.gradle.java.installations.paths=${{ steps.gradle-jdk.outputs.path }},${{ steps.sdk-toolchain-jdk.outputs.path }}
 
       - name: Upload test report
         if: failure()
@@ -92,8 +114,6 @@ jobs:
             configdirector-server-sdk/build/test-results/test
 
   runtime-compatibility:
-    # The SDK targets 17 but is no longer compiled by a 17 javac, so running the suite on 17 is
-    # what proves the floor still holds. 21 is the middle; the build job already covers 25.
     name: Test (JDK ${{ matrix.java }} runtime)
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -111,29 +131,26 @@ jobs:
           distribution: temurin
           java-version: ${{ matrix.java }}
 
-      # The SDK module compiles on a 21 toolchain, which the 17 leg would otherwise provision.
       - name: Set up the SDK toolchain JDK
-        id: toolchain-jdk
+        id: sdk-toolchain-jdk
         uses: actions/setup-java@v5
         with:
           distribution: temurin
-          java-version: "21"
+          java-version: ${{ env.SDK_TOOLCHAIN_JDK }}
 
-      # Installed last so it becomes JAVA_HOME and Gradle itself runs on it.
-      - name: Set up the build JDK
-        id: build-jdk
+      - name: Set up the Gradle JDK
+        id: gradle-jdk
         uses: actions/setup-java@v5
         with:
           distribution: temurin
-          java-version: ${{ env.BUILD_JDK }}
+          java-version: ${{ env.GRADLE_JDK }}
 
       - uses: gradle/actions/setup-gradle@v4
 
-      # Pointing Gradle at every installation keeps it from provisioning a toolchain itself.
       - run: >
           ./gradlew test
           -PtestJavaVersion=${{ matrix.java }}
-          -Porg.gradle.java.installations.paths=${{ steps.build-jdk.outputs.path }},${{ steps.toolchain-jdk.outputs.path }},${{ steps.runtime-jdk.outputs.path }}
+          -Porg.gradle.java.installations.paths=${{ steps.gradle-jdk.outputs.path }},${{ steps.sdk-toolchain-jdk.outputs.path }},${{ steps.runtime-jdk.outputs.path }}
 
       - name: Upload test report
         if: failure()

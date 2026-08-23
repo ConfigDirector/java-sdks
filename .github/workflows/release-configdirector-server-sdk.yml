@@ -13,7 +13,8 @@ defaults:
     shell: bash
 
 env:
-  BUILD_JDK: "25"
+  GRADLE_JDK: "25"
+  SDK_TOOLCHAIN_JDK: "21"
   ARTIFACT: configdirector-server-sdk
 
   # The build below must exercise the sample against the SDK being released, not against whatever
@@ -30,10 +31,19 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - uses: actions/setup-java@v5
+      - name: Set up the SDK toolchain JDK
+        id: sdk-toolchain-jdk
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
-          java-version: ${{ env.BUILD_JDK }}
+          java-version: ${{ env.SDK_TOOLCHAIN_JDK }}
+
+      - name: Set up the Gradle JDK
+        id: gradle-jdk
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: ${{ env.GRADLE_JDK }}
 
       - uses: gradle/actions/wrapper-validation@v4
 
@@ -67,12 +77,16 @@ jobs:
           fi
 
       # The same checks CI runs. A version nobody can build is not worth uploading.
-      - run: ./gradlew build
+      - run: >
+          ./gradlew build
+          -Porg.gradle.java.installations.paths=${{ steps.gradle-jdk.outputs.path }},${{ steps.sdk-toolchain-jdk.outputs.path }}
 
       # Uploads a signed bundle to the Central Portal and stops. The deployment is released from
       # the Portal by hand, which is the last chance to look at what is about to become permanent.
       - name: Publish to the Central Portal
-        run: ./gradlew publishToMavenCentral --no-configuration-cache
+        run: >
+          ./gradlew publishToMavenCentral --no-configuration-cache
+          -Porg.gradle.java.installations.paths=${{ steps.gradle-jdk.outputs.path }},${{ steps.sdk-toolchain-jdk.outputs.path }}
         env:
           ORG_GRADLE_PROJECT_mavenCentralUsername: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
           ORG_GRADLE_PROJECT_mavenCentralPassword: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
