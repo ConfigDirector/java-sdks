@@ -208,6 +208,44 @@ class ConfigDirectorClientTest {
     }
 
     @Test
+    void narrowing_ignores_a_key_the_server_does_not_know() {
+      client =
+          clientServing(
+              bundleOf(config("a", "string", "\"1\"") + "," + config("b", "string", "\"2\"")));
+      client.initialize();
+
+      assertThat(client.getAllConfigs(null, List.of("b", "nope"))).containsOnlyKeys("b");
+    }
+
+    @Test
+    void narrowing_to_a_key_asked_for_twice_evaluates_it_once() {
+      client = clientServing(bundleOf(config("a", "string", "\"1\"")));
+      client.initialize();
+
+      assertThat(client.getAllConfigs(null, List.of("a", "a"))).containsOnlyKeys("a");
+    }
+
+    @Test
+    void narrowing_to_nothing_returns_nothing() {
+      client = clientServing(bundleOf(config("a", "string", "\"1\"")));
+      client.initialize();
+
+      assertThat(client.getAllConfigs(null, List.of())).isEmpty();
+    }
+
+    @Test
+    void narrowing_keeps_the_order_the_configs_came_in() {
+      // The result follows config state, not the order the keys were asked for.
+      client =
+          clientServing(
+              bundleOf(config("a", "string", "\"1\"") + "," + config("b", "string", "\"2\"")));
+      client.initialize();
+
+      assertThat(client.getAllConfigs(null, List.of("b", "a")).keySet())
+          .containsExactly("a", "b");
+    }
+
+    @Test
     void is_empty_before_the_first_bundle() {
       client = clientServing(bundleOf(config("a", "string", "\"1\"")));
 
