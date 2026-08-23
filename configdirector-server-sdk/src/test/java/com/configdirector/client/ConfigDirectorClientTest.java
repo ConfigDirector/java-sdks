@@ -2,6 +2,7 @@ package com.configdirector.client;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
+import static org.assertj.core.api.Assertions.assertThatNoException;
 import static org.awaitility.Awaitility.await;
 
 import com.configdirector.ClientReadyEvent;
@@ -309,6 +310,26 @@ class ConfigDirectorClientTest {
           .isThrownBy(() -> client.initialize(Duration.ZERO));
       assertThatExceptionOfType(ConfigDirectorValidationException.class)
           .isThrownBy(() -> client.initialize(Duration.ofSeconds(-1)));
+    }
+
+    @Test
+    void a_timeout_longer_than_the_http_client_accepts_is_rejected() {
+      // OkHttp refuses a timeout over Integer.MAX_VALUE milliseconds. initialize() catches that
+      // and returns, so without this check the caller saw no error at all -- just a client that
+      // stayed unready and served defaults forever, against a server answering perfectly well.
+      client = clientServing(bundleOf(config("a", "string", "\"1\"")));
+
+      assertThatExceptionOfType(ConfigDirectorValidationException.class)
+          .isThrownBy(() -> client.initialize(Duration.ofDays(30)))
+          .withMessageContaining("longest the HTTP client accepts");
+    }
+
+    @Test
+    void the_longest_timeout_the_http_client_accepts_is_allowed() {
+      client = clientServing(bundleOf(config("a", "string", "\"1\"")));
+
+      assertThatNoException()
+          .isThrownBy(() -> client.initialize(Duration.ofMillis(Integer.MAX_VALUE)));
     }
   }
 

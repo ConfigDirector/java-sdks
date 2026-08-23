@@ -1,5 +1,6 @@
 package com.configdirector;
 
+import java.net.URI;
 import java.time.Duration;
 import java.util.Objects;
 
@@ -9,8 +10,19 @@ import java.util.Objects;
  * <p>{@code timeout} applies to initialization. While streaming, initialization may still succeed
  * after it elapses as long as nothing unrecoverable happened; without streaming, a timed-out
  * initialization is not retried. {@code url} is only needed when routing through a proxy.
+ *
+ * <p>Settings are checked when they are built, so an unusable one is reported where it was written
+ * rather than as a client that quietly never updates.
  */
 public final class ConnectionOptions {
+
+  // The longest timeout OkHttp accepts, which is what the timeout is ultimately handed to. Past
+  // this it rejects the request outright, and initialization reports a client that never becomes
+  // ready rather than one that waited too long.
+  private static final Duration LONGEST_TIMEOUT = Duration.ofMillis(Integer.MAX_VALUE);
+
+  // The longest interval the polling thread can wait out, since it waits in nanoseconds.
+  private static final Duration LONGEST_INTERVAL = Duration.ofNanos(Long.MAX_VALUE);
 
   private static final ConnectionOptions DEFAULTS = builder().build();
 
@@ -103,9 +115,11 @@ public final class ConnectionOptions {
     }
 
     /**
-     * How long to wait between polls. Used only in polling mode; defaults to 60 seconds.
+     * How long to wait between polls. Used only in polling mode; defaults to 60 seconds. Must be
+     * positive: a client that polls needs an interval to poll on, and
+     * {@link ConnectionMode#ONE_TIME} is how to ask for a single fetch instead.
      *
-     * @param pollingInterval the interval to wait
+     * @param pollingInterval the interval to wait, positive
      * @return this builder, so calls chain
      */
     public Builder pollingInterval(Duration pollingInterval) {
@@ -114,9 +128,10 @@ public final class ConnectionOptions {
     }
 
     /**
-     * How long initialization waits for the first config state. Defaults to 3 seconds.
+     * How long initialization waits for the first config state. Defaults to 3 seconds. Must be
+     * positive.
      *
-     * @param timeout the time to wait
+     * @param timeout the time to wait, positive
      * @return this builder, so calls chain
      */
     public Builder timeout(Duration timeout) {
@@ -139,9 +154,58 @@ public final class ConnectionOptions {
      * Builds the settings.
      *
      * @return the settings as configured
+     * @throws ConfigDirectorValidationException if a duration is not positive or is longer than
+     *     can be waited on, or if the URL is not absolute or names no host
      */
     public ConnectionOptions build() {
+      requirePositive(pollingInterval, "pollingInterval");
+      requirePositive(timeout, "timeout");
+      requireAtMost(pollingInterval, LONGEST_INTERVAL, "pollingInterval", "the SDK can wait for");
+      requireAtMost(timeout, LONGEST_TIMEOUT, "timeout", "the HTTP client accepts");
+      requireUsableUrl(url);
       return new ConnectionOptions(this);
+    }
+
+    private static void requirePositive(Duration value, String name) {
+      if (value.isNegative() || value.isZero()) {
+        throw new ConfigDirectorValidationException(
+            "Invalid " + name + " '" + value + "'. It must be a positive duration.");
+      }
+    }
+
+    private static void requireAtMost(Duration value, Duration ceiling, String name, String why) {
+      if (value.compareTo(ceiling) > 0) {
+        throw new ConfigDirectorValidationException(
+            "Invalid "
+                + name
+                + " '"
+                + value
+                + "'. It must be no longer than "
+                + ceiling.toMillis()
+                + "ms (about "
+                + ceiling.toDays()
+                + " days), which is the longest "
+                + why
+                + ".");
+      }
+    }
+
+    // Blank stands for absent, the same as null: both mean the ConfigDirector service.
+    private static void requireUsableUrl(String url) {
+      if (url == null || url.isBlank()) {
+        return;
+      }
+      URI parsed;
+      try {
+        parsed = URI.create(url.strip());
+      } catch (IllegalArgumentException malformed) {
+        throw new ConfigDirectorValidationException(
+            "Invalid connection URL '" + url + "'. " + malformed.getMessage());
+      }
+      if (!parsed.isAbsolute() || parsed.getHost() == null) {
+        throw new ConfigDirectorValidationException(
+            "Invalid connection URL '" + url + "'. It must be absolute and name a host.");
+      }
     }
   }
 }

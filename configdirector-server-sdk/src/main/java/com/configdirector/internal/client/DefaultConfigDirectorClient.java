@@ -48,6 +48,12 @@ public final class DefaultConfigDirectorClient implements ConfigDirectorClient {
 
   private static final String DEFAULT_BASE_URL = "https://server-sdk-api.configdirector.com";
 
+  // The longest timeout OkHttp accepts. ConnectionOptions bounds the one it carries; this bounds
+  // the one a caller hands straight to initialize. Past it OkHttp rejects the request, which
+  // initialization would otherwise report only as a client that never becomes ready.
+  private static final Duration LONGEST_TIMEOUT = Duration.ofMillis(Integer.MAX_VALUE);
+
+
   private final Logger logger;
   private final Metadata metadata;
   private final ConnectionOptions connection;
@@ -129,6 +135,16 @@ public final class DefaultConfigDirectorClient implements ConfigDirectorClient {
     if (timeout == null || timeout.isNegative() || timeout.isZero()) {
       throw new ConfigDirectorValidationException(
           "Invalid timeout '" + timeout + "'. The timeout must be a positive duration.");
+    }
+    if (timeout.compareTo(LONGEST_TIMEOUT) > 0) {
+      throw new ConfigDirectorValidationException(
+          "Invalid timeout '"
+              + timeout
+              + "'. It must be no longer than "
+              + LONGEST_TIMEOUT.toMillis()
+              + "ms (about "
+              + LONGEST_TIMEOUT.toDays()
+              + " days), which is the longest the HTTP client accepts.");
     }
     raiseIfClosed();
     logger.debug(
