@@ -13,7 +13,7 @@ defaults:
     shell: bash
 
 env:
-  BUILD_JDK: "21"
+  BUILD_JDK: "25"
   ARTIFACT: configdirector-server-sdk
 
   # The build below must exercise the sample against the SDK being released, not against whatever
@@ -26,7 +26,6 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
-      # Pushing the release tag.
       contents: write
     steps:
       - uses: actions/checkout@v5

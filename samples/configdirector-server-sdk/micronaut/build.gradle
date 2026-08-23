@@ -1,0 +1,87 @@
+plugins {
+    id 'java'
+    alias libs.plugins.micronaut.application
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    // The latest released SDK, which is what a reader copying this line wants. It deliberately
+    // lags the version in configdirector-server-sdk/build.gradle between a version bump and the
+    // release that publishes it -- naming an unpublished version here leaves the sample
+    // unresolvable for everyone who is not passing -PuseLocalSdk below.
+    implementation 'com.configdirector:configdirector-server-sdk:0.1.0'
+
+    annotationProcessor 'io.micronaut:micronaut-inject-java'
+    implementation 'io.micronaut:micronaut-http-server-netty'
+    implementation 'io.micronaut.serde:micronaut-serde-jackson'
+    runtimeOnly libs.logback.classic
+
+    testAnnotationProcessor 'io.micronaut:micronaut-inject-java'
+    testImplementation 'io.micronaut.test:micronaut-test-junit5'
+    testImplementation 'io.micronaut:micronaut-http-client'
+    testImplementation libs.assertj.core
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+micronaut {
+    version = '5.1.1'
+    runtime 'netty'
+    testRuntime 'junit5'
+    processing {
+        incremental true
+        // Restricts the annotation processor to this sample's own package, so it does not scan
+        // the SDK jar on every build.
+        annotations 'com.configdirector.samples.micronaut.*'
+    }
+}
+
+application {
+    mainClass = 'com.configdirector.samples.micronaut.Application'
+}
+
+// -PuseLocalSdk builds against configdirector-server-sdk/ in this repository instead of the
+// release on Central. CI sets it so that a breaking API change fails here first; locally it is
+// how you try an unreleased SDK change against a real consumer.
+def useLocalSdk = providers.gradleProperty('useLocalSdk')
+    .map { it.isEmpty() || Boolean.parseBoolean(it) }
+    .getOrElse(false)
+
+if (useLocalSdk) {
+    configurations.configureEach {
+        resolutionStrategy.dependencySubstitution {
+            substitute(module('com.configdirector:configdirector-server-sdk'))
+                .using(project(':configdirector-server-sdk'))
+        }
+    }
+}
+
+java {
+    // 25, not the 21 the rest of this build uses: Micronaut 5 ships Java 25 bytecode, so nothing
+    // older can compile against it or run it. The Micronaut Gradle plugin above is 25 bytecode
+    // too, and it loads into the Gradle daemon rather than into this toolchain -- which is why
+    // the whole build, not just this module, needs a 25 JVM.
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(25)
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+    // Unlike the spring-boot sample, this one cannot pin the SDK's Java 17 floor -- Micronaut 5
+    // rules that out. The floor is still enforced where it counts, by the SDK module itself and
+    // by the spring-boot sample that compiles against it with options.release = 17.
+    options.release = 25
+}
+
+// `run` resolves .env relative to the working directory, so point it at this module rather than
+// at the repository root the way Gradle would by default.
+tasks.named('run') {
+    workingDir = projectDir
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
+}

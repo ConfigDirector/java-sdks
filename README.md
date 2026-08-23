@@ -15,11 +15,19 @@ There is also [a quickstart guide for ConfigDirector and any of our SDKs](https:
 ## Sample apps
 
 [`samples/`](samples/) holds small, runnable applications, grouped by the artifact they are built
-on. Start with
+on. They are the same app in each framework -- a single `/configs` endpoint -- so they can be read
+side by side.
+
 [`samples/configdirector-server-sdk/spring-boot`](samples/configdirector-server-sdk/spring-boot/):
 
 ```bash
 ./gradlew :samples:configdirector-server-sdk:spring-boot:bootRun
+```
+
+[`samples/configdirector-server-sdk/micronaut`](samples/configdirector-server-sdk/micronaut/):
+
+```bash
+./gradlew :samples:configdirector-server-sdk:micronaut:run
 ```
 
 ## Getting Help

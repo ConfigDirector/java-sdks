@@ -23,6 +23,7 @@ slf4j-api = { module = "org.slf4j:slf4j-api", version.ref = "slf4j" }
 [plugins]
 errorprone = { id = "net.ltgt.errorprone", version = "5.1.0" }
 maven-publish = { id = "com.vanniktech.maven.publish", version = "0.37.0" }
+micronaut-application = { id = "io.micronaut.application", version = "5.0.2" }
 spring-boot = { id = "org.springframework.boot", version = "4.1.1" }
 spring-dependency-management = { id = "io.spring.dependency-management", version = "1.1.7" }
 spotbugs = { id = "com.github.spotbugs", version = "6.5.11" }
