@@ -25,6 +25,10 @@ import org.slf4j.LoggerFactory;
 class StreamingTransportTest {
 
   private static final Duration TIMEOUT = Duration.ofSeconds(10);
+
+  // What the server promises: axum's KeepAlive::default() sends a comment every 15 seconds, so a
+  // stream that has been silent for meaningfully longer than that is not idle, it is broken.
+  private static final Duration SERVER_KEEPALIVE = Duration.ofSeconds(15);
   private static final String BUNDLE =
       "{\"timestamp\":\"t1\",\"configs\":{\"k\":{\"id\":\"c1\",\"key\":\"k\",\"type\":\"string\","
           + "\"target\":{\"defaultValue\":\"on\",\"rules\":[]}}}}";
@@ -249,6 +253,42 @@ class StreamingTransportTest {
       transport.close();
 
       assertThat(transport.isConnected()).isFalse();
+    }
+  }
+
+  @Nested
+  @DisplayName("a stream that goes silent")
+  class Stalled {
+
+    @Test
+    void is_given_up_on_and_reconnected() throws Exception {
+      // The stream opens, delivers once, and then says nothing at all: no events, and no keepalive
+      // comments either. Nothing closes the socket, so only a read timeout can notice.
+      try (TestHttpServer server =
+          start(
+              session -> {
+                session.respondStreaming();
+                session.send("data: " + BUNDLE + "\n\n");
+              })) {
+        transport = new StreamingTransport(optionsFor(server.url("/")), Duration.ofMillis(300));
+
+        transport.connect(TIMEOUT);
+        await().atMost(TIMEOUT).until(() -> !snapshot(bundles).isEmpty());
+
+        await()
+            .atMost(TIMEOUT)
+            .untilAsserted(() -> assertThat(server.connectionCount()).isGreaterThan(1));
+      }
+    }
+
+    @Test
+    void is_allowed_to_miss_a_keepalive_or_two_before_that() {
+      Duration readTimeout =
+          new StreamingTransport(optionsFor("https://api.test/")).readTimeout();
+
+      // Zero would mean waiting forever, which is how a half-open connection goes unnoticed.
+      assertThat(readTimeout).isPositive();
+      assertThat(readTimeout).isGreaterThan(SERVER_KEEPALIVE.multipliedBy(2));
     }
   }
 

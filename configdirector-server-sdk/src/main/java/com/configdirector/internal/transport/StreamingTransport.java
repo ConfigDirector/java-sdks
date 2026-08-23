@@ -26,18 +26,38 @@ public final class StreamingTransport implements Transport {
   // Past this many attempts a reconnect is no longer routine and deserves a louder log level.
   private static final int QUIET_ATTEMPTS = 5;
 
+  // The server keeps the stream alive with a comment every 15 seconds, so silence for three of
+  // those in a row is not an idle stream, it is a dead one -- typically a connection an idle
+  // timeout somewhere in the middle dropped without telling either end. Waiting indefinitely
+  // instead, which is what Duration.ZERO would mean, leaves the SDK reading from a socket that
+  // will never produce another byte and serving whatever config it last received.
+  private static final Duration READ_TIMEOUT = Duration.ofSeconds(45);
+
   private final TransportOptions options;
   private final Logger logger;
   private final String url;
+
+  private final Duration readTimeout;
 
   private final AtomicReference<EventSourceClient> client = new AtomicReference<>();
   private final AtomicReference<ConfigDirectorConnectionException> fatalError = new AtomicReference<>();
   private volatile CountDownLatch settled = new CountDownLatch(1);
 
   public StreamingTransport(TransportOptions options) {
+    this(options, READ_TIMEOUT);
+  }
+
+  // Package private so a test can stall a stream out in milliseconds rather than in minutes.
+  StreamingTransport(TransportOptions options, Duration readTimeout) {
     this.options = options;
     this.logger = options.logger();
     this.url = Transports.resolve(options.baseUrl(), PATH);
+    this.readTimeout = readTimeout;
+  }
+
+  // Package private so the default can be checked without waiting one out.
+  Duration readTimeout() {
+    return readTimeout;
   }
 
   @Override
@@ -52,8 +72,10 @@ public final class StreamingTransport implements Transport {
             .headers(Transports.REQUEST_HEADERS)
             .body(Transports.jsonBody(Transports.requestPayload(options, null)))
             .logger(logger)
+            .readTimeout(readTimeout)
             .onConnect(this::onConnect)
             .onDisconnect(() -> logger.debug("[StreamingTransport] Disconnected"))
+            .onError(error -> logger.debug("[StreamingTransport] The stream failed", error))
             .onMessage(this::onMessage)
             .shouldReconnect(this::shouldReconnect)
             .calculateReconnectDelay(this::reconnectDelay)

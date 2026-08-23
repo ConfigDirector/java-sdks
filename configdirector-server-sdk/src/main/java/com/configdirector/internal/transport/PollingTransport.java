@@ -29,6 +29,11 @@ public class PollingTransport implements Transport {
   private CountDownLatch stop = new CountDownLatch(0);
   private Thread poller;
 
+  // Whether close() has been called since the last connect(). The first fetch happens before the
+  // poller starts, so without this a close() landing in that gap finds no thread to stop and the
+  // fetch goes on to start one that nothing will ever stop again.
+  private boolean closed;
+
   public PollingTransport(TransportOptions options) {
     this.options = options;
     this.logger = options.logger();
@@ -38,6 +43,9 @@ public class PollingTransport implements Transport {
 
   @Override
   public void connect(Duration timeout) {
+    synchronized (lock) {
+      closed = false;
+    }
     try {
       fetch(timeout);
     } finally {
@@ -65,6 +73,7 @@ public class PollingTransport implements Transport {
     Thread thread;
     CountDownLatch signal;
     synchronized (lock) {
+      closed = true;
       thread = poller;
       poller = null;
       signal = stop;
@@ -85,7 +94,7 @@ public class PollingTransport implements Transport {
       return;
     }
     synchronized (lock) {
-      if (poller != null) {
+      if (closed || poller != null) {
         return;
       }
       CountDownLatch signal = new CountDownLatch(1);

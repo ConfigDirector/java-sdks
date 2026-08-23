@@ -56,6 +56,16 @@ class PollingTransportTest {
         interval);
   }
 
+  private static void respondWith(TestHttpServer.Session session, String body) {
+    session.respond(
+        200,
+        "Content-Type: application/json",
+        "Content-Length: " + body.getBytes(java.nio.charset.StandardCharsets.UTF_8).length,
+        "Connection: close");
+    session.send(body);
+    session.close();
+  }
+
   private static TestHttpServer serverReturning(int status, String body) {
     return start(
         session -> {
@@ -282,6 +292,28 @@ class PollingTransportTest {
         Thread.sleep(300);
         assertThat(server.connectionCount()).isEqualTo(afterClose);
         assertThat(transport.isConnected()).isFalse();
+      }
+    }
+
+    @Test
+    void close_during_the_first_fetch_leaves_no_poller_behind() throws Exception {
+      try (TestHttpServer.Queued server = TestHttpServer.startQueued()) {
+        transport = new PollingTransport(optionsFor(server.url("/"), Duration.ofMillis(50)));
+
+        Thread connecting = new Thread(() -> transport.connect(TIMEOUT), "connecting");
+        connecting.start();
+
+        // next() returns once the request is fully on the wire and nothing has answered it, so
+        // close() lands in the window between the first fetch and the poller it starts after.
+        TestHttpServer.Session session = server.next();
+        transport.close();
+        respondWith(session, BUNDLE);
+        connecting.join(TIMEOUT.toMillis());
+
+        int afterClose = server.connectionCount();
+        Thread.sleep(300);
+        assertThat(transport.isConnected()).isFalse();
+        assertThat(server.connectionCount()).isEqualTo(afterClose);
       }
     }
 
