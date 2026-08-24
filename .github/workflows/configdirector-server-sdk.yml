@@ -41,6 +41,7 @@ jobs:
           distribution: temurin
           java-version: ${{ env.SDK_TOOLCHAIN_JDK }}
 
+      # Must be after the toolchain JDK since it sets JAVA_HOME
       - name: Set up the Gradle JDK
         id: gradle-jdk
         uses: actions/setup-java@v5

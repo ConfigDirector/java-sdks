@@ -1,9 +1,9 @@
 # Micronaut sample
 
 A minimal [Micronaut](https://micronaut.io) app using the ConfigDirector Java server SDK. It is
-the same app as the [`spring-boot`](../spring-boot/) sample — a single `/configs` endpoint that
-evaluates a handful of configs and returns them as JSON — written the Micronaut way, so the two
-can be read side by side.
+the same app as the [`spring-boot`](../spring-boot/) and [`quarkus`](../quarkus/) samples — a
+single `/configs` endpoint that evaluates a handful of configs and returns them as JSON — written
+the Micronaut way, so the three can be read side by side.
 
 ## Running it
 
@@ -36,7 +36,8 @@ curl 'http://localhost:3601/configs?id=user-123&plan=pro'
 }
 ```
 
-Port 3601, so this and the Spring Boot sample on 3600 can run at the same time.
+Port 3601, so this, the Spring Boot sample on 3600 and the Quarkus sample on 3602 can run at
+the same time.
 
 Query parameters double as the evaluation context — `id`, `name`, and `anonymous` map to the
 matching `Context` fields, and anything else becomes a trait:

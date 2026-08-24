@@ -1,0 +1,78 @@
+plugins {
+    id 'java'
+    alias libs.plugins.quarkus
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    // Pins every io.quarkus:* version below, so the extensions and the Gradle plugin above stay
+    // on the same Quarkus release. enforcedPlatform rather than platform because Quarkus builds
+    // an augmented application out of these jars and a downgraded one is not a supported mix.
+    implementation enforcedPlatform(libs.quarkus.bom)
+
+    // The latest released SDK, which is what a reader copying this line wants. It deliberately
+    // lags the version in configdirector-server-sdk/build.gradle between a version bump and the
+    // release that publishes it -- naming an unpublished version here leaves the sample
+    // unresolvable for everyone who is not passing -PuseLocalSdk below.
+    implementation 'com.configdirector:configdirector-server-sdk:0.1.0'
+
+    implementation 'io.quarkus:quarkus-arc'
+    implementation 'io.quarkus:quarkus-rest-jackson'
+
+    testImplementation 'io.quarkus:quarkus-junit5'
+    testImplementation 'io.rest-assured:rest-assured'
+    testImplementation libs.assertj.core
+}
+
+// -PuseLocalSdk builds against configdirector-server-sdk/ in this repository instead of the
+// release on Central. CI sets it so that a breaking API change fails here first; locally it is
+// how you try an unreleased SDK change against a real consumer.
+def useLocalSdk = providers.gradleProperty('useLocalSdk')
+    .map { it.isEmpty() || Boolean.parseBoolean(it) }
+    .getOrElse(false)
+
+if (useLocalSdk) {
+    configurations.configureEach {
+        resolutionStrategy.dependencySubstitution {
+            substitute(module('com.configdirector:configdirector-server-sdk'))
+                .using(project(':configdirector-server-sdk'))
+        }
+    }
+}
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+    // The SDK's floor, so the sample cannot accidentally demonstrate an API a consumer on 17
+    // could not call. Quarkus still supports 17, so unlike the micronaut sample this one can
+    // hold the line.
+    options.release = 17
+}
+
+// Quarkus reads .env from the working directory, which for both of these defaults to the
+// repository root rather than to this module.
+tasks.named('quarkusRun') {
+    workingDirectory = projectDir
+}
+
+tasks.named('quarkusDev') {
+    workingDirectory = projectDir
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
+    // Runs the suite from a directory with no .env in it, so a developer's local file cannot
+    // change what these assert. See ConfigsResourceTest.
+    workingDir = layout.buildDirectory.dir('test-working-dir').get().asFile
+    doFirst {
+        workingDir.mkdirs()
+    }
+}

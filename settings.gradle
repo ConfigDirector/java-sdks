@@ -14,3 +14,4 @@ include('configdirector-server-sdk')
 // will hold more than one.
 include('samples:configdirector-server-sdk:spring-boot')
 include('samples:configdirector-server-sdk:micronaut')
+include('samples:configdirector-server-sdk:quarkus')

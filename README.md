@@ -30,6 +30,12 @@ side by side.
 ./gradlew :samples:configdirector-server-sdk:micronaut:run
 ```
 
+[`samples/configdirector-server-sdk/quarkus`](samples/configdirector-server-sdk/quarkus/):
+
+```bash
+./gradlew :samples:configdirector-server-sdk:quarkus:quarkusRun
+```
+
 ## Getting Help
 
 Reach out to us via https://www.configdirector.com/support
