@@ -49,7 +49,7 @@ Run the smoke tests with `./gradlew :samples:configdirector-server-sdk:spring-bo
 By default the sample depends on the released artifact, exactly as your own app would:
 
 ```groovy
-implementation 'com.configdirector:configdirector-server-sdk:0.1.0'
+implementation 'com.configdirector:configdirector-server-sdk:1.0.0'
 ```
 
 Pass `-PuseLocalSdk` to build it against
@@ -130,13 +130,13 @@ Set `CONFIGDIRECTOR_LOG_LEVEL=DEBUG` to watch every evaluation as it happens.
 [`SampleProperties`](src/main/java/com/configdirector/samples/springboot/SampleProperties.java), so
 a real deployment supplies them as environment variables rather than editing code:
 
-| Variable | Default | Meaning |
-|---|---|---|
-| `CONFIGDIRECTOR_SERVER_KEY` | `fake-sample-key` | Your server SDK key. A secret. |
-| `CONFIGDIRECTOR_BASE_URL` | *(none)* | Only when routing through a proxy. |
-| `CONFIGDIRECTOR_MODE` | `streaming` | `streaming`, `polling`, or `one-time`. |
-| `CONFIGDIRECTOR_TIMEOUT` | `3s` | Initialization timeout. |
-| `CONFIGDIRECTOR_LOG_LEVEL` | `INFO` | Set to `DEBUG` to trace evaluations. |
+| Variable                    | Default           | Meaning                                |
+| --------------------------- | ----------------- | -------------------------------------- |
+| `CONFIGDIRECTOR_SERVER_KEY` | `fake-sample-key` | Your server SDK key. A secret.         |
+| `CONFIGDIRECTOR_BASE_URL`   | _(none)_          | Only when routing through a proxy.     |
+| `CONFIGDIRECTOR_MODE`       | `streaming`       | `streaming`, `polling`, or `one-time`. |
+| `CONFIGDIRECTOR_TIMEOUT`    | `3s`              | Initialization timeout.                |
+| `CONFIGDIRECTOR_LOG_LEVEL`  | `INFO`            | Set to `DEBUG` to trace evaluations.   |
 
 ## Where the `.env` file comes in
 

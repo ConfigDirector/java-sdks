@@ -53,7 +53,7 @@ Run the smoke tests with `./gradlew :samples:configdirector-server-sdk:micronaut
 By default the sample depends on the released artifact, exactly as your own app would:
 
 ```groovy
-implementation 'com.configdirector:configdirector-server-sdk:0.1.0'
+implementation 'com.configdirector:configdirector-server-sdk:1.0.0'
 ```
 
 Pass `-PuseLocalSdk` to build it against
@@ -171,15 +171,15 @@ Set `CONFIGDIRECTOR_LOG_LEVEL=DEBUG` to watch every evaluation as it happens.
 [`SampleConfiguration`](src/main/java/com/configdirector/samples/micronaut/SampleConfiguration.java),
 so a real deployment supplies them as environment variables rather than editing code:
 
-| Variable | Default | Meaning |
-|---|---|---|
-| `CONFIGDIRECTOR_SERVER_KEY` | `fake-sample-key` | Your server SDK key. A secret. |
-| `CONFIGDIRECTOR_BASE_URL` | *(none)* | Only when routing through a proxy. |
-| `CONFIGDIRECTOR_MODE` | `streaming` | `streaming`, `polling`, or `one-time`. |
-| `CONFIGDIRECTOR_TIMEOUT` | `3s` | Initialization timeout. |
-| `CONFIGDIRECTOR_LOG_LEVEL` | `INFO` | Set to `DEBUG` to trace evaluations. |
+| Variable                    | Default           | Meaning                                |
+| --------------------------- | ----------------- | -------------------------------------- |
+| `CONFIGDIRECTOR_SERVER_KEY` | `fake-sample-key` | Your server SDK key. A secret.         |
+| `CONFIGDIRECTOR_BASE_URL`   | _(none)_          | Only when routing through a proxy.     |
+| `CONFIGDIRECTOR_MODE`       | `streaming`       | `streaming`, `polling`, or `one-time`. |
+| `CONFIGDIRECTOR_TIMEOUT`    | `3s`              | Initialization timeout.                |
+| `CONFIGDIRECTOR_LOG_LEVEL`  | `INFO`            | Set to `DEBUG` to trace evaluations.   |
 
-Note what `application.properties` does *not* contain: any `${CONFIGDIRECTOR_SERVER_KEY}`
+Note what `application.properties` does _not_ contain: any `${CONFIGDIRECTOR_SERVER_KEY}`
 placeholder. Micronaut's environment property source already understands the
 `SCREAMING_SNAKE_CASE` spelling of a property name, so `CONFIGDIRECTOR_SERVER_KEY` overrides
 `configdirector.server-key` on its own and the file only has to state the default:
@@ -239,7 +239,7 @@ DEBUG sample.configdirector : [ConfigDirectorClient] No config state found for
       temporary-feature-flag, returning the default value
 ```
 
-The startup line is INFO on purpose: Micronaut applies `logger.levels` *after* it builds
+The startup line is INFO on purpose: Micronaut applies `logger.levels` _after_ it builds
 `@Context` beans, so whatever the SDK logs at DEBUG while initializing is still below the
 threshold in force at that moment. Evaluations on the request path are late enough to be
 unaffected, which is where `DEBUG` earns its keep anyway.
