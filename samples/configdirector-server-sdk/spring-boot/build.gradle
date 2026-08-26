@@ -13,7 +13,7 @@ dependencies {
     // lags the version in configdirector-server-sdk/build.gradle between a version bump and the
     // release that publishes it -- naming an unpublished version here leaves the sample
     // unresolvable for everyone who is not passing -PuseLocalSdk below.
-    implementation 'com.configdirector:configdirector-server-sdk:0.1.0'
+    implementation 'com.configdirector:configdirector-server-sdk:1.0.0'
     implementation 'org.springframework.boot:spring-boot-starter-web'
 
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
