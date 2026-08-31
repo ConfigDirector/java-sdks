@@ -6,11 +6,9 @@ repository keep changelogs of their own.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this artifact
 follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-The version being released is whatever `configdirector-server-sdk/build.gradle` says, so the
-section for a version should be filled in alongside that bump, before the release workflow is run
-against `main`.
-
 ## [Unreleased]
+
+## [1.1.0] - 2026-08-31
 
 ### Added
 
