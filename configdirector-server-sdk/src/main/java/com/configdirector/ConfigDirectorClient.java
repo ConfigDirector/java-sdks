@@ -17,6 +17,10 @@ import java.util.function.Consumer;
  *
  * <p>Each getter comes in two forms, with and without a {@link Context}. The context is what
  * targeting rules are evaluated against, so the same key can resolve differently per user.
+ *
+ * <p>Watching mirrors that: one watch per type, each in the same two forms. A watch fires whenever
+ * an update carries its key, with the value evaluated afresh, and handlers run on the transport
+ * thread, so one that blocks delays later updates.
  */
 public interface ConfigDirectorClient extends AutoCloseable {
 
@@ -212,27 +216,172 @@ public interface ConfigDirectorClient extends AutoCloseable {
   Map<String, ConfigState> getAllConfigs(Context context, List<String> configKeys);
 
   /**
-   * Calls {@code onChange} whenever an update carries {@code configKey}, with the newly evaluated
-   * value. Handlers run on the transport thread, so one that blocks delays later updates.
+   * Watches {@code configKey} as a boolean.
    *
-   * @param <T> the type of the default, and of the value passed to {@code onChange}
    * @param configKey the config to watch
-   * @param defaultValue used when the updated config will not coerce to its type
-   * @param onChange receives the newly evaluated value
+   * @param defaultValue used when the updated value is missing or not a boolean
+   * @param onChange receives each newly evaluated value
    * @return a handle that cancels this watch
    */
-  <T> Subscription watch(String configKey, T defaultValue, Consumer<T> onChange);
+  Subscription watchBoolean(String configKey, boolean defaultValue, Consumer<Boolean> onChange);
 
   /**
-   * Watches {@code configKey}, evaluating each update against {@code context}.
+   * Watches {@code configKey} as a boolean, against {@code context}.
    *
-   * @param <T> the type of the default, and of the value passed to {@code onChange}
    * @param configKey the config to watch
-   * @param defaultValue used when the updated config will not coerce to its type
-   * @param onChange receives the newly evaluated value
+   * @param defaultValue used when the updated value is missing or not a boolean
+   * @param onChange receives each newly evaluated value
    * @param context evaluated against targeting rules; may be null
    * @return a handle that cancels this watch
    */
+  Subscription watchBoolean(
+      String configKey, boolean defaultValue, Consumer<Boolean> onChange, Context context);
+
+  /**
+   * Watches {@code configKey} as text.
+   *
+   * @param configKey the config to watch
+   * @param defaultValue used when the updated value is missing
+   * @param onChange receives each newly evaluated value
+   * @return a handle that cancels this watch
+   */
+  Subscription watchString(String configKey, String defaultValue, Consumer<String> onChange);
+
+  /**
+   * Watches {@code configKey} as text, against {@code context}.
+   *
+   * @param configKey the config to watch
+   * @param defaultValue used when the updated value is missing
+   * @param onChange receives each newly evaluated value
+   * @param context evaluated against targeting rules; may be null
+   * @return a handle that cancels this watch
+   */
+  Subscription watchString(
+      String configKey, String defaultValue, Consumer<String> onChange, Context context);
+
+  /**
+   * Watches {@code configKey} as a whole number.
+   *
+   * @param configKey the config to watch
+   * @param defaultValue used when the updated value is missing or not a whole number
+   * @param onChange receives each newly evaluated value
+   * @return a handle that cancels this watch
+   */
+  Subscription watchInteger(String configKey, int defaultValue, Consumer<Integer> onChange);
+
+  /**
+   * Watches {@code configKey} as a whole number, against {@code context}.
+   *
+   * @param configKey the config to watch
+   * @param defaultValue used when the updated value is missing or not a whole number
+   * @param onChange receives each newly evaluated value
+   * @param context evaluated against targeting rules; may be null
+   * @return a handle that cancels this watch
+   */
+  Subscription watchInteger(
+      String configKey, int defaultValue, Consumer<Integer> onChange, Context context);
+
+  /**
+   * Watches {@code configKey} as a number.
+   *
+   * @param configKey the config to watch
+   * @param defaultValue used when the updated value is missing or not a number
+   * @param onChange receives each newly evaluated value
+   * @return a handle that cancels this watch
+   */
+  Subscription watchDouble(String configKey, double defaultValue, Consumer<Double> onChange);
+
+  /**
+   * Watches {@code configKey} as a number, against {@code context}.
+   *
+   * @param configKey the config to watch
+   * @param defaultValue used when the updated value is missing or not a number
+   * @param onChange receives each newly evaluated value
+   * @param context evaluated against targeting rules; may be null
+   * @return a handle that cancels this watch
+   */
+  Subscription watchDouble(
+      String configKey, double defaultValue, Consumer<Double> onChange, Context context);
+
+  /**
+   * Watches {@code configKey} as a JSON object.
+   *
+   * @param configKey the config to watch
+   * @param defaultValue used when the updated value is missing or not a JSON object
+   * @param onChange receives each newly evaluated value
+   * @return a handle that cancels this watch
+   */
+  Subscription watchJsonObject(
+      String configKey, Map<String, Object> defaultValue, Consumer<Map<String, Object>> onChange);
+
+  /**
+   * Watches {@code configKey} as a JSON object, against {@code context}.
+   *
+   * @param configKey the config to watch
+   * @param defaultValue used when the updated value is missing or not a JSON object
+   * @param onChange receives each newly evaluated value
+   * @param context evaluated against targeting rules; may be null
+   * @return a handle that cancels this watch
+   */
+  Subscription watchJsonObject(
+      String configKey,
+      Map<String, Object> defaultValue,
+      Consumer<Map<String, Object>> onChange,
+      Context context);
+
+  /**
+   * Watches {@code configKey} as a JSON array.
+   *
+   * @param configKey the config to watch
+   * @param defaultValue used when the updated value is missing or not a JSON array
+   * @param onChange receives each newly evaluated value
+   * @return a handle that cancels this watch
+   */
+  Subscription watchJsonArray(
+      String configKey, List<Object> defaultValue, Consumer<List<Object>> onChange);
+
+  /**
+   * Watches {@code configKey} as a JSON array, against {@code context}.
+   *
+   * @param configKey the config to watch
+   * @param defaultValue used when the updated value is missing or not a JSON array
+   * @param onChange receives each newly evaluated value
+   * @param context evaluated against targeting rules; may be null
+   * @return a handle that cancels this watch
+   */
+  Subscription watchJsonArray(
+      String configKey,
+      List<Object> defaultValue,
+      Consumer<List<Object>> onChange,
+      Context context);
+
+  /**
+   * Watches {@code configKey} as the type of {@code defaultValue}.
+   *
+   * @param <T> the type of the default, and of the value passed to {@code onChange}
+   * @param configKey the config to watch
+   * @param defaultValue used when the updated value will not coerce to its type
+   * @param onChange receives each newly evaluated value
+   * @return a handle that cancels this watch
+   * @deprecated replaced by the per-type watches, which mirror the getters: {@link
+   *     #watchBoolean(String, boolean, Consumer)} and its siblings.
+   */
+  @Deprecated
+  <T> Subscription watch(String configKey, T defaultValue, Consumer<T> onChange);
+
+  /**
+   * Watches {@code configKey} as the type of {@code defaultValue}, against {@code context}.
+   *
+   * @param <T> the type of the default, and of the value passed to {@code onChange}
+   * @param configKey the config to watch
+   * @param defaultValue used when the updated value will not coerce to its type
+   * @param onChange receives each newly evaluated value
+   * @param context evaluated against targeting rules; may be null
+   * @return a handle that cancels this watch
+   * @deprecated replaced by the per-type watches, which mirror the getters: {@link
+   *     #watchBoolean(String, boolean, Consumer, Context)} and its siblings.
+   */
+  @Deprecated
   <T> Subscription watch(String configKey, T defaultValue, Consumer<T> onChange, Context context);
 
   /**

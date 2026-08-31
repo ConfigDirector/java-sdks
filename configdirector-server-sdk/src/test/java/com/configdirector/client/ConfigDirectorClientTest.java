@@ -83,6 +83,36 @@ class ConfigDirectorClientTest {
         + "\",\"rules\":[]}}";
   }
 
+  // Serves "value" to the named identifier and the default to everyone else, so a test can tell
+  // which context an evaluation ran against.
+  private static String targetedConfig(
+      String key, String type, String defaultValue, String identifier, String value) {
+    return "\""
+        + key
+        + "\":{\"id\":\"id-"
+        + key
+        + "\",\"key\":\""
+        + key
+        + "\",\"type\":\""
+        + type
+        + "\",\"target\":{\"defaultValue\":"
+        + defaultValue
+        + ",\"defaultValueId\":\"dv-"
+        + key
+        + "\",\"rules\":[{\"id\":\"r-"
+        + key
+        + "\",\"type\":\"conditional\",\"order\":1,\"target\":\"value\",\"value\":"
+        + value
+        + ",\"valueId\":\"rv-"
+        + key
+        + "\",\"conditions\":[{\"id\":\"c-"
+        + key
+        + "\",\"attribute\":\"identifier\",\"operator\":\"=\",\"targetType\":\"text\","
+        + "\"targetValues\":[\""
+        + identifier
+        + "\"],\"trait\":null}]}]}}";
+  }
+
   private ConfigDirectorClient clientServing(String bundle) {
     server = start(session -> respond(session, bundle));
     String url = server.url("/");
@@ -572,21 +602,95 @@ class ConfigDirectorClientTest {
   @DisplayName("watching")
   class Watching {
 
-    @Test
-    void a_watcher_fires_when_an_update_carries_its_key() throws Exception {
-      List<Boolean> seen = Collections.synchronizedList(new ArrayList<>());
-      server =
-          start(
-              session ->
-                  respond(session, bundleOf(config("flag", "boolean", "\"true\""))));
+    private ConfigDirectorClient watchingClientServing(String bundle) {
+      server = start(session -> respond(session, bundle));
       String url = server.url("/");
+      return build(
+          connection ->
+              connection
+                  .mode(ConnectionMode.POLLING)
+                  .pollingInterval(Duration.ofMillis(50))
+                  .url(url));
+    }
+
+    @Test
+    void a_watcher_fires_when_an_update_carries_its_key() {
+      List<Boolean> seen = Collections.synchronizedList(new ArrayList<>());
+      client = watchingClientServing(bundleOf(config("flag", "boolean", "\"true\"")));
+
+      client.watchBoolean("flag", false, seen::add);
+      client.initialize();
+
+      await().atMost(TIMEOUT).until(() -> !snapshot(seen).isEmpty());
+      assertThat(snapshot(seen).get(0)).isTrue();
+    }
+
+    @Test
+    void each_watch_delivers_the_value_in_its_own_type() {
+      List<Boolean> flags = Collections.synchronizedList(new ArrayList<>());
+      List<String> names = Collections.synchronizedList(new ArrayList<>());
+      List<Integer> counts = Collections.synchronizedList(new ArrayList<>());
+      List<Double> rates = Collections.synchronizedList(new ArrayList<>());
+      List<Map<String, Object>> layouts = Collections.synchronizedList(new ArrayList<>());
+      List<List<Object>> tags = Collections.synchronizedList(new ArrayList<>());
       client =
-          build(
-              connection ->
-                  connection
-                      .mode(ConnectionMode.POLLING)
-                      .pollingInterval(Duration.ofMillis(50))
-                      .url(url));
+          watchingClientServing(
+              bundleOf(
+                  config("flag", "boolean", "\"true\"")
+                      + ","
+                      + config("name", "string", "\"hello\"")
+                      + ","
+                      + config("count", "integer", "\"26\"")
+                      + ","
+                      + config("rate", "float", "\"1.5\"")
+                      + ","
+                      + config("layout", "json", "\"{\\\"a\\\":1}\"")
+                      + ","
+                      + config("tags", "json", "\"[1,2]\"")));
+
+      client.watchBoolean("flag", false, flags::add);
+      client.watchString("name", "x", names::add);
+      client.watchInteger("count", 0, counts::add);
+      client.watchDouble("rate", 0.0, rates::add);
+      client.watchJsonObject("layout", Map.of(), layouts::add);
+      client.watchJsonArray("tags", List.of(), tags::add);
+      client.initialize();
+
+      await()
+          .atMost(TIMEOUT)
+          .until(
+              () ->
+                  !snapshot(flags).isEmpty()
+                      && !snapshot(names).isEmpty()
+                      && !snapshot(counts).isEmpty()
+                      && !snapshot(rates).isEmpty()
+                      && !snapshot(layouts).isEmpty()
+                      && !snapshot(tags).isEmpty());
+      assertThat(snapshot(flags).get(0)).isTrue();
+      assertThat(snapshot(names).get(0)).isEqualTo("hello");
+      assertThat(snapshot(counts).get(0)).isEqualTo(26);
+      assertThat(snapshot(rates).get(0)).isEqualTo(1.5);
+      assertThat(snapshot(layouts).get(0)).containsEntry("a", 1L);
+      assertThat(snapshot(tags).get(0)).containsExactly(1L, 2L);
+    }
+
+    @Test
+    void a_watch_that_will_not_coerce_delivers_the_default() {
+      List<Integer> seen = Collections.synchronizedList(new ArrayList<>());
+      client = watchingClientServing(bundleOf(config("name", "string", "\"not-a-number\"")));
+
+      client.watchInteger("name", 7, seen::add);
+      client.initialize();
+
+      await().atMost(TIMEOUT).until(() -> !snapshot(seen).isEmpty());
+      assertThat(snapshot(seen).get(0)).isEqualTo(7);
+    }
+
+    @Test
+    @SuppressWarnings("deprecation")
+    void the_deprecated_watch_takes_its_type_from_the_default() {
+      List<Boolean> seen = Collections.synchronizedList(new ArrayList<>());
+      client = watchingClientServing(bundleOf(config("flag", "boolean", "\"true\"")));
 
       client.watch("flag", false, seen::add);
       client.initialize();
@@ -596,21 +700,52 @@ class ConfigDirectorClientTest {
     }
 
     @Test
+    void a_watch_evaluates_every_update_against_its_own_context() {
+      List<String> targeted = Collections.synchronizedList(new ArrayList<>());
+      List<String> untargeted = Collections.synchronizedList(new ArrayList<>());
+      client =
+          watchingClientServing(
+              bundleOf(targetedConfig("name", "string", "\"fallback\"", "u1", "\"matched\"")));
+
+      client.watchString("name", "x", targeted::add, Context.builder().id("u1").build());
+      client.watchString("name", "x", untargeted::add, Context.builder().id("u2").build());
+      client.initialize();
+
+      await()
+          .atMost(TIMEOUT)
+          .until(() -> !snapshot(targeted).isEmpty() && !snapshot(untargeted).isEmpty());
+      assertThat(snapshot(targeted).get(0)).isEqualTo("matched");
+      assertThat(snapshot(untargeted).get(0)).isEqualTo("fallback");
+    }
+
+    @Test
+    void a_watch_rejects_a_null_callback() {
+      client = clientServing(bundleOf(config("flag", "boolean", "\"true\"")));
+
+      assertThatExceptionOfType(ConfigDirectorValidationException.class)
+          .isThrownBy(() -> client.watchBoolean("flag", false, null));
+    }
+
+    @Test
+    void closing_the_subscription_stops_the_callbacks() throws Exception {
+      List<Boolean> seen = Collections.synchronizedList(new ArrayList<>());
+      client = watchingClientServing(bundleOf(config("flag", "boolean", "\"true\"")));
+      Subscription subscription = client.watchBoolean("flag", false, seen::add);
+      client.initialize();
+      await().atMost(TIMEOUT).until(() -> !snapshot(seen).isEmpty());
+
+      subscription.close();
+      int afterClose = snapshot(seen).size();
+
+      Thread.sleep(300);
+      assertThat(snapshot(seen)).hasSize(afterClose);
+    }
+
+    @Test
     void unwatch_stops_the_callbacks() throws Exception {
       List<Boolean> seen = Collections.synchronizedList(new ArrayList<>());
-      server =
-          start(
-              session ->
-                  respond(session, bundleOf(config("flag", "boolean", "\"true\""))));
-      String url = server.url("/");
-      client =
-          build(
-              connection ->
-                  connection
-                      .mode(ConnectionMode.POLLING)
-                      .pollingInterval(Duration.ofMillis(50))
-                      .url(url));
-      client.watch("flag", false, seen::add);
+      client = watchingClientServing(bundleOf(config("flag", "boolean", "\"true\"")));
+      client.watchBoolean("flag", false, seen::add);
       client.initialize();
       await().atMost(TIMEOUT).until(() -> !snapshot(seen).isEmpty());
 
@@ -622,28 +757,17 @@ class ConfigDirectorClientTest {
     }
 
     @Test
-    void a_faulty_watcher_does_not_cost_the_others_their_update() throws Exception {
+    void a_faulty_watcher_does_not_cost_the_others_their_update() {
       List<Boolean> seen = Collections.synchronizedList(new ArrayList<>());
-      server =
-          start(
-              session ->
-                  respond(session, bundleOf(config("flag", "boolean", "\"true\""))));
-      String url = server.url("/");
-      client =
-          build(
-              connection ->
-                  connection
-                      .mode(ConnectionMode.POLLING)
-                      .pollingInterval(Duration.ofMillis(50))
-                      .url(url));
+      client = watchingClientServing(bundleOf(config("flag", "boolean", "\"true\"")));
 
-      client.watch(
+      client.watchBoolean(
           "flag",
           false,
           value -> {
             throw new IllegalStateException("watcher blew up");
           });
-      client.watch("flag", false, seen::add);
+      client.watchBoolean("flag", false, seen::add);
       client.initialize();
 
       await().atMost(TIMEOUT).until(() -> !snapshot(seen).isEmpty());

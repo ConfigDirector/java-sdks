@@ -464,13 +464,95 @@ public final class DefaultConfigDirectorClient implements ConfigDirectorClient {
   }
 
   @Override
-  public <T> Subscription watch(String configKey, T defaultValue, Consumer<T> onChange) {
-    return watch(configKey, defaultValue, onChange, null);
+  public Subscription watchBoolean(
+      String configKey, boolean defaultValue, Consumer<Boolean> onChange) {
+    return watchBoolean(configKey, defaultValue, onChange, null);
   }
 
   @Override
+  public Subscription watchBoolean(
+      String configKey, boolean defaultValue, Consumer<Boolean> onChange, Context context) {
+    return subscribe(configKey, defaultValue, onChange, context);
+  }
+
+  @Override
+  public Subscription watchString(String configKey, String defaultValue, Consumer<String> onChange) {
+    return watchString(configKey, defaultValue, onChange, null);
+  }
+
+  @Override
+  public Subscription watchString(
+      String configKey, String defaultValue, Consumer<String> onChange, Context context) {
+    return subscribe(configKey, defaultValue, onChange, context);
+  }
+
+  @Override
+  public Subscription watchInteger(String configKey, int defaultValue, Consumer<Integer> onChange) {
+    return watchInteger(configKey, defaultValue, onChange, null);
+  }
+
+  @Override
+  public Subscription watchInteger(
+      String configKey, int defaultValue, Consumer<Integer> onChange, Context context) {
+    return subscribe(configKey, defaultValue, onChange, context);
+  }
+
+  @Override
+  public Subscription watchDouble(String configKey, double defaultValue, Consumer<Double> onChange) {
+    return watchDouble(configKey, defaultValue, onChange, null);
+  }
+
+  @Override
+  public Subscription watchDouble(
+      String configKey, double defaultValue, Consumer<Double> onChange, Context context) {
+    return subscribe(configKey, defaultValue, onChange, context);
+  }
+
+  @Override
+  public Subscription watchJsonObject(
+      String configKey, Map<String, Object> defaultValue, Consumer<Map<String, Object>> onChange) {
+    return watchJsonObject(configKey, defaultValue, onChange, null);
+  }
+
+  @Override
+  public Subscription watchJsonObject(
+      String configKey,
+      Map<String, Object> defaultValue,
+      Consumer<Map<String, Object>> onChange,
+      Context context) {
+    return subscribe(configKey, defaultValue, onChange, context);
+  }
+
+  @Override
+  public Subscription watchJsonArray(
+      String configKey, List<Object> defaultValue, Consumer<List<Object>> onChange) {
+    return watchJsonArray(configKey, defaultValue, onChange, null);
+  }
+
+  @Override
+  public Subscription watchJsonArray(
+      String configKey,
+      List<Object> defaultValue,
+      Consumer<List<Object>> onChange,
+      Context context) {
+    return subscribe(configKey, defaultValue, onChange, context);
+  }
+
+  @Deprecated
+  @Override
+  public <T> Subscription watch(String configKey, T defaultValue, Consumer<T> onChange) {
+    return subscribe(configKey, defaultValue, onChange, null);
+  }
+
+  @Deprecated
+  @Override
   public <T> Subscription watch(
       String configKey, T defaultValue, Consumer<T> onChange, Context context) {
+    return subscribe(configKey, defaultValue, onChange, context);
+  }
+
+  private Subscription subscribe(
+      String configKey, Object defaultValue, Consumer<?> onChange, Context context) {
     validateConfigKey(configKey);
     validateDefault(defaultValue);
     if (onChange == null) {
