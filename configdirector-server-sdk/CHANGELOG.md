@@ -8,6 +8,8 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-09-05
+
 ### Changed
 
 - The polling interval defaults to 5 minutes, up from 60 seconds, and `ConnectionOptions` now
