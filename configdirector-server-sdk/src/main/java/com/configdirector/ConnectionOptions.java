@@ -116,8 +116,7 @@ public final class ConnectionOptions {
 
     /**
      * How long to wait between polls. Used only in polling mode; defaults to 60 seconds. Must be
-     * positive: a client that polls needs an interval to poll on, and
-     * {@link ConnectionMode#ONE_TIME} is how to ask for a single fetch instead.
+     * positive: a client that polls needs an interval to poll on.
      *
      * @param pollingInterval the interval to wait, positive
      * @return this builder, so calls chain

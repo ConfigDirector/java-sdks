@@ -107,7 +107,7 @@ class PollingTransportTest {
     @Test
     void delivers_the_bundle_it_receives() throws Exception {
       try (TestHttpServer server = serverReturning(200, BUNDLE)) {
-        transport = new OneTimeTransport(optionsFor(server.url("/"), Duration.ZERO));
+        transport = new PollingTransport(optionsFor(server.url("/"), Duration.ZERO));
 
         transport.connect(TIMEOUT);
 
@@ -128,7 +128,7 @@ class PollingTransportTest {
                 session.send(BUNDLE);
                 session.close();
               })) {
-        transport = new OneTimeTransport(optionsFor(server.url("/"), Duration.ZERO));
+        transport = new PollingTransport(optionsFor(server.url("/"), Duration.ZERO));
 
         transport.connect(TIMEOUT);
 
@@ -150,7 +150,7 @@ class PollingTransportTest {
                 session.send(BUNDLE);
                 session.close();
               })) {
-        transport = new OneTimeTransport(optionsFor(server.url("/"), Duration.ZERO));
+        transport = new PollingTransport(optionsFor(server.url("/"), Duration.ZERO));
 
         transport.connect(TIMEOUT);
 
@@ -170,7 +170,7 @@ class PollingTransportTest {
                 session.send(BUNDLE);
                 session.close();
               })) {
-        transport = new OneTimeTransport(optionsFor(server.url("/"), Duration.ZERO));
+        transport = new PollingTransport(optionsFor(server.url("/"), Duration.ZERO));
 
         transport.connect(TIMEOUT);
 
@@ -181,7 +181,7 @@ class PollingTransportTest {
     @Test
     void a_no_content_response_delivers_nothing() throws Exception {
       try (TestHttpServer server = serverReturning(204, null)) {
-        transport = new OneTimeTransport(optionsFor(server.url("/"), Duration.ZERO));
+        transport = new PollingTransport(optionsFor(server.url("/"), Duration.ZERO));
 
         transport.connect(TIMEOUT);
 
@@ -229,7 +229,7 @@ class PollingTransportTest {
     @Test
     void an_unparseable_body_is_reported_as_a_connection_failure() throws Exception {
       try (TestHttpServer server = serverReturning(200, "not json")) {
-        transport = new OneTimeTransport(optionsFor(server.url("/"), Duration.ZERO));
+        transport = new PollingTransport(optionsFor(server.url("/"), Duration.ZERO));
 
         assertThatExceptionOfType(ConfigDirectorConnectionException.class)
             .isThrownBy(() -> transport.connect(TIMEOUT))
@@ -239,7 +239,7 @@ class PollingTransportTest {
 
     @Test
     void an_unusable_url_is_unrecoverable() {
-      transport = new OneTimeTransport(optionsFor("not-a-url", Duration.ZERO));
+      transport = new PollingTransport(optionsFor("not-a-url", Duration.ZERO));
 
       assertThatExceptionOfType(ConfigDirectorConnectionException.class)
           .isThrownBy(() -> transport.connect(TIMEOUT))
@@ -248,7 +248,7 @@ class PollingTransportTest {
 
     @Test
     void a_refused_connection_is_transient() {
-      transport = new OneTimeTransport(optionsFor("http://127.0.0.1:1/", Duration.ZERO));
+      transport = new PollingTransport(optionsFor("http://127.0.0.1:1/", Duration.ZERO));
 
       assertThatExceptionOfType(ConfigDirectorConnectionException.class)
           .isThrownBy(() -> transport.connect(TIMEOUT))
@@ -313,19 +313,6 @@ class PollingTransportTest {
         await().atMost(TIMEOUT).until(() -> snapshot(bodies).size() >= 2);
         List<String> seen = snapshot(bodies);
         assertThat(sessionIdOf(seen.get(1))).isEqualTo(sessionIdOf(seen.get(0)));
-      }
-    }
-
-    @Test
-    void a_one_time_transport_never_starts_a_poller() throws Exception {
-      try (TestHttpServer server = serverReturning(200, BUNDLE)) {
-        transport = new OneTimeTransport(optionsFor(server.url("/"), Duration.ofSeconds(60)));
-
-        transport.connect(TIMEOUT);
-
-        Thread.sleep(200);
-        assertThat(server.connectionCount()).isEqualTo(1);
-        assertThat(transport.isConnected()).isFalse();
       }
     }
 
@@ -428,8 +415,6 @@ class PollingTransportTest {
           .isInstanceOf(StreamingTransport.class);
       assertThat(Transports.create(ConnectionMode.POLLING, options))
           .isInstanceOf(PollingTransport.class);
-      assertThat(Transports.create(ConnectionMode.ONE_TIME, options))
-          .isInstanceOf(OneTimeTransport.class);
     }
   }
 }

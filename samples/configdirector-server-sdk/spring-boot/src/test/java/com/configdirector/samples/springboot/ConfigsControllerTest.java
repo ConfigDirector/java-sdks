@@ -18,7 +18,7 @@ import org.springframework.web.client.RestClient;
       // Empty, so a developer's local .env cannot reach these tests.
       "spring.config.import=",
       "configdirector.server-key=fake-sample-key",
-      "configdirector.mode=one-time",
+      "configdirector.mode=polling",
       "configdirector.timeout=1s"
     })
 class ConfigsControllerTest {

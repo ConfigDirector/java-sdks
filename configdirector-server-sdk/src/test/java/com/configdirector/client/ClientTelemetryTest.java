@@ -73,7 +73,7 @@ class ClientTelemetryTest {
             "sdk-key",
             options ->
                 options.connection(
-                    connection -> connection.mode(ConnectionMode.ONE_TIME).url(url).timeout(TIMEOUT)));
+                    connection -> connection.mode(ConnectionMode.POLLING).url(url).timeout(TIMEOUT)));
     client.initialize();
     return client;
   }

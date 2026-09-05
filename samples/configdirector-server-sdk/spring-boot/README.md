@@ -134,7 +134,7 @@ a real deployment supplies them as environment variables rather than editing cod
 | --------------------------- | ----------------- | -------------------------------------- |
 | `CONFIGDIRECTOR_SERVER_KEY` | `fake-sample-key` | Your server SDK key. A secret.         |
 | `CONFIGDIRECTOR_BASE_URL`   | _(none)_          | Only when routing through a proxy.     |
-| `CONFIGDIRECTOR_MODE`       | `streaming`       | `streaming`, `polling`, or `one-time`. |
+| `CONFIGDIRECTOR_MODE`       | `streaming`       | `streaming` or `polling`. |
 | `CONFIGDIRECTOR_TIMEOUT`    | `3s`              | Initialization timeout.                |
 | `CONFIGDIRECTOR_LOG_LEVEL`  | `INFO`            | Set to `DEBUG` to trace evaluations.   |
 
@@ -172,7 +172,7 @@ which is what you want in production, where the platform injects secrets rather 
 `.env`:
 
 ```bash
-CONFIGDIRECTOR_MODE=one-time ./gradlew :samples:configdirector-server-sdk:spring-boot:bootRun
+CONFIGDIRECTOR_MODE=polling ./gradlew :samples:configdirector-server-sdk:spring-boot:bootRun
 ```
 
 The tests set `spring.config.import=` to empty, so a `.env` on your machine cannot change what

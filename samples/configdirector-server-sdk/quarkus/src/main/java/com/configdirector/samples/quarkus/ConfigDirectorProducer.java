@@ -106,7 +106,6 @@ public class ConfigDirectorProducer {
   private static ConnectionMode modeOf(String mode) {
     return switch (mode.toLowerCase(Locale.ROOT)) {
       case "polling" -> ConnectionMode.POLLING;
-      case "one-time", "onetime" -> ConnectionMode.ONE_TIME;
       default -> ConnectionMode.STREAMING;
     };
   }

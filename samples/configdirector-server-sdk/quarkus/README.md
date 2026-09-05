@@ -199,7 +199,7 @@ deployment supplies them as environment variables rather than editing code:
 | --------------------------- | ----------------- | -------------------------------------- |
 | `CONFIGDIRECTOR_SERVER_KEY` | `fake-sample-key` | Your server SDK key. A secret.         |
 | `CONFIGDIRECTOR_BASE_URL`   | _(none)_          | Only when routing through a proxy.     |
-| `CONFIGDIRECTOR_MODE`       | `streaming`       | `streaming`, `polling`, or `one-time`. |
+| `CONFIGDIRECTOR_MODE`       | `streaming`       | `streaming` or `polling`. |
 | `CONFIGDIRECTOR_TIMEOUT`    | `3s`              | Initialization timeout.                |
 | `CONFIGDIRECTOR_LOG_LEVEL`  | `INFO`            | Set to `DEBUG` to trace evaluations.   |
 
@@ -271,7 +271,7 @@ A real environment variable still wins over the file — which is what you want 
 the platform injects secrets rather than shipping a `.env`:
 
 ```bash
-CONFIGDIRECTOR_MODE=one-time ./gradlew :samples:configdirector-server-sdk:quarkus:quarkusRun
+CONFIGDIRECTOR_MODE=polling ./gradlew :samples:configdirector-server-sdk:quarkus:quarkusRun
 ```
 
 Because `.env` is read from the working directory, a developer's local file would otherwise reach

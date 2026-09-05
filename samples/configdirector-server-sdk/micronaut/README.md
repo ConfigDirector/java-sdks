@@ -175,7 +175,7 @@ so a real deployment supplies them as environment variables rather than editing 
 | --------------------------- | ----------------- | -------------------------------------- |
 | `CONFIGDIRECTOR_SERVER_KEY` | `fake-sample-key` | Your server SDK key. A secret.         |
 | `CONFIGDIRECTOR_BASE_URL`   | _(none)_          | Only when routing through a proxy.     |
-| `CONFIGDIRECTOR_MODE`       | `streaming`       | `streaming`, `polling`, or `one-time`. |
+| `CONFIGDIRECTOR_MODE`       | `streaming`       | `streaming` or `polling`. |
 | `CONFIGDIRECTOR_TIMEOUT`    | `3s`              | Initialization timeout.                |
 | `CONFIGDIRECTOR_LOG_LEVEL`  | `INFO`            | Set to `DEBUG` to trace evaluations.   |
 
@@ -255,7 +255,7 @@ So a real environment variable still wins over the file — which is what you wa
 where the platform injects secrets rather than shipping a `.env`:
 
 ```bash
-CONFIGDIRECTOR_MODE=one-time ./gradlew :samples:configdirector-server-sdk:micronaut:run
+CONFIGDIRECTOR_MODE=polling ./gradlew :samples:configdirector-server-sdk:micronaut:run
 ```
 
 The tests never run `main`, so `DotEnvPropertySource` is not in play there and a `.env` on your

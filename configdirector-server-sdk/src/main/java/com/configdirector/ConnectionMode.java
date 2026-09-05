@@ -6,8 +6,5 @@ public enum ConnectionMode {
   STREAMING,
 
   /** Config state is fetched during initialization, then re-fetched every polling interval. */
-  POLLING,
-
-  /** Config state is fetched during initialization only, and never refreshed. */
-  ONE_TIME
+  POLLING
 }

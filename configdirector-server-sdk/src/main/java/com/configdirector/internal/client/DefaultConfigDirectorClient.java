@@ -683,7 +683,6 @@ public final class DefaultConfigDirectorClient implements ConfigDirectorClient {
   private static com.configdirector.internal.transport.ConnectionMode modeOf(ConnectionMode mode) {
     return switch (mode) {
       case POLLING -> com.configdirector.internal.transport.ConnectionMode.POLLING;
-      case ONE_TIME -> com.configdirector.internal.transport.ConnectionMode.ONE_TIME;
       case STREAMING -> com.configdirector.internal.transport.ConnectionMode.STREAMING;
     };
   }

@@ -20,7 +20,7 @@ import org.junit.jupiter.api.Test;
 // developer's local .env cannot reach these tests. The properties below pin the rest.
 @MicronautTest
 @Property(name = "configdirector.server-key", value = "fake-sample-key")
-@Property(name = "configdirector.mode", value = "one-time")
+@Property(name = "configdirector.mode", value = "polling")
 @Property(name = "configdirector.timeout", value = "1s")
 class ConfigsControllerTest {
 

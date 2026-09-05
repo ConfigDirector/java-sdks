@@ -116,7 +116,7 @@ class ConfigDirectorClientTest {
   private ConfigDirectorClient clientServing(String bundle) {
     server = start(session -> respond(session, bundle));
     String url = server.url("/");
-    return build(connection -> connection.mode(ConnectionMode.ONE_TIME).url(url));
+    return build(connection -> connection.mode(ConnectionMode.POLLING).url(url));
   }
 
   private ConfigDirectorClient build(Consumer<ConnectionOptions.Builder> connection) {
@@ -472,7 +472,7 @@ class ConfigDirectorClientTest {
           build(
               connection ->
                   connection
-                      .mode(ConnectionMode.ONE_TIME)
+                      .mode(ConnectionMode.POLLING)
                       .url("http://127.0.0.1:1/")
                       .timeout(Duration.ofMillis(500)));
 

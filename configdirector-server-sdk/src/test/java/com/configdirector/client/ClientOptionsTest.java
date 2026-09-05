@@ -56,7 +56,7 @@ class ClientOptionsTest {
                   options
                       .metadata("checkout", "1.2.3")
                       .logger(LoggerFactory.getLogger("test"))
-                      .connection(connection -> connection.mode(ConnectionMode.ONE_TIME)))) {
+                      .connection(connection -> connection.mode(ConnectionMode.POLLING)))) {
         assertThat(client).isNotNull();
       }
     }

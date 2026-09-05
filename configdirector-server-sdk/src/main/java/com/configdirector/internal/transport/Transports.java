@@ -19,7 +19,6 @@ public final class Transports {
 
   public static Transport create(ConnectionMode mode, TransportOptions options) {
     return switch (mode) {
-      case ONE_TIME -> new OneTimeTransport(options);
       case POLLING -> new PollingTransport(options);
       case STREAMING -> new StreamingTransport(options);
     };
