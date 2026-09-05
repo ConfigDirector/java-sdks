@@ -5,6 +5,7 @@ import com.configdirector.internal.eventsource.EventSourceMessage;
 import com.configdirector.internal.eventsource.ReadyState;
 import com.configdirector.internal.eventsource.ReconnectionState;
 import java.time.Duration;
+import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
@@ -38,6 +39,7 @@ public final class StreamingTransport implements Transport {
 
   private final AtomicReference<EventSourceClient> client = new AtomicReference<>();
   private final AtomicReference<ConfigDirectorConnectionException> fatalError = new AtomicReference<>();
+  private final AtomicReference<String> sessionId = new AtomicReference<>();
   private volatile CountDownLatch settled = new CountDownLatch(1);
 
   public StreamingTransport(TransportOptions options) {
@@ -67,7 +69,7 @@ public final class StreamingTransport implements Transport {
         EventSourceClient.builder(url)
             .method("POST")
             .headers(Transports.REQUEST_HEADERS)
-            .body(Transports.jsonBody(Transports.requestPayload(options, null)))
+            .body(this::buildRequestBody)
             .logger(logger)
             .readTimeout(readTimeout)
             .onConnect(this::onConnect)
@@ -102,6 +104,16 @@ public final class StreamingTransport implements Transport {
     if (stream != null) {
       stream.close(timeout);
     }
+  }
+
+  String sessionId() {
+    return sessionId.get();
+  }
+
+  private byte[] buildRequestBody() {
+    String id = UUID.randomUUID().toString();
+    sessionId.set(id);
+    return Transports.jsonBody(Transports.requestPayload(options, null, id));
   }
 
   private void awaitSettled(Duration timeout) {

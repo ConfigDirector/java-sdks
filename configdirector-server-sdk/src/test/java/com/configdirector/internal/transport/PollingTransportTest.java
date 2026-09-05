@@ -11,8 +11,11 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -91,6 +94,12 @@ class PollingTransportTest {
     }
   }
 
+  private static String sessionIdOf(String body) {
+    Matcher matcher = Pattern.compile("\"sessionId\":\"([^\"]*)\"").matcher(body);
+    assertThat(matcher.find()).as("body carries a sessionId: %s", body).isTrue();
+    return matcher.group(1);
+  }
+
   @Nested
   @DisplayName("the first fetch")
   class FirstFetch {
@@ -127,6 +136,26 @@ class PollingTransportTest {
             .contains("\"serverSdkKey\":\"sdk-key\"")
             .contains("\"sdkName\":\"java-server-sdk\"")
             .doesNotContain("lastUpdateTimestamp");
+      }
+    }
+
+    @Test
+    void sends_a_uuid_session_id() throws Exception {
+      List<String> bodies = Collections.synchronizedList(new ArrayList<>());
+      try (TestHttpServer server =
+          start(
+              session -> {
+                bodies.add(session.bodyAsString());
+                session.respond(200, "Content-Length: " + BUNDLE.length(), "Connection: close");
+                session.send(BUNDLE);
+                session.close();
+              })) {
+        transport = new OneTimeTransport(optionsFor(server.url("/"), Duration.ZERO));
+
+        transport.connect(TIMEOUT);
+
+        String sessionId = sessionIdOf(snapshot(bodies).get(0));
+        assertThat(UUID.fromString(sessionId).toString()).isEqualTo(sessionId);
       }
     }
 
@@ -263,6 +292,27 @@ class PollingTransportTest {
         await().atMost(TIMEOUT).until(() -> snapshot(bodies).size() >= 2);
         assertThat(snapshot(bodies).get(0)).doesNotContain("lastUpdateTimestamp");
         assertThat(snapshot(bodies).get(1)).contains("\"lastUpdateTimestamp\":\"t1\"");
+      }
+    }
+
+    @Test
+    void sends_the_same_session_id_on_every_poll() throws Exception {
+      List<String> bodies = Collections.synchronizedList(new ArrayList<>());
+      try (TestHttpServer server =
+          start(
+              session -> {
+                bodies.add(session.bodyAsString());
+                session.respond(200, "Content-Length: " + BUNDLE.length(), "Connection: close");
+                session.send(BUNDLE);
+                session.close();
+              })) {
+        transport = new PollingTransport(optionsFor(server.url("/"), Duration.ofMillis(50)));
+
+        transport.connect(TIMEOUT);
+
+        await().atMost(TIMEOUT).until(() -> snapshot(bodies).size() >= 2);
+        List<String> seen = snapshot(bodies);
+        assertThat(sessionIdOf(seen.get(1))).isEqualTo(sessionIdOf(seen.get(0)));
       }
     }
 

@@ -62,11 +62,13 @@ public final class Transports {
         status);
   }
 
-  static Map<String, Object> requestPayload(TransportOptions options, String lastUpdateTimestamp) {
+  static Map<String, Object> requestPayload(
+      TransportOptions options, String lastUpdateTimestamp, String sessionId) {
     Map<String, Object> payload = new LinkedHashMap<>();
     payload.put("serverSdkKey", options.serverSdkKey());
     payload.put("metaContext", options.metaContext());
     payload.put("lastUpdateTimestamp", lastUpdateTimestamp);
+    payload.put("sessionId", sessionId);
     return payload;
   }
 }

@@ -1,6 +1,7 @@
 package com.configdirector.internal.transport;
 
 import java.time.Duration;
+import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -22,6 +23,7 @@ public class PollingTransport implements Transport {
   private final Object lock = new Object();
   private final AtomicBoolean fatal = new AtomicBoolean();
   private final AtomicReference<String> lastUpdateTimestamp = new AtomicReference<>();
+  private final String sessionId = UUID.randomUUID().toString();
 
   private CountDownLatch stop = new CountDownLatch(0);
   private Thread poller;
@@ -89,6 +91,10 @@ public class PollingTransport implements Transport {
     } catch (InterruptedException interrupted) {
       Thread.currentThread().interrupt();
     }
+  }
+
+  String sessionId() {
+    return sessionId;
   }
 
   private void startPolling(Duration timeout) {
@@ -168,7 +174,8 @@ public class PollingTransport implements Transport {
   }
 
   private HttpResponse post(Duration timeout) {
-    byte[] body = Transports.jsonBody(Transports.requestPayload(options, lastUpdateTimestamp.get()));
+    byte[] body =
+        Transports.jsonBody(Transports.requestPayload(options, lastUpdateTimestamp.get(), sessionId));
     try {
       // Network-level failures -- refused, unresolved, timed out -- arrive as
       // ConfigDirectorConnectionException and are left to propagate: all are worth retrying.

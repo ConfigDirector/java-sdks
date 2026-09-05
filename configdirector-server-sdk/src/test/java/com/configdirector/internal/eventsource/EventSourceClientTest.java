@@ -140,6 +140,21 @@ class EventSourceClientTest {
     }
 
     @Test
+    void invokes_a_body_supplier_on_each_attempt() {
+      AtomicInteger calls = new AtomicInteger();
+
+      connected(
+          clientBuilder()
+              .method("POST")
+              .body(() -> ("attempt-" + calls.incrementAndGet()).getBytes(StandardCharsets.UTF_8)));
+
+      awaitUntil(() -> opener.attemptCount() >= 2);
+      List<StreamRequest> requests = opener.requests();
+      assertThat(new String(requests.get(0).body(), StandardCharsets.UTF_8)).isEqualTo("attempt-1");
+      assertThat(new String(requests.get(1).body(), StandardCharsets.UTF_8)).isEqualTo("attempt-2");
+    }
+
+    @Test
     void passes_the_timeouts_and_redirect_policy_through() {
       connected(
           clientBuilder()

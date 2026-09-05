@@ -9,6 +9,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -27,7 +28,7 @@ public final class EventSourceClient implements AutoCloseable {
 
   private final String url;
   private final String method;
-  private final byte[] body;
+  private final Supplier<byte[]> body;
   private final Map<String, String> headers;
   private final Duration connectTimeout;
   private final Duration readTimeout;
@@ -260,7 +261,7 @@ public final class EventSourceClient implements AutoCloseable {
     ResponseStream stream =
         opener.open(
             new StreamRequest(
-                url, method, requestHeaders, body, connectTimeout, readTimeout, followRedirects));
+                url, method, requestHeaders, body.get(), connectTimeout, readTimeout, followRedirects));
 
     if (signal.isSet()) {
       closeQuietly(stream);
@@ -439,7 +440,7 @@ public final class EventSourceClient implements AutoCloseable {
     private final String url;
     private String method = "GET";
     private Map<String, String> headers = Map.of();
-    private byte[] body;
+    private Supplier<byte[]> body = () -> null;
     private String lastEventId;
     private Duration connectTimeout = Duration.ofSeconds(10);
     private Duration readTimeout = Duration.ZERO;
@@ -474,7 +475,12 @@ public final class EventSourceClient implements AutoCloseable {
     }
 
     public Builder body(byte[] body) {
-      this.body = body;
+      this.body = () -> body;
+      return this;
+    }
+
+    public Builder body(Supplier<byte[]> body) {
+      this.body = Objects.requireNonNull(body, "body");
       return this;
     }
 

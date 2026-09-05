@@ -12,10 +12,13 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -69,6 +72,12 @@ class StreamingTransportTest {
     } catch (IOException error) {
       throw new IllegalStateException(error);
     }
+  }
+
+  private static String sessionIdOf(String body) {
+    Matcher matcher = Pattern.compile("\"sessionId\":\"([^\"]*)\"").matcher(body);
+    assertThat(matcher.find()).as("body carries a sessionId: %s", body).isTrue();
+    return matcher.group(1);
   }
 
   @Nested
@@ -153,6 +162,25 @@ class StreamingTransportTest {
 
         assertThat(bodies.poll(5, TimeUnit.SECONDS)).contains("\"serverSdkKey\":\"sdk-key\"");
         assertThat(accepts.poll(5, TimeUnit.SECONDS)).isEqualTo("text/event-stream");
+      }
+    }
+
+    @Test
+    void sends_a_uuid_session_id() throws Exception {
+      BlockingQueue<String> bodies = new LinkedBlockingQueue<>();
+      try (TestHttpServer server =
+          start(
+              session -> {
+                bodies.add(session.bodyAsString());
+                session.respondStreaming();
+              })) {
+        transport = new StreamingTransport(optionsFor(server.url("/")));
+        transport.connect(TIMEOUT);
+
+        String body = bodies.poll(5, TimeUnit.SECONDS);
+        assertThat(body).isNotNull();
+        String sessionId = sessionIdOf(body);
+        assertThat(UUID.fromString(sessionId).toString()).isEqualTo(sessionId);
       }
     }
   }
@@ -278,6 +306,27 @@ class StreamingTransportTest {
         await()
             .atMost(TIMEOUT)
             .untilAsserted(() -> assertThat(server.connectionCount()).isGreaterThan(1));
+      }
+    }
+
+    @Test
+    void is_reconnected_with_a_fresh_session_id() throws Exception {
+      BlockingQueue<String> bodies = new LinkedBlockingQueue<>();
+      try (TestHttpServer server =
+          start(
+              session -> {
+                bodies.add(session.bodyAsString());
+                session.respondStreaming();
+                session.send("data: " + BUNDLE + "\n\n");
+              })) {
+        transport = new StreamingTransport(optionsFor(server.url("/")), Duration.ofMillis(300));
+        transport.connect(TIMEOUT);
+
+        String first = bodies.poll(5, TimeUnit.SECONDS);
+        String second = bodies.poll(10, TimeUnit.SECONDS);
+        assertThat(first).isNotNull();
+        assertThat(second).isNotNull();
+        assertThat(sessionIdOf(second)).isNotEqualTo(sessionIdOf(first));
       }
     }
 
