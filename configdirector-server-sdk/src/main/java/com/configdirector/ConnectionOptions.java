@@ -21,6 +21,8 @@ public final class ConnectionOptions {
   // ready rather than one that waited too long.
   private static final Duration LONGEST_TIMEOUT = Duration.ofMillis(Integer.MAX_VALUE);
 
+  private static final Duration SHORTEST_INTERVAL = Duration.ofSeconds(60);
+
   // The longest interval the polling thread can wait out, since it waits in nanoseconds.
   private static final Duration LONGEST_INTERVAL = Duration.ofNanos(Long.MAX_VALUE);
 
@@ -50,7 +52,7 @@ public final class ConnectionOptions {
   /**
    * The settings a client uses when none are supplied.
    *
-   * @return streaming, a 60 second polling interval, and a 3 second initialization timeout
+   * @return streaming, a 5 minute polling interval, and a 3 second initialization timeout
    */
   public static ConnectionOptions defaults() {
     return DEFAULTS;
@@ -96,7 +98,7 @@ public final class ConnectionOptions {
   public static final class Builder {
 
     private ConnectionMode mode = ConnectionMode.STREAMING;
-    private Duration pollingInterval = Duration.ofSeconds(60);
+    private Duration pollingInterval = Duration.ofMinutes(5);
     private Duration timeout = Duration.ofSeconds(3);
     private String url;
 
@@ -115,10 +117,10 @@ public final class ConnectionOptions {
     }
 
     /**
-     * How long to wait between polls. Used only in polling mode; defaults to 60 seconds. Must be
-     * positive: a client that polls needs an interval to poll on.
+     * How long to wait between polls. Used only in polling mode; defaults to 5 minutes. Must be at
+     * least 60 seconds.
      *
-     * @param pollingInterval the interval to wait, positive
+     * @param pollingInterval the interval to wait, at least 60 seconds
      * @return this builder, so calls chain
      */
     public Builder pollingInterval(Duration pollingInterval) {
@@ -153,11 +155,12 @@ public final class ConnectionOptions {
      * Builds the settings.
      *
      * @return the settings as configured
-     * @throws ConfigDirectorValidationException if a duration is not positive or is longer than
-     *     can be waited on, or if the URL is not absolute or names no host
+     * @throws ConfigDirectorValidationException if the polling interval is shorter than 60 seconds,
+     *     the timeout is not positive, either is longer than can be waited on, or the URL is not
+     *     absolute or names no host
      */
     public ConnectionOptions build() {
-      requirePositive(pollingInterval, "pollingInterval");
+      requireAtLeast(pollingInterval, SHORTEST_INTERVAL, "pollingInterval");
       requirePositive(timeout, "timeout");
       requireAtMost(pollingInterval, LONGEST_INTERVAL, "pollingInterval", "the SDK can wait for");
       requireAtMost(timeout, LONGEST_TIMEOUT, "timeout", "the HTTP client accepts");
@@ -169,6 +172,19 @@ public final class ConnectionOptions {
       if (value.isNegative() || value.isZero()) {
         throw new ConfigDirectorValidationException(
             "Invalid " + name + " '" + value + "'. It must be a positive duration.");
+      }
+    }
+
+    private static void requireAtLeast(Duration value, Duration floor, String name) {
+      if (value.compareTo(floor) < 0) {
+        throw new ConfigDirectorValidationException(
+            "Invalid "
+                + name
+                + " '"
+                + value
+                + "'. It must be at least "
+                + floor.toSeconds()
+                + " seconds.");
       }
     }
 

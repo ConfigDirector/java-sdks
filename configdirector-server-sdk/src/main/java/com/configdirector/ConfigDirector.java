@@ -16,7 +16,7 @@ import java.util.function.Consumer;
  *     .metadata("checkout", "1.2.3")
  *     .connection(connection -> connection
  *         .mode(ConnectionMode.POLLING)
- *         .pollingInterval(Duration.ofSeconds(30))));
+ *         .pollingInterval(Duration.ofMinutes(2))));
  *
  * client.initialize();
  * boolean enabled = client.getBoolean("new-checkout", false);

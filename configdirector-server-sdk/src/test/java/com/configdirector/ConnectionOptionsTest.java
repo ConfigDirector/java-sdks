@@ -22,11 +22,11 @@ class ConnectionOptionsTest {
   class Defaults {
 
     @Test
-    void are_streaming_with_a_minute_between_polls_and_a_three_second_timeout() {
+    void are_streaming_with_five_minutes_between_polls_and_a_three_second_timeout() {
       ConnectionOptions defaults = ConnectionOptions.defaults();
 
       assertThat(defaults.mode()).isEqualTo(ConnectionMode.STREAMING);
-      assertThat(defaults.pollingInterval()).isEqualTo(Duration.ofSeconds(60));
+      assertThat(defaults.pollingInterval()).isEqualTo(Duration.ofMinutes(5));
       assertThat(defaults.timeout()).isEqualTo(Duration.ofSeconds(3));
       assertThat(defaults.url()).isNull();
     }
@@ -45,12 +45,18 @@ class ConnectionOptionsTest {
     // polling thread at all: a client in polling mode would fetch once and never update again,
     // without a word in the log.
     @ParameterizedTest
-    @ValueSource(longs = {-60, -1, 0})
-    void must_be_positive(long seconds) {
+    @ValueSource(longs = {-60_000, -1, 0, 1, 59_999})
+    void must_be_at_least_a_minute(long millis) {
       assertThatExceptionOfType(ConfigDirectorValidationException.class)
-          .isThrownBy(() -> builder().pollingInterval(Duration.ofSeconds(seconds)).build())
+          .isThrownBy(() -> builder().pollingInterval(Duration.ofMillis(millis)).build())
           .withMessageContaining("pollingInterval")
-          .withMessageContaining("positive");
+          .withMessageContaining("at least 60 seconds");
+    }
+
+    @Test
+    void a_minute_is_allowed() {
+      assertThat(builder().pollingInterval(Duration.ofSeconds(60)).build().pollingInterval())
+          .isEqualTo(Duration.ofSeconds(60));
     }
 
     @Test
@@ -70,9 +76,9 @@ class ConnectionOptionsTest {
     }
 
     @Test
-    void a_positive_interval_is_kept() {
-      assertThat(builder().pollingInterval(Duration.ofSeconds(30)).build().pollingInterval())
-          .isEqualTo(Duration.ofSeconds(30));
+    void a_longer_interval_is_kept() {
+      assertThat(builder().pollingInterval(Duration.ofMinutes(2)).build().pollingInterval())
+          .isEqualTo(Duration.ofMinutes(2));
     }
   }
 

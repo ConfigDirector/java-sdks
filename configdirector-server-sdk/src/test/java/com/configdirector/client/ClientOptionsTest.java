@@ -66,7 +66,7 @@ class ClientOptionsTest {
       ConnectionOptions shared =
           ConnectionOptions.builder()
               .mode(ConnectionMode.POLLING)
-              .pollingInterval(Duration.ofSeconds(30))
+              .pollingInterval(Duration.ofMinutes(2))
               .build();
 
       try (ConfigDirectorClient first = ConfigDirector.client("k", options -> options.connection(shared));
@@ -86,7 +86,7 @@ class ClientOptionsTest {
                       connection ->
                           connection
                               .mode(ConnectionMode.POLLING)
-                              .pollingInterval(Duration.ofSeconds(30))
+                              .pollingInterval(Duration.ofMinutes(2))
                               .timeout(Duration.ofSeconds(5))
                               .url("https://proxy.test")))) {
         assertThat(client).isNotNull();
