@@ -342,6 +342,69 @@ class StreamingTransportTest {
   }
 
   @Nested
+  @DisplayName("heartbeat")
+  class Heartbeat {
+
+    private static final Duration READ_TIMEOUT = Duration.ofSeconds(45);
+    private static final Duration FAST_HEARTBEAT = Duration.ofMillis(50);
+
+    private TestHttpServer heartbeatServer(BlockingQueue<String> sseBodies, BlockingQueue<String> heartbeats) {
+      return start(
+          session -> {
+            if (session.path().equals("/server/heartbeat/v1")) {
+              heartbeats.add(session.bodyAsString());
+              session.respond(204, "Content-Length: 0", "Connection: close");
+              session.close();
+              return;
+            }
+            sseBodies.add(session.bodyAsString());
+            session.respondStreaming();
+          });
+    }
+
+    @Test
+    void sends_the_current_session_id_on_the_heartbeat_interval() throws Exception {
+      BlockingQueue<String> sseBodies = new LinkedBlockingQueue<>();
+      BlockingQueue<String> heartbeats = new LinkedBlockingQueue<>();
+      try (TestHttpServer server = heartbeatServer(sseBodies, heartbeats)) {
+        transport = new StreamingTransport(optionsFor(server.url("/")), READ_TIMEOUT, FAST_HEARTBEAT);
+        transport.connect(TIMEOUT);
+
+        String sse = sseBodies.poll(5, TimeUnit.SECONDS);
+        String heartbeat = heartbeats.poll(5, TimeUnit.SECONDS);
+        assertThat(sse).isNotNull();
+        assertThat(heartbeat).isNotNull();
+        assertThat(heartbeat).contains("\"serverSdkKey\":\"sdk-key\"");
+        assertThat(sessionIdOf(heartbeat)).isEqualTo(sessionIdOf(sse));
+      }
+    }
+
+    @Test
+    void close_stops_the_heartbeat() throws Exception {
+      BlockingQueue<String> sseBodies = new LinkedBlockingQueue<>();
+      BlockingQueue<String> heartbeats = new LinkedBlockingQueue<>();
+      try (TestHttpServer server = heartbeatServer(sseBodies, heartbeats)) {
+        transport = new StreamingTransport(optionsFor(server.url("/")), READ_TIMEOUT, FAST_HEARTBEAT);
+        transport.connect(TIMEOUT);
+        assertThat(heartbeats.poll(5, TimeUnit.SECONDS)).isNotNull();
+
+        transport.close();
+        heartbeats.clear();
+
+        Thread.sleep(300);
+        assertThat(heartbeats).isEmpty();
+      }
+    }
+
+    @Test
+    void beats_every_90_seconds() {
+      Duration interval = new StreamingTransport(optionsFor("https://api.test/")).heartbeatInterval();
+
+      assertThat(interval).isEqualTo(Duration.ofSeconds(90));
+    }
+  }
+
+  @Nested
   @DisplayName("reconnect backoff")
   class Backoff {
 
