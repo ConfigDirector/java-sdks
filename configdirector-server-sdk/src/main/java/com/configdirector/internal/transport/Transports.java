@@ -48,9 +48,10 @@ public final class Transports {
   }
 
   // A 4xx means the request itself is wrong -- a revoked SDK key, a bad URL -- and repeating it
-  // unchanged will only fail the same way.
+  // unchanged will only fail the same way. A 429 is the exception: the request is fine, there were
+  // just too many of them, so retrying later is expected to succeed.
   public static boolean isFatalStatus(Integer status) {
-    return status != null && status >= 400 && status < 500;
+    return status != null && status >= 400 && status < 500 && status != 429;
   }
 
   public static ConfigDirectorConnectionException fatalStatusError(Integer status, String detail) {

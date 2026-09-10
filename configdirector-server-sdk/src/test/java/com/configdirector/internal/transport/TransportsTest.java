@@ -78,13 +78,13 @@ class TransportsTest {
   class FatalStatuses {
 
     @ParameterizedTest
-    @ValueSource(ints = {400, 401, 403, 404, 429, 499})
+    @ValueSource(ints = {400, 401, 403, 404, 499})
     void a_4xx_is_unrecoverable(int status) {
       assertThat(Transports.isFatalStatus(status)).isTrue();
     }
 
     @ParameterizedTest
-    @ValueSource(ints = {200, 204, 301, 500, 502, 503})
+    @ValueSource(ints = {200, 204, 301, 429, 500, 502, 503})
     void anything_else_is_worth_retrying(int status) {
       assertThat(Transports.isFatalStatus(status)).isFalse();
     }

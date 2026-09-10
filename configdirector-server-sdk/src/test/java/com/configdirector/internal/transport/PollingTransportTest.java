@@ -227,6 +227,21 @@ class PollingTransportTest {
     }
 
     @Test
+    void a_429_is_transient_and_polling_carries_on() throws Exception {
+      try (TestHttpServer server = serverReturning(429, null)) {
+        transport = new PollingTransport(optionsFor(server.url("/"), Duration.ofMillis(50)));
+
+        assertThatExceptionOfType(ConfigDirectorConnectionException.class)
+            .isThrownBy(() -> transport.connect(TIMEOUT))
+            .withMessageContaining("429")
+            .withMessageNotContaining("retry attempts will be ignored");
+
+        await().atMost(TIMEOUT).until(() -> server.connectionCount() > 1);
+        assertThat(transport.isConnected()).isTrue();
+      }
+    }
+
+    @Test
     void an_unparseable_body_is_reported_as_a_connection_failure() throws Exception {
       try (TestHttpServer server = serverReturning(200, "not json")) {
         transport = new PollingTransport(optionsFor(server.url("/"), Duration.ZERO));

@@ -269,6 +269,14 @@ class HttpEventReporterTest {
     }
 
     @Test
+    void a_rate_limit_is_worth_retrying() {
+      ReporterResponse response = reporterAgainst(429).report(reportOf(event("a", null)));
+
+      assertThat(response.success()).isFalse();
+      assertThat(response.fatal()).isFalse();
+    }
+
+    @Test
     void a_server_error_is_worth_retrying() {
       ReporterResponse response = reporterAgainst(503).report(reportOf(event("a", null)));
 

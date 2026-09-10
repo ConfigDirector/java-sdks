@@ -228,6 +228,23 @@ class StreamingTransportTest {
         await().atMost(TIMEOUT).until(() -> server.connectionCount() >= 2);
       }
     }
+
+    @Test
+    void a_429_keeps_retrying_and_connect_returns_on_the_timeout() throws Exception {
+      try (TestHttpServer server =
+          start(
+              session -> {
+                session.respond(429, "Content-Length: 0", "Connection: close");
+                session.close();
+              })) {
+        transport = new StreamingTransport(optionsFor(server.url("/")));
+
+        transport.connect(Duration.ofMillis(300));
+
+        assertThat(transport.isConnected()).isFalse();
+        await().atMost(TIMEOUT).until(() -> server.connectionCount() >= 2);
+      }
+    }
   }
 
   @Nested
