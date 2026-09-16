@@ -1,10 +1,41 @@
 # ConfigDirector Java SDK
 
-[![Actions Status][ci-badge]][ci]
+[![CI][ci-badge]][ci] [![Maven Central][maven-badge]][maven]
 
-This is the Java server SDK for [ConfigDirector](https://www.configdirector.com), in
-[`configdirector-server-sdk/`](configdirector-server-sdk/). More ConfigDirector artifacts for the
-JVM will be published from this repository over time, each in a directory of its own.
+Java server SDK for [ConfigDirector](https://www.configdirector.com), remote config and feature flags with typed values, JSON Schema validation, and safe renames of live flags. Start free, no card required.
+
+The SDK lives in [`configdirector-server-sdk/`](configdirector-server-sdk/). More ConfigDirector artifacts for the JVM will be published from this repository over time, each in a directory of its own.
+
+## Install
+
+```kotlin
+dependencies {
+    implementation("com.configdirector:configdirector-server-sdk:1.2.0")
+}
+```
+
+```xml
+<dependency>
+  <groupId>com.configdirector</groupId>
+  <artifactId>configdirector-server-sdk</artifactId>
+  <version>1.2.0</version>
+</dependency>
+```
+
+## Retrieve a value
+
+```java
+import com.configdirector.ConfigDirector;
+import com.configdirector.ConfigDirectorClient;
+
+// The server SDK key is a secret. Do not commit it to your source code.
+ConfigDirectorClient client = ConfigDirector.client("YOUR-SERVER-SDK-KEY");
+client.initialize();
+
+boolean newCheckout = client.getBoolean("new-checkout", false);
+```
+
+Full details are in the [official documentation](https://docs.configdirector.com/sdks/server/java).
 
 ## Documentation
 
@@ -38,8 +69,11 @@ side by side.
 
 ## Getting Help
 
-Reach out to us via https://www.configdirector.com/support
+- [Ask a question in Discussions](https://github.com/orgs/ConfigDirector/discussions)
+- [Contact support](https://www.configdirector.com/support)
 
 [//]: # "links"
 [ci-badge]: https://github.com/ConfigDirector/java-sdks/actions/workflows/configdirector-server-sdk.yml/badge.svg
 [ci]: https://github.com/ConfigDirector/java-sdks/actions/workflows/configdirector-server-sdk.yml
+[maven-badge]: https://img.shields.io/maven-central/v/com.configdirector/configdirector-server-sdk
+[maven]: https://central.sonatype.com/artifact/com.configdirector/configdirector-server-sdk
