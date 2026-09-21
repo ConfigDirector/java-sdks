@@ -4,7 +4,7 @@
 
 Java server SDK for [ConfigDirector](https://www.configdirector.com), remote config and feature flags with typed values, JSON Schema validation, and safe renames of live flags. Start free, no card required.
 
-The SDK lives in [`configdirector-server-sdk/`](configdirector-server-sdk/). More ConfigDirector artifacts for the JVM will be published from this repository over time, each in a directory of its own.
+The SDK lives in [`configdirector-server-sdk/`](configdirector-server-sdk/). The [OpenFeature](https://openfeature.dev) provider that wraps it lives in [`configdirector-openfeature-server-provider/`](configdirector-openfeature-server-provider/). More ConfigDirector artifacts for the JVM will be published from this repository over time, each in a directory of its own.
 
 ## Install
 

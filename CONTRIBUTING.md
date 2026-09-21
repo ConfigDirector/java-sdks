@@ -44,6 +44,16 @@ constant to keep in step with it — the version reported in telemetry is read f
    SDK: naming a version that is not published yet leaves them unresolvable for anyone who is not
    passing `-PuseLocalSdk`.
 
-The workflow refuses to run when the tag `configdirector-server-sdk-vX.Y.Z` already exists, and
+### The OpenFeature provider
+
+`configdirector-openfeature-server-provider` is released the same way, with its own `version` in
+[configdirector-openfeature-server-provider/build.gradle](configdirector-openfeature-server-provider/build.gradle),
+its own [changelog](configdirector-openfeature-server-provider/CHANGELOG.md), and the
+[Release configdirector-openfeature-server-provider](.github/workflows/release-configdirector-openfeature-server-provider.yml)
+workflow. Its published POM depends on whatever version `configdirector-server-sdk/build.gradle`
+declares at that commit, so that SDK version must already resolve on Central before the provider
+is released.
+
+Each workflow refuses to run when its tag, such as `configdirector-server-sdk-vX.Y.Z`, already exists, and
 tags the commit only after the upload succeeds. If a deployment was dropped in the Portal rather
 than published, delete that tag before running it again.

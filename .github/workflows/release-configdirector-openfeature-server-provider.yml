@@ -1,7 +1,5 @@
-name: Release configdirector-server-sdk
+name: Release configdirector-openfeature-server-provider
 
-# Deliberately manual. The version is whatever configdirector-server-sdk/build.gradle says, so a
-# release is two steps: merge the version bump, then run this against main.
 on:
   workflow_dispatch:
 
@@ -15,10 +13,8 @@ defaults:
 env:
   GRADLE_JDK: "25"
   SDK_TOOLCHAIN_JDK: "21"
-  ARTIFACT: configdirector-server-sdk
+  ARTIFACT: configdirector-openfeature-server-provider
 
-  # The build below must exercise the sample against the SDK being released, not against whatever
-  # version is already on Central.
   ORG_GRADLE_PROJECT_useLocalSdk: "true"
 
 jobs:
@@ -49,8 +45,6 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v4
 
-      # build.gradle is the only place the version lives, so ask Gradle for it rather than
-      # parsing the file and having the two drift.
       - name: Resolve the version
         id: version
         run: |
@@ -76,13 +70,10 @@ jobs:
             exit 1
           fi
 
-      # The same checks CI runs. A version nobody can build is not worth uploading.
       - run: >
           ./gradlew build
           -Porg.gradle.java.installations.paths=${{ steps.gradle-jdk.outputs.path }},${{ steps.sdk-toolchain-jdk.outputs.path }}
 
-      # Uploads a signed bundle to the Central Portal and stops. The deployment is released from
-      # the Portal by hand, which is the last chance to look at what is about to become permanent.
       - name: Publish to the Central Portal
         run: >
           ./gradlew :"$ARTIFACT":publishToMavenCentral --no-configuration-cache
@@ -98,10 +89,6 @@ jobs:
           name: jar
           path: ${{ env.ARTIFACT }}/build/libs/*.jar
 
-      # Last, so that a bundle the Portal rejected does not leave a tag behind claiming it was
-      # released. This marks the commit that was uploaded; whether it then became a permanent
-      # version on Central is still a manual decision in the Portal. Tags are named per artifact
-      # because this repository will publish more than one.
       - name: Tag the released commit
         env:
           TAG: ${{ steps.version.outputs.tag }}

@@ -7,6 +7,7 @@ plugins {
 rootProject.name = 'configdirector-java-server-sdk'
 
 include('configdirector-server-sdk')
+include('configdirector-openfeature-server-provider')
 
 // Not published. It depends on the SDK release on Maven Central, the way a real consumer does;
 // -PuseLocalSdk swaps in the module above instead, which is how CI makes a breaking API change

@@ -61,7 +61,9 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: jar
-          path: configdirector-server-sdk/build/libs/*.jar
+          path: |
+            configdirector-server-sdk/build/libs/*.jar
+            configdirector-openfeature-server-provider/build/libs/*.jar
 
       - name: Upload test report
         if: failure()
@@ -71,6 +73,8 @@ jobs:
           path: |
             configdirector-server-sdk/build/reports/tests/test
             configdirector-server-sdk/build/test-results/test
+            configdirector-openfeature-server-provider/build/reports/tests/test
+            configdirector-openfeature-server-provider/build/test-results/test
 
   os-compatibility:
     # Closing a socket out from under a parked reader is the one thing in this SDK that behaves
@@ -113,6 +117,8 @@ jobs:
           path: |
             configdirector-server-sdk/build/reports/tests/test
             configdirector-server-sdk/build/test-results/test
+            configdirector-openfeature-server-provider/build/reports/tests/test
+            configdirector-openfeature-server-provider/build/test-results/test
 
   runtime-compatibility:
     name: Test (JDK ${{ matrix.java }} runtime)
@@ -161,3 +167,5 @@ jobs:
           path: |
             configdirector-server-sdk/build/reports/tests/test
             configdirector-server-sdk/build/test-results/test
+            configdirector-openfeature-server-provider/build/reports/tests/test
+            configdirector-openfeature-server-provider/build/test-results/test

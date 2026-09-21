@@ -1,0 +1,132 @@
+import com.github.spotbugs.snom.Confidence
+import com.github.spotbugs.snom.Effort
+
+plugins {
+    id 'java-library'
+    alias libs.plugins.errorprone
+    alias libs.plugins.spotbugs
+    alias libs.plugins.maven.publish
+}
+
+group = 'com.configdirector'
+version = '1.0.0'
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    api project(':configdirector-server-sdk')
+    api libs.openfeature.sdk
+
+    compileOnly libs.spotbugs.annotations
+
+    testCompileOnly libs.spotbugs.annotations
+    testImplementation libs.junit.jupiter
+    testImplementation libs.assertj.core
+    testImplementation libs.awaitility
+    testImplementation libs.logback.classic
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+
+    errorprone libs.errorprone.core
+}
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
+}
+
+def testJavaVersion = providers.gradleProperty('testJavaVersion')
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+    options.release = 17
+    options.compilerArgs << '-Xlint:all' << '-Werror'
+
+    options.errorprone {
+        disableWarningsInGeneratedCode = true
+    }
+}
+
+tasks.named('javadoc') {
+    options.encoding = 'UTF-8'
+    options.addBooleanOption('Xwerror', true)
+}
+
+tasks.named('check') {
+    dependsOn tasks.named('javadoc')
+}
+
+tasks.named('jar') {
+    manifest {
+        attributes(
+            'Implementation-Title': 'configdirector-openfeature-server-provider',
+            'Implementation-Version': project.version,
+            'Automatic-Module-Name': 'com.configdirector.openfeature'
+        )
+    }
+    from(rootProject.file('LICENSE')) {
+        into 'META-INF'
+    }
+}
+
+spotbugs {
+    effort = Effort.valueOf('MAX')
+    reportLevel = Confidence.valueOf('DEFAULT')
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
+    if (testJavaVersion.present) {
+        javaLauncher = javaToolchains.launcherFor {
+            languageVersion = JavaLanguageVersion.of(testJavaVersion.get() as Integer)
+        }
+    }
+    timeout = Duration.ofMinutes(5)
+    testLogging {
+        events 'failed'
+        exceptionFormat = 'full'
+    }
+}
+
+mavenPublishing {
+    publishToMavenCentral()
+
+    if (providers.gradleProperty('signingInMemoryKey').present
+            || providers.gradleProperty('signing.keyId').present) {
+        signAllPublications()
+    }
+
+    coordinates(group.toString(), 'configdirector-openfeature-server-provider', version.toString())
+
+    pom {
+        name = 'ConfigDirector OpenFeature Java Server Provider'
+        description = 'OpenFeature Java server provider for ConfigDirector. ConfigDirector is a ' +
+            'remote configuration and feature flag service.'
+        url = 'https://github.com/ConfigDirector/java-sdks'
+        inceptionYear = '2026'
+
+        licenses {
+            license {
+                name = 'MIT License'
+                url = 'https://github.com/ConfigDirector/java-sdks/blob/main/LICENSE'
+                distribution = 'repo'
+            }
+        }
+
+        developers {
+            developer {
+                id = 'configdirector'
+                name = 'ConfigDirector'
+                url = 'https://www.configdirector.com'
+            }
+        }
+
+        scm {
+            url = 'https://github.com/ConfigDirector/java-sdks'
+            connection = 'scm:git:https://github.com/ConfigDirector/java-sdks.git'
+            developerConnection = 'scm:git:ssh://git@github.com/ConfigDirector/java-sdks.git'
+        }
+    }
+}
