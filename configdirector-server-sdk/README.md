@@ -13,7 +13,7 @@ This is one of several ConfigDirector artifacts for the JVM published from
 Gradle:
 
 ```groovy
-implementation 'com.configdirector:configdirector-server-sdk:1.3.0'
+implementation 'com.configdirector:configdirector-server-sdk:1.4.0'
 ```
 
 Maven:
@@ -22,7 +22,7 @@ Maven:
 <dependency>
   <groupId>com.configdirector</groupId>
   <artifactId>configdirector-server-sdk</artifactId>
-  <version>1.3.0</version>
+  <version>1.4.0</version>
 </dependency>
 ```
 

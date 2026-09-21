@@ -44,7 +44,7 @@ Run the smoke tests with `./gradlew :samples:configdirector-openfeature-server-p
 By default the sample depends on the released artifact, exactly as your own app would:
 
 ```groovy
-implementation 'com.configdirector:configdirector-openfeature-server-provider:1.0.0'
+implementation 'com.configdirector:configdirector-openfeature-server-provider:1.1.0'
 ```
 
 The OpenFeature Java SDK and the ConfigDirector Java server SDK come with it as transitive
@@ -115,13 +115,13 @@ evaluation as it happens.
 
 ## Settings
 
-| Variable                    | Default           | Meaning                                  |
-| --------------------------- | ----------------- | ---------------------------------------- |
-| `CONFIGDIRECTOR_SERVER_KEY` | `fake-sample-key` | Your server SDK key. A secret.           |
-| `CONFIGDIRECTOR_BASE_URL`   | _(none)_          | Only when routing through a proxy.       |
-| `CONFIGDIRECTOR_MODE`       | `streaming`       | `streaming` or `polling`.                |
+| Variable                    | Default           | Meaning                                       |
+| --------------------------- | ----------------- | --------------------------------------------- |
+| `CONFIGDIRECTOR_SERVER_KEY` | `fake-sample-key` | Your server SDK key. A secret.                |
+| `CONFIGDIRECTOR_BASE_URL`   | _(none)_          | Only when routing through a proxy.            |
+| `CONFIGDIRECTOR_MODE`       | `streaming`       | `streaming` or `polling`.                     |
 | `CONFIGDIRECTOR_TIMEOUT`    | `3s`              | Initialization timeout, as a Spring duration. |
-| `CONFIGDIRECTOR_LOG_LEVEL`  | `INFO`            | Set to `DEBUG` to trace evaluations.     |
+| `CONFIGDIRECTOR_LOG_LEVEL`  | `INFO`            | Set to `DEBUG` to trace evaluations.          |
 
 ## Where the `.env` file comes in
 

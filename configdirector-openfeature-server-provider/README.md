@@ -12,7 +12,7 @@
 Gradle:
 
 ```groovy
-implementation 'com.configdirector:configdirector-openfeature-server-provider:1.0.0'
+implementation 'com.configdirector:configdirector-openfeature-server-provider:1.1.0'
 ```
 
 Maven:
@@ -21,7 +21,7 @@ Maven:
 <dependency>
   <groupId>com.configdirector</groupId>
   <artifactId>configdirector-openfeature-server-provider</artifactId>
-  <version>1.0.0</version>
+  <version>1.1.0</version>
 </dependency>
 ```
 

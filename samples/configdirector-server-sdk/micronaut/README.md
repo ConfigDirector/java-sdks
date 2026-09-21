@@ -53,7 +53,7 @@ Run the smoke tests with `./gradlew :samples:configdirector-server-sdk:micronaut
 By default the sample depends on the released artifact, exactly as your own app would:
 
 ```groovy
-implementation 'com.configdirector:configdirector-server-sdk:1.0.0'
+implementation 'com.configdirector:configdirector-server-sdk:1.4.0'
 ```
 
 Pass `-PuseLocalSdk` to build it against
@@ -171,13 +171,13 @@ Set `CONFIGDIRECTOR_LOG_LEVEL=DEBUG` to watch every evaluation as it happens.
 [`SampleConfiguration`](src/main/java/com/configdirector/samples/micronaut/SampleConfiguration.java),
 so a real deployment supplies them as environment variables rather than editing code:
 
-| Variable                    | Default           | Meaning                                |
-| --------------------------- | ----------------- | -------------------------------------- |
-| `CONFIGDIRECTOR_SERVER_KEY` | `fake-sample-key` | Your server SDK key. A secret.         |
-| `CONFIGDIRECTOR_BASE_URL`   | _(none)_          | Only when routing through a proxy.     |
-| `CONFIGDIRECTOR_MODE`       | `streaming`       | `streaming` or `polling`. |
-| `CONFIGDIRECTOR_TIMEOUT`    | `3s`              | Initialization timeout.                |
-| `CONFIGDIRECTOR_LOG_LEVEL`  | `INFO`            | Set to `DEBUG` to trace evaluations.   |
+| Variable                    | Default           | Meaning                              |
+| --------------------------- | ----------------- | ------------------------------------ |
+| `CONFIGDIRECTOR_SERVER_KEY` | `fake-sample-key` | Your server SDK key. A secret.       |
+| `CONFIGDIRECTOR_BASE_URL`   | _(none)_          | Only when routing through a proxy.   |
+| `CONFIGDIRECTOR_MODE`       | `streaming`       | `streaming` or `polling`.            |
+| `CONFIGDIRECTOR_TIMEOUT`    | `3s`              | Initialization timeout.              |
+| `CONFIGDIRECTOR_LOG_LEVEL`  | `INFO`            | Set to `DEBUG` to trace evaluations. |
 
 Note what `application.properties` does _not_ contain: any `${CONFIGDIRECTOR_SERVER_KEY}`
 placeholder. Micronaut's environment property source already understands the
