@@ -92,7 +92,7 @@ public final class StreamingTransport implements Transport {
     EventSourceClient stream =
         EventSourceClient.builder(url)
             .method("POST")
-            .headers(Transports.REQUEST_HEADERS)
+            .headers(options.requestHeaders())
             .body(this::buildRequestBody)
             .logger(logger)
             .readTimeout(readTimeout)
@@ -168,7 +168,7 @@ public final class StreamingTransport implements Transport {
     try {
       options
           .http()
-          .post(heartbeatUrl, Transports.jsonBody(payload), Transports.REQUEST_HEADERS, heartbeatInterval);
+          .post(heartbeatUrl, Transports.jsonBody(payload), options.requestHeaders(), heartbeatInterval);
     } catch (RuntimeException error) {
       // A missed heartbeat is not worth disturbing the stream over; the server tolerates gaps,
       // and a connection problem shows up on the stream itself soon enough.

@@ -2,6 +2,7 @@ package com.configdirector.internal.transport;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.configdirector.internal.SdkIdentity;
 import java.nio.charset.StandardCharsets;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -123,10 +124,9 @@ class TransportsTest {
 
     @Test
     void identify_the_sdk_so_bot_protection_does_not_reject_the_request() {
-      assertThat(Transports.REQUEST_HEADERS)
+      assertThat(Transports.requestHeaders(new SdkIdentity("some-wrapper", "1.2.3")))
           .containsEntry("Content-Type", "application/json")
-          .hasEntrySatisfying(
-              "User-Agent", agent -> assertThat(agent).startsWith("java-server-sdk/"));
+          .containsEntry("User-Agent", "some-wrapper/1.2.3");
     }
   }
 }

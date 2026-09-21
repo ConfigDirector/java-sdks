@@ -12,8 +12,9 @@ public final class Transports {
   // Every request identifies the SDK by name and version. Left to itself OkHttp sends
   // "okhttp/5.x", which bot-protection layers in front of the API reject before the request ever
   // reaches the origin -- surfacing as a 403 that looks exactly like a rejected SDK key.
-  public static final Map<String, String> REQUEST_HEADERS =
-      Map.of("Content-Type", "application/json", "User-Agent", SdkIdentity.userAgent());
+  public static Map<String, String> requestHeaders(SdkIdentity identity) {
+    return Map.of("Content-Type", "application/json", "User-Agent", identity.userAgent());
+  }
 
   private Transports() {}
 

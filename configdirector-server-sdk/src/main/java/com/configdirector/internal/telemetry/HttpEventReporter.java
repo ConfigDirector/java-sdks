@@ -25,20 +25,28 @@ public final class HttpEventReporter implements EventReporter {
 
   private final String serverSdkKey;
   private final String url;
+  private final SdkIdentity identity;
   private final Logger logger;
   private final HttpClient http;
   private final Duration timeout;
 
   private volatile boolean sendRequests = true;
 
-  public HttpEventReporter(String serverSdkKey, String baseUrl, Logger logger, HttpClient http) {
-    this(serverSdkKey, baseUrl, logger, http, REQUEST_TIMEOUT);
+  public HttpEventReporter(
+      String serverSdkKey, String baseUrl, SdkIdentity identity, Logger logger, HttpClient http) {
+    this(serverSdkKey, baseUrl, identity, logger, http, REQUEST_TIMEOUT);
   }
 
   public HttpEventReporter(
-      String serverSdkKey, String baseUrl, Logger logger, HttpClient http, Duration timeout) {
+      String serverSdkKey,
+      String baseUrl,
+      SdkIdentity identity,
+      Logger logger,
+      HttpClient http,
+      Duration timeout) {
     this.serverSdkKey = serverSdkKey;
     this.url = Transports.resolve(baseUrl, PATH);
+    this.identity = identity;
     this.logger = logger;
     this.http = http;
     this.timeout = timeout;
@@ -68,8 +76,8 @@ public final class HttpEventReporter implements EventReporter {
     report.contexts().forEach(context -> contexts.add(contextToWire(context)));
 
     Map<String, Object> metaContext = new LinkedHashMap<>();
-    metaContext.put("sdkName", SdkIdentity.NAME);
-    metaContext.put("sdkVersion", SdkIdentity.version());
+    metaContext.put("sdkName", identity.name());
+    metaContext.put("sdkVersion", identity.version());
 
     Map<String, Object> droppedEvents = new LinkedHashMap<>();
     droppedEvents.put("evaluatedConfig", report.droppedEvaluations());
@@ -101,7 +109,7 @@ public final class HttpEventReporter implements EventReporter {
   private ReporterResponse send(byte[] body) {
     HttpResponse response;
     try {
-      response = http.post(url, body, Transports.REQUEST_HEADERS, timeout);
+      response = http.post(url, body, Transports.requestHeaders(identity), timeout);
     } catch (UnusableUrlException unusable) {
       logger.warn(
           "[EventReporter] The telemetry URL '{}' is unusable: {}. No more telemetry data will be sent.",

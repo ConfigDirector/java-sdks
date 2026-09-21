@@ -6,6 +6,7 @@ import com.configdirector.ConfigEvaluation;
 import com.configdirector.ConfigType;
 import com.configdirector.Context;
 import com.configdirector.EvaluationReason;
+import com.configdirector.internal.SdkIdentity;
 import com.configdirector.internal.transport.HttpClient;
 import com.configdirector.testing.TestHttpServer;
 import com.google.gson.JsonObject;
@@ -62,7 +63,11 @@ class HttpEventReporterTest {
 
   private HttpEventReporter reporterFor(String baseUrl) {
     return new HttpEventReporter(
-        "sdk-key", baseUrl, LoggerFactory.getLogger(HttpEventReporterTest.class), http);
+        "sdk-key",
+        baseUrl,
+        new SdkIdentity("some-wrapper", "1.2.3"),
+        LoggerFactory.getLogger(HttpEventReporterTest.class),
+        http);
   }
 
   private static TestHttpServer start(Consumer<TestHttpServer.Session> handler) {
@@ -135,7 +140,7 @@ class HttpEventReporterTest {
       reporterAgainst(200).report(reportOf(event("a", null)));
 
       TestHttpServer.Session request = snapshot(requests).get(0);
-      assertThat(request.header("User-Agent")).startsWith("java-server-sdk/");
+      assertThat(request.header("User-Agent")).isEqualTo("some-wrapper/1.2.3");
       assertThat(request.header("Content-Type")).isEqualTo("application/json");
     }
   }
@@ -151,8 +156,8 @@ class HttpEventReporterTest {
       JsonObject payload = sentPayload();
       assertThat(payload.get("serverSdkKey").getAsString()).isEqualTo("sdk-key");
       JsonObject metaContext = payload.getAsJsonObject("metaContext");
-      assertThat(metaContext.get("sdkName").getAsString()).isEqualTo("java-server-sdk");
-      assertThat(metaContext.get("sdkVersion").getAsString()).isNotBlank();
+      assertThat(metaContext.get("sdkName").getAsString()).isEqualTo("some-wrapper");
+      assertThat(metaContext.get("sdkVersion").getAsString()).isEqualTo("1.2.3");
     }
 
     @Test

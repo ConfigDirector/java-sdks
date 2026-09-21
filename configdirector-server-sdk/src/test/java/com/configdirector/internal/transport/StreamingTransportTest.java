@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 import static org.awaitility.Awaitility.await;
 
+import com.configdirector.internal.SdkIdentity;
 import com.configdirector.testing.TestHttpServer;
 import java.io.IOException;
 import java.time.Duration;
@@ -59,6 +60,7 @@ class StreamingTransportTest {
     return new TransportOptions(
         "sdk-key",
         baseUrl,
+        new SdkIdentity("some-wrapper", "1.2.3"),
         Map.of("sdkName", "java-server-sdk"),
         LoggerFactory.getLogger(StreamingTransportTest.class),
         bundles::add,
@@ -162,6 +164,22 @@ class StreamingTransportTest {
 
         assertThat(bodies.poll(5, TimeUnit.SECONDS)).contains("\"serverSdkKey\":\"sdk-key\"");
         assertThat(accepts.poll(5, TimeUnit.SECONDS)).isEqualTo("text/event-stream");
+      }
+    }
+
+    @Test
+    void sends_the_sdk_user_agent() throws Exception {
+      BlockingQueue<String> agents = new LinkedBlockingQueue<>();
+      try (TestHttpServer server =
+          start(
+              session -> {
+                agents.add(session.header("User-Agent"));
+                session.respondStreaming();
+              })) {
+        transport = new StreamingTransport(optionsFor(server.url("/")));
+        transport.connect(TIMEOUT);
+
+        assertThat(agents.poll(5, TimeUnit.SECONDS)).isEqualTo("some-wrapper/1.2.3");
       }
     }
 
@@ -393,6 +411,27 @@ class StreamingTransportTest {
         assertThat(heartbeat).isNotNull();
         assertThat(heartbeat).contains("\"serverSdkKey\":\"sdk-key\"");
         assertThat(sessionIdOf(heartbeat)).isEqualTo(sessionIdOf(sse));
+      }
+    }
+
+    @Test
+    void sends_the_sdk_user_agent_with_the_heartbeat() throws Exception {
+      BlockingQueue<String> agents = new LinkedBlockingQueue<>();
+      try (TestHttpServer server =
+          start(
+              session -> {
+                if (session.path().equals("/server/heartbeat/v1")) {
+                  agents.add(session.header("User-Agent"));
+                  session.respond(204, "Content-Length: 0", "Connection: close");
+                  session.close();
+                  return;
+                }
+                session.respondStreaming();
+              })) {
+        transport = new StreamingTransport(optionsFor(server.url("/")), READ_TIMEOUT, FAST_HEARTBEAT);
+        transport.connect(TIMEOUT);
+
+        assertThat(agents.poll(5, TimeUnit.SECONDS)).isEqualTo("some-wrapper/1.2.3");
       }
     }
 

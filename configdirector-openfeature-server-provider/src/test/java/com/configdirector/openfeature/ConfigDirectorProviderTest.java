@@ -124,7 +124,7 @@ class ConfigDirectorProviderTest {
     Value tags = client.getObjectValue("tags", new Value(List.<Value>of()));
     assertThat(tags.asList()).containsExactly(new Value("a"), new Value("b"));
 
-    assertThat(server.nextStreamRequest()).contains("\"serverSdkKey\":\"sdk-key\"");
+    assertThat(server.nextStreamRequest().body()).contains("\"serverSdkKey\":\"sdk-key\"");
   }
 
   @Test
@@ -242,7 +242,34 @@ class ConfigDirectorProviderTest {
         "greeting", "x", new ImmutableContext("hidden-user", Map.of("anonymous", new Value(true))));
     api.shutdown();
 
-    assertThat(server.nextTelemetryRequest()).contains("known-user").doesNotContain("hidden-user");
+    assertThat(server.nextTelemetryRequest().body())
+        .contains("known-user")
+        .doesNotContain("hidden-user");
+  }
+
+  @Test
+  void identifies_itself_as_the_provider_when_connecting() throws InterruptedException {
+    clientServing(bundleOf(config("greeting", "string", "Bye")));
+
+    FakeConfigDirectorServer.Request request = server.nextStreamRequest();
+
+    assertThat(request.userAgent()).matches("java-openfeature-server-provider/\\S+");
+    assertThat(request.body())
+        .contains("\"sdkName\":\"java-openfeature-server-provider\"")
+        .containsPattern("\"sdkVersion\":\"[^\"]+\"");
+  }
+
+  @Test
+  void identifies_itself_as_the_provider_when_reporting_telemetry() throws InterruptedException {
+    Client client = clientServing(bundleOf(config("greeting", "string", "Bye")));
+
+    client.getStringValue("greeting", "x", new ImmutableContext("known-user"));
+    api.shutdown();
+
+    FakeConfigDirectorServer.Request request = server.nextTelemetryRequest();
+
+    assertThat(request.userAgent()).matches("java-openfeature-server-provider/\\S+");
+    assertThat(request.body()).contains("\"sdkName\":\"java-openfeature-server-provider\"");
   }
 
   @Test

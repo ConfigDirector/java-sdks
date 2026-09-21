@@ -83,6 +83,7 @@ public final class DefaultConfigDirectorClient implements ConfigDirectorClient {
 
   public DefaultConfigDirectorClient(
       String serverSdkKey,
+      SdkIdentity identity,
       Metadata metadata,
       ConnectionOptions connection,
       TelemetryOptions telemetry,
@@ -109,7 +110,8 @@ public final class DefaultConfigDirectorClient implements ConfigDirectorClient {
             new TransportOptions(
                 serverSdkKey,
                 baseUrl,
-                metaContext(this.metadata),
+                identity,
+                metaContext(identity, this.metadata),
                 logger,
                 this::onBundle,
                 http,
@@ -121,6 +123,7 @@ public final class DefaultConfigDirectorClient implements ConfigDirectorClient {
             new TelemetryCollectorOptions(
                 serverSdkKey,
                 baseUrl,
+                identity,
                 logger,
                 http,
                 telemetryOptions.eventQueueLimit(),
@@ -667,10 +670,10 @@ public final class DefaultConfigDirectorClient implements ConfigDirectorClient {
 
   // The wire format is camelCase, and the server treats every field but the SDK identity as
   // optional, so absent metadata is left out rather than sent as null.
-  private static Map<String, String> metaContext(Metadata metadata) {
+  private static Map<String, String> metaContext(SdkIdentity identity, Metadata metadata) {
     Map<String, String> context = new LinkedHashMap<>();
-    context.put("sdkName", SdkIdentity.NAME);
-    context.put("sdkVersion", SdkIdentity.version());
+    context.put("sdkName", identity.name());
+    context.put("sdkVersion", identity.version());
     if (metadata.appName() != null) {
       context.put("appName", metadata.appName());
     }

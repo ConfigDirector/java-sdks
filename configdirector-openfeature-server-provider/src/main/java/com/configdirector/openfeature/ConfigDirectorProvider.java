@@ -5,6 +5,8 @@ import com.configdirector.ConfigDirector;
 import com.configdirector.ConfigDirectorClient;
 import com.configdirector.ConfigEvaluation;
 import com.configdirector.Context;
+import com.configdirector.internal.SdkIdentity;
+import com.configdirector.internal.client.ClientFactory;
 import dev.openfeature.sdk.EvaluationContext;
 import dev.openfeature.sdk.EventProvider;
 import dev.openfeature.sdk.Metadata;
@@ -40,6 +42,8 @@ import java.util.function.Consumer;
 public final class ConfigDirectorProvider extends EventProvider {
 
   private static final String NAME = "ConfigDirectorProvider";
+  private static final SdkIdentity IDENTITY =
+      SdkIdentity.of("java-openfeature-server-provider", ConfigDirectorProvider.class);
   private static final ThreadLocal<ConfigEvaluation> EVALUATED = new ThreadLocal<>();
 
   private final ConfigDirectorClient client;
@@ -61,7 +65,7 @@ public final class ConfigDirectorProvider extends EventProvider {
    * @param configure receives the settings to adjust before the client is built
    */
   public ConfigDirectorProvider(String serverSdkKey, Consumer<ClientOptions> configure) {
-    this.client = ConfigDirector.client(serverSdkKey, configure);
+    this.client = ClientFactory.create(serverSdkKey, configure, IDENTITY);
     this.client.onConfigEvaluated(event -> EVALUATED.set(event.evaluation()));
     this.client.onConfigsUpdated(
         event ->

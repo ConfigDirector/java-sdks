@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 import static org.awaitility.Awaitility.await;
 
+import com.configdirector.internal.SdkIdentity;
 import com.configdirector.internal.evaluation.Config;
 import com.configdirector.testing.TestHttpServer;
 import java.time.Duration;
@@ -52,6 +53,7 @@ class PollingTransportTest {
     return new TransportOptions(
         "sdk-key",
         baseUrl,
+        new SdkIdentity("some-wrapper", "1.2.3"),
         Map.of("sdkName", "java-server-sdk"),
         LoggerFactory.getLogger(PollingTransportTest.class),
         bundles::add,
@@ -174,7 +176,7 @@ class PollingTransportTest {
 
         transport.connect(TIMEOUT);
 
-        assertThat(snapshot(agents).get(0)).startsWith("java-server-sdk/");
+        assertThat(snapshot(agents).get(0)).isEqualTo("some-wrapper/1.2.3");
       }
     }
 

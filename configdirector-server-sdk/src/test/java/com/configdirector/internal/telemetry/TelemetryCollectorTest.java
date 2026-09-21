@@ -7,6 +7,7 @@ import com.configdirector.ConfigEvaluation;
 import com.configdirector.ConfigType;
 import com.configdirector.Context;
 import com.configdirector.EvaluationReason;
+import com.configdirector.internal.SdkIdentity;
 import com.configdirector.internal.transport.HttpClient;
 import java.time.Duration;
 import java.util.List;
@@ -41,6 +42,7 @@ class TelemetryCollectorTest {
             new TelemetryCollectorOptions(
                 "sdk-key",
                 "https://api.test",
+                SdkIdentity.SERVER_SDK,
                 LoggerFactory.getLogger(TelemetryCollectorTest.class),
                 http,
                 queueLimit,
@@ -259,6 +261,7 @@ class TelemetryCollectorTest {
               new TelemetryCollectorOptions(
                   "sdk-key",
                   "https://api.test",
+                  SdkIdentity.SERVER_SDK,
                   LoggerFactory.getLogger(TelemetryCollectorTest.class),
                   http,
                   1_000,
@@ -346,6 +349,7 @@ class TelemetryCollectorTest {
               new TelemetryCollectorOptions(
                   "sdk-key",
                   "https://api.test",
+                  SdkIdentity.SERVER_SDK,
                   LoggerFactory.getLogger(TelemetryCollectorTest.class),
                   http,
                   1_000,

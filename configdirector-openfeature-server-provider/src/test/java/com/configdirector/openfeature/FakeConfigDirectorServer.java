@@ -28,8 +28,10 @@ final class FakeConfigDirectorServer implements AutoCloseable {
             return thread;
           });
   private final BlockingQueue<String> outbox = new LinkedBlockingQueue<>();
-  private final BlockingQueue<String> streamRequests = new LinkedBlockingQueue<>();
-  private final BlockingQueue<String> telemetryRequests = new LinkedBlockingQueue<>();
+  private final BlockingQueue<Request> streamRequests = new LinkedBlockingQueue<>();
+  private final BlockingQueue<Request> telemetryRequests = new LinkedBlockingQueue<>();
+
+  record Request(String userAgent, String body) {}
 
   private FakeConfigDirectorServer() throws IOException {
     server = HttpServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
@@ -56,17 +58,17 @@ final class FakeConfigDirectorServer implements AutoCloseable {
     outbox.add(bundle);
   }
 
-  String nextStreamRequest() throws InterruptedException {
+  Request nextStreamRequest() throws InterruptedException {
     return next(streamRequests, "stream");
   }
 
-  String nextTelemetryRequest() throws InterruptedException {
+  Request nextTelemetryRequest() throws InterruptedException {
     return next(telemetryRequests, "telemetry");
   }
 
-  private static String next(BlockingQueue<String> requests, String kind)
+  private static Request next(BlockingQueue<Request> requests, String kind)
       throws InterruptedException {
-    String request = requests.poll(5, TimeUnit.SECONDS);
+    Request request = requests.poll(5, TimeUnit.SECONDS);
     if (request == null) {
       throw new AssertionError("No " + kind + " request arrived within 5s");
     }
@@ -80,7 +82,7 @@ final class FakeConfigDirectorServer implements AutoCloseable {
   }
 
   private void stream(HttpExchange exchange) throws IOException {
-    streamRequests.add(read(exchange));
+    streamRequests.add(received(exchange));
     exchange.getResponseHeaders().add("Content-Type", "text/event-stream");
     exchange.sendResponseHeaders(200, 0);
     try (OutputStream body = exchange.getResponseBody()) {
@@ -95,13 +97,17 @@ final class FakeConfigDirectorServer implements AutoCloseable {
   }
 
   private void telemetry(HttpExchange exchange) throws IOException {
-    telemetryRequests.add(read(exchange));
+    telemetryRequests.add(received(exchange));
     respondEmpty(exchange);
   }
 
   private static void acknowledge(HttpExchange exchange) throws IOException {
     read(exchange);
     respondEmpty(exchange);
+  }
+
+  private static Request received(HttpExchange exchange) throws IOException {
+    return new Request(exchange.getRequestHeaders().getFirst("User-Agent"), read(exchange));
   }
 
   private static String read(HttpExchange exchange) throws IOException {

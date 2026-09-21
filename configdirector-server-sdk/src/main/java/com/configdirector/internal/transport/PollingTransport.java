@@ -179,7 +179,7 @@ public class PollingTransport implements Transport {
     try {
       // Network-level failures -- refused, unresolved, timed out -- arrive as
       // ConfigDirectorConnectionException and are left to propagate: all are worth retrying.
-      return options.http().post(url, body, Transports.REQUEST_HEADERS, timeout);
+      return options.http().post(url, body, options.requestHeaders(), timeout);
     } catch (UnusableUrlException error) {
       throw failFatally(
           new ConfigDirectorConnectionException(

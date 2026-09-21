@@ -1,5 +1,7 @@
 package com.configdirector;
 
+import com.configdirector.internal.SdkIdentity;
+import com.configdirector.internal.client.ClientFactory;
 import com.configdirector.internal.client.DefaultConfigDirectorClient;
 import java.util.Objects;
 import java.util.function.Consumer;
@@ -27,6 +29,10 @@ public final class ConfigDirector {
   /** The logger the SDK writes to unless one is supplied. */
   public static final String LOGGER_NAME = "com.configdirector";
 
+  static {
+    ClientFactory.register(ConfigDirector::build);
+  }
+
   private ConfigDirector() {}
 
   /**
@@ -48,11 +54,17 @@ public final class ConfigDirector {
    * @return a client that has not connected yet
    */
   public static ConfigDirectorClient client(String serverSdkKey, Consumer<ClientOptions> configure) {
+    return build(serverSdkKey, configure, SdkIdentity.SERVER_SDK);
+  }
+
+  private static ConfigDirectorClient build(
+      String serverSdkKey, Consumer<ClientOptions> configure, SdkIdentity identity) {
     Objects.requireNonNull(configure, "configure");
     ClientOptions options = new ClientOptions();
     configure.accept(options);
     return new DefaultConfigDirectorClient(
         serverSdkKey,
+        identity,
         options.metadata(),
         options.connection(),
         options.telemetry(),

@@ -8,6 +8,14 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-09-21
+
+### Changed
+
+- The provider now identifies itself to ConfigDirector as `java-openfeature-server-provider` with
+  its own version, in the `User-Agent` header and in the SDK name and version it reports, instead
+  of as `java-server-sdk`.
+
 ## [1.0.0] - 2026-09-20
 
 ### Added

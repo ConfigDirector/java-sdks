@@ -44,7 +44,11 @@ public final class TelemetryCollector implements AutoCloseable {
     this(
         options,
         new HttpEventReporter(
-            options.serverSdkKey(), options.baseUrl(), options.logger(), options.http()));
+            options.serverSdkKey(),
+            options.baseUrl(),
+            options.identity(),
+            options.logger(),
+            options.http()));
   }
 
   TelemetryCollector(TelemetryCollectorOptions options, EventReporter reporter) {
