@@ -43,46 +43,13 @@ Client client = api.getClient();
 boolean newCheckout = client.getBooleanValue("new-checkout", false);
 ```
 
-## Additional configuration options
+Full details are in the [official documentation](https://docs.configdirector.com/sdks/openfeature/java).
 
-The provider accepts the same settings as the Java server SDK client:
+## Documentation
 
-```java
-ConfigDirectorProvider provider =
-    new ConfigDirectorProvider(
-        "YOUR-SERVER-SDK-KEY",
-        options -> options.metadata("YOUR-APP-NAME", "1.0.2"));
-```
+Refer to the [official documentation for the OpenFeature Java provider](https://docs.configdirector.com/sdks/openfeature/java).
 
-## User context
-
-Targeting rules are evaluated locally, without additional network calls for different contexts.
-
-```java
-EvaluationContext context =
-    new ImmutableContext(
-        "12345", // In OpenFeature, the targeting key represents the context's user ID
-        Map.of(
-            "name", new Value("Example User"),
-            // Any arbitrary traits which can be referenced in targeting rules
-            "traits", new Value(new ImmutableStructure(Map.of("region", new Value("North America"))))));
-
-boolean value = client.getBooleanValue("my-config-key", false, context);
-```
-
-A boolean `anonymous` attribute keeps the context out of the ConfigDirector dashboard.
-
-## Evaluation details
-
-| ConfigDirector outcome                 | OpenFeature reason | OpenFeature error code |
-| -------------------------------------- | ------------------ | ---------------------- |
-| A value was found                      | `TARGETING_MATCH`  |                        |
-| The config carries no value            | `DEFAULT`          |                        |
-| The config key is unknown              | `ERROR`            | `FLAG_NOT_FOUND`       |
-| No config state has arrived yet        | `ERROR`            | `PROVIDER_NOT_READY`   |
-| The value is not of the requested type | `ERROR`            | `TYPE_MISMATCH`        |
-
-The `variant` of a found value is ConfigDirector's identifier for that value.
+There is also [a quickstart guide for ConfigDirector and any of our SDKs](https://docs.configdirector.com/getting-started/quickstart).
 
 ## Sample apps
 

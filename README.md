@@ -6,10 +6,10 @@ Java SDKs for [ConfigDirector](https://www.configdirector.com), remote config an
 
 Pick the package you need from the table below; each one has its own README with an install command and a first example, and the [quickstart](https://docs.configdirector.com/getting-started/quickstart) walks through the first flag end to end.
 
-| Server SDKs                                                                                                           | Maven Central                                                       | Docs                                                           |
-| --------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- | -------------------------------------------------------------- |
-| [com.configdirector:configdirector-server-sdk](configdirector-server-sdk/README.md)                                   | [![Maven Central][server-sdk-maven-badge]][server-sdk-maven-link]   | https://docs.configdirector.com/sdks/server/java               |
-| [com.configdirector:configdirector-openfeature-server-provider](configdirector-openfeature-server-provider/README.md) | [![Maven Central][open-server-maven-badge]][open-server-maven-link] | [README](configdirector-openfeature-server-provider/README.md) |
+| Server SDKs                                                                                                           | Maven Central                                                       | Docs                                                  |
+| --------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- | ----------------------------------------------------- |
+| [com.configdirector:configdirector-server-sdk](configdirector-server-sdk/README.md)                                   | [![Maven Central][server-sdk-maven-badge]][server-sdk-maven-link]   | https://docs.configdirector.com/sdks/server/java      |
+| [com.configdirector:configdirector-openfeature-server-provider](configdirector-openfeature-server-provider/README.md) | [![Maven Central][open-server-maven-badge]][open-server-maven-link] | https://docs.configdirector.com/sdks/openfeature/java |
 
 ## Sample apps
 
