@@ -8,6 +8,8 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-09-20
+
 ### Added
 
 - `ConfigDirectorProvider`, an OpenFeature provider backed by the ConfigDirector Java server SDK.

@@ -8,10 +8,8 @@ every value read through an OpenFeature client instead of the ConfigDirector cli
 
 ## Running it
 
-The provider is not on Maven Central yet, so build against this repository with `-PuseLocalSdk`:
-
 ```bash
-./gradlew :samples:configdirector-openfeature-server-provider:micronaut:run -PuseLocalSdk
+./gradlew :samples:configdirector-openfeature-server-provider:micronaut:run
 ```
 
 To point it at a real ConfigDirector environment, copy the template and fill in your key:
@@ -39,21 +37,29 @@ curl 'http://localhost:3611/configs?id=user-123&plan=pro'
 }
 ```
 
-Run the smoke tests with `./gradlew :samples:configdirector-openfeature-server-provider:micronaut:test -PuseLocalSdk`.
+Run the smoke tests with `./gradlew :samples:configdirector-openfeature-server-provider:micronaut:test`.
 
 ## Which provider it builds against
 
-Without `-PuseLocalSdk` the sample depends on the released artifact, exactly as your own app would:
+By default the sample depends on the released artifact, exactly as your own app would:
 
 ```groovy
 implementation 'com.configdirector:configdirector-openfeature-server-provider:1.0.0'
 ```
 
 The OpenFeature Java SDK and the ConfigDirector Java server SDK come with it as transitive
-dependencies. With `-PuseLocalSdk` that line becomes a dependency on
+dependencies.
+
+Pass `-PuseLocalSdk` to build it against
 [`configdirector-openfeature-server-provider/`](../../../configdirector-openfeature-server-provider/)
-in this repository, which is how to try an unreleased change against a real consumer. CI sets it on
-every job.
+in this repository instead:
+
+```bash
+./gradlew :samples:configdirector-openfeature-server-provider:micronaut:run -PuseLocalSdk
+```
+
+That is how to try an unreleased change against a real consumer, and CI sets it on every job so a
+breaking API change fails here before it ships.
 
 ## The provider is registered once
 

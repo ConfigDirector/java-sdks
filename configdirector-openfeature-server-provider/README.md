@@ -59,7 +59,7 @@ Quarkus. Start with
 [`spring-boot`](../samples/configdirector-openfeature-server-provider/spring-boot/):
 
 ```bash
-./gradlew :samples:configdirector-openfeature-server-provider:spring-boot:bootRun -PuseLocalSdk
+./gradlew :samples:configdirector-openfeature-server-provider:spring-boot:bootRun
 ```
 
 ## Getting Help
