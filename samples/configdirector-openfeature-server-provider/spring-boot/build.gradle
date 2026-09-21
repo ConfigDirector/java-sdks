@@ -1,0 +1,38 @@
+plugins {
+    id 'java'
+    alias libs.plugins.spring.boot
+    alias libs.plugins.spring.dependency.management
+}
+
+repositories {
+    mavenCentral()
+}
+
+def useLocalSdk = providers.gradleProperty('useLocalSdk')
+    .map { it.isEmpty() || Boolean.parseBoolean(it) }
+    .getOrElse(false)
+
+dependencies {
+    implementation useLocalSdk
+        ? project(':configdirector-openfeature-server-provider')
+        : 'com.configdirector:configdirector-openfeature-server-provider:1.0.0'
+    implementation 'org.springframework.boot:spring-boot-starter-web'
+
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+    options.release = 17
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
+}

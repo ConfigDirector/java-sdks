@@ -16,3 +16,7 @@ include('configdirector-openfeature-server-provider')
 include('samples:configdirector-server-sdk:spring-boot')
 include('samples:configdirector-server-sdk:micronaut')
 include('samples:configdirector-server-sdk:quarkus')
+
+include('samples:configdirector-openfeature-server-provider:spring-boot')
+include('samples:configdirector-openfeature-server-provider:micronaut')
+include('samples:configdirector-openfeature-server-provider:quarkus')

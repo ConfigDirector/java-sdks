@@ -54,6 +54,10 @@ workflow. Its published POM depends on whatever version `configdirector-server-s
 declares at that commit, so that SDK version must already resolve on Central before the provider
 is released.
 
+Once the provider resolves on Central, bump the three samples under
+`samples/configdirector-openfeature-server-provider/` to it. Until its first release they build
+only with `-PuseLocalSdk`, and their READMEs say so; drop that note with the first bump.
+
 Each workflow refuses to run when its tag, such as `configdirector-server-sdk-vX.Y.Z`, already exists, and
 tags the commit only after the upload succeeds. If a deployment was dropped in the Portal rather
 than published, delete that tag before running it again.

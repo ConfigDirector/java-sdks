@@ -1,6 +1,6 @@
 # ConfigDirector Java Server SDK
 
-[![Actions Status][ci-badge]][ci]
+[![Actions Status][ci-badge]][ci] [![Maven Central][maven-badge]][maven]
 
 The Java server SDK for [ConfigDirector](https://www.configdirector.com), published to Maven
 Central as `com.configdirector:configdirector-server-sdk`. It requires Java 17 or newer.
@@ -26,6 +26,21 @@ Maven:
 </dependency>
 ```
 
+## Retrieve a value
+
+```java
+import com.configdirector.ConfigDirector;
+import com.configdirector.ConfigDirectorClient;
+
+// The server SDK key is a secret. Do not commit it to your source code.
+ConfigDirectorClient client = ConfigDirector.client("YOUR-SERVER-SDK-KEY");
+client.initialize();
+
+boolean newCheckout = client.getBoolean("new-checkout", false);
+```
+
+Full details are in the [official documentation](https://docs.configdirector.com/sdks/server/java).
+
 ## Documentation
 
 Refer to the [official documentation for the Java SDK](https://docs.configdirector.com/sdks/server/java).
@@ -49,3 +64,5 @@ Reach out to us via https://www.configdirector.com/support
 [//]: # "links"
 [ci-badge]: https://github.com/ConfigDirector/java-sdks/actions/workflows/configdirector-server-sdk.yml/badge.svg
 [ci]: https://github.com/ConfigDirector/java-sdks/actions/workflows/configdirector-server-sdk.yml
+[maven-badge]: https://img.shields.io/maven-central/v/com.configdirector/configdirector-server-sdk
+[maven]: https://central.sonatype.com/artifact/com.configdirector/configdirector-server-sdk

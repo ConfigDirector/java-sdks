@@ -1,0 +1,54 @@
+plugins {
+    id 'java'
+    alias libs.plugins.quarkus
+}
+
+repositories {
+    mavenCentral()
+}
+
+def useLocalSdk = providers.gradleProperty('useLocalSdk')
+    .map { it.isEmpty() || Boolean.parseBoolean(it) }
+    .getOrElse(false)
+
+dependencies {
+    implementation enforcedPlatform(libs.quarkus.bom)
+
+    implementation useLocalSdk
+        ? project(':configdirector-openfeature-server-provider')
+        : 'com.configdirector:configdirector-openfeature-server-provider:1.0.0'
+
+    implementation 'io.quarkus:quarkus-arc'
+    implementation 'io.quarkus:quarkus-rest-jackson'
+
+    testImplementation 'io.quarkus:quarkus-junit5'
+    testImplementation 'io.rest-assured:rest-assured'
+    testImplementation libs.assertj.core
+}
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+    options.release = 17
+}
+
+tasks.named('quarkusRun') {
+    workingDirectory = projectDir
+}
+
+tasks.named('quarkusDev') {
+    workingDirectory = projectDir
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
+    workingDir = layout.buildDirectory.dir('test-working-dir').get().asFile
+    doFirst {
+        workingDir.mkdirs()
+    }
+}

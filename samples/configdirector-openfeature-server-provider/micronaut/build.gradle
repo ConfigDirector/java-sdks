@@ -1,0 +1,62 @@
+plugins {
+    id 'java'
+    alias libs.plugins.micronaut.application
+}
+
+repositories {
+    mavenCentral()
+}
+
+def useLocalSdk = providers.gradleProperty('useLocalSdk')
+    .map { it.isEmpty() || Boolean.parseBoolean(it) }
+    .getOrElse(false)
+
+dependencies {
+    implementation useLocalSdk
+        ? project(':configdirector-openfeature-server-provider')
+        : 'com.configdirector:configdirector-openfeature-server-provider:1.0.0'
+
+    annotationProcessor 'io.micronaut:micronaut-inject-java'
+    implementation 'io.micronaut:micronaut-http-server-netty'
+    implementation 'io.micronaut.serde:micronaut-serde-jackson'
+    runtimeOnly libs.logback.classic
+
+    testAnnotationProcessor 'io.micronaut:micronaut-inject-java'
+    testImplementation 'io.micronaut.test:micronaut-test-junit5'
+    testImplementation 'io.micronaut:micronaut-http-client'
+    testImplementation libs.assertj.core
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+micronaut {
+    version = '5.1.1'
+    runtime 'netty'
+    testRuntime 'junit5'
+    processing {
+        incremental true
+        annotations 'com.configdirector.samples.openfeature.micronaut.*'
+    }
+}
+
+application {
+    mainClass = 'com.configdirector.samples.openfeature.micronaut.Application'
+}
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(25)
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+    options.release = 25
+}
+
+tasks.named('run') {
+    workingDir = projectDir
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
+}

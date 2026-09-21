@@ -84,6 +84,17 @@ A boolean `anonymous` attribute keeps the context out of the ConfigDirector dash
 
 The `variant` of a found value is ConfigDirector's identifier for that value.
 
+## Sample apps
+
+[`samples/configdirector-openfeature-server-provider/`](../samples/configdirector-openfeature-server-provider/)
+holds small, runnable applications built on this provider, one each for Spring Boot, Micronaut and
+Quarkus. Start with
+[`spring-boot`](../samples/configdirector-openfeature-server-provider/spring-boot/):
+
+```bash
+./gradlew :samples:configdirector-openfeature-server-provider:spring-boot:bootRun -PuseLocalSdk
+```
+
 ## Getting Help
 
 - [Ask a question in Discussions](https://github.com/orgs/ConfigDirector/discussions)
