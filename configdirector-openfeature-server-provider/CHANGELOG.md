@@ -8,6 +8,12 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-09-23
+
+### Fixed
+
+- Fix bug in conditional rule evaluation incorrectly evaluating multiple conditions in an OR instead of AND.
+
 ## [1.1.0] - 2026-09-21
 
 ### Changed

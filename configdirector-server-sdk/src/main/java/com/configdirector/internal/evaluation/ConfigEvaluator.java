@@ -65,14 +65,14 @@ public final class ConfigEvaluator {
 
   private Selection evaluateConditionalRule(
       ConditionalRule rule, Config config, EvaluationContext context) {
-    boolean anyConditionMatched = false;
+    boolean allConditionsMatched = true;
     for (Condition condition : rule.conditions()) {
-      if (conditionEvaluator.evaluate(condition, context)) {
-        anyConditionMatched = true;
+      if (!conditionEvaluator.evaluate(condition, context)) {
+        allConditionsMatched = false;
         break;
       }
     }
-    if (!anyConditionMatched) {
+    if (!allConditionsMatched) {
       return null;
     }
     if ("value".equals(rule.target()) && rule.value() != null) {

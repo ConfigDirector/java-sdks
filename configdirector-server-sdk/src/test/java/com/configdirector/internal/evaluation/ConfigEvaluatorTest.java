@@ -78,11 +78,12 @@ class ConfigEvaluatorTest {
     }
 
     @Test
-    void a_rule_with_no_conditions_never_matches() {
+    void a_rule_with_no_conditions_applies_to_every_context() {
       TargetingRules target =
           new TargetingRules("fallback", null, List.of(valueRule("r1", 1, List.of(), "matched")));
 
-      assertThat(evaluate(target, "u1").value()).isEqualTo("fallback");
+      assertThat(evaluate(target, "u1").value()).isEqualTo("matched");
+      assertThat(evaluator.evaluate(config(target), null).value()).isEqualTo("matched");
     }
 
     @Test
@@ -91,6 +92,62 @@ class ConfigEvaluatorTest {
 
       assertThat(state.value()).isNull();
       assertThat(state.valueId()).isNull();
+    }
+  }
+
+  @Nested
+  @DisplayName("a rule with several conditions")
+  class SeveralConditions {
+
+    private static Condition planIs(String plan) {
+      return new Condition("c2", "traits", "=", "text", List.of(plan), "/plan");
+    }
+
+    private static TargetingRules requiring(Condition... conditions) {
+      return new TargetingRules(
+          "fallback", "default-vid", List.of(valueRule("r1", 1, List.of(conditions), "matched")));
+    }
+
+    private ConfigState evaluate(TargetingRules target, String identifier, String plan) {
+      return evaluator.evaluate(
+          config(target),
+          new EvaluationContext(Context.builder().id(identifier).trait("plan", plan).build(), null));
+    }
+
+    @Test
+    void matches_when_every_condition_matches() {
+      TargetingRules target = requiring(matching("u1"), planIs("pro"));
+
+      assertThat(evaluate(target, "u1", "pro").value()).isEqualTo("matched");
+    }
+
+    @Test
+    void does_not_match_when_only_the_first_condition_matches() {
+      TargetingRules target = requiring(matching("u1"), planIs("pro"));
+
+      assertThat(evaluate(target, "u1", "free").value()).isEqualTo("fallback");
+    }
+
+    @Test
+    void does_not_match_when_only_the_second_condition_matches() {
+      TargetingRules target = requiring(matching("u1"), planIs("pro"));
+
+      assertThat(evaluate(target, "u2", "pro").value()).isEqualTo("fallback");
+    }
+
+    @Test
+    void does_not_match_when_no_condition_matches() {
+      TargetingRules target = requiring(matching("u1"), planIs("pro"));
+
+      assertThat(evaluate(target, "u2", "free").value()).isEqualTo("fallback");
+    }
+
+    @Test
+    void never_matches_when_its_conditions_cannot_all_hold() {
+      TargetingRules target = requiring(matching("u1"), matching("u2"));
+
+      assertThat(ConfigEvaluatorTest.this.evaluate(target, "u1").value()).isEqualTo("fallback");
+      assertThat(ConfigEvaluatorTest.this.evaluate(target, "u2").value()).isEqualTo("fallback");
     }
   }
 
