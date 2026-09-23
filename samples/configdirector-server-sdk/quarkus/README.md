@@ -66,7 +66,7 @@ a development convenience, not a reason to build clients per request — see bel
 By default the sample depends on the released artifact, exactly as your own app would:
 
 ```groovy
-implementation 'com.configdirector:configdirector-server-sdk:1.4.0'
+implementation 'com.configdirector:configdirector-server-sdk:1.5.0'
 ```
 
 Pass `-PuseLocalSdk` to build it against
