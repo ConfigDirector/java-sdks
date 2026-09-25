@@ -49,7 +49,7 @@ Run the smoke tests with `./gradlew :samples:configdirector-server-sdk:spring-bo
 By default the sample depends on the released artifact, exactly as your own app would:
 
 ```groovy
-implementation 'com.configdirector:configdirector-server-sdk:1.5.0'
+implementation 'com.configdirector:configdirector-server-sdk:1.6.0'
 ```
 
 Pass `-PuseLocalSdk` to build it against

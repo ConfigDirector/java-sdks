@@ -14,7 +14,7 @@ def useLocalSdk = providers.gradleProperty('useLocalSdk')
 dependencies {
     implementation useLocalSdk
         ? project(':configdirector-openfeature-server-provider')
-        : 'com.configdirector:configdirector-openfeature-server-provider:1.2.0'
+        : 'com.configdirector:configdirector-openfeature-server-provider:1.3.0'
 
     annotationProcessor 'io.micronaut:micronaut-inject-java'
     implementation 'io.micronaut:micronaut-http-server-netty'
