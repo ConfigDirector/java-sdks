@@ -24,7 +24,10 @@ public enum EvaluationReason {
   INVALID_JSON,
 
   /** The value is neither {@code true} nor {@code false}. */
-  INVALID_BOOLEAN;
+  INVALID_BOOLEAN,
+
+  /** The config holds a type the default did not ask for, so the default was returned. */
+  TYPE_MISMATCH;
 
   /**
    * How ConfigDirector spells this reason on the wire.

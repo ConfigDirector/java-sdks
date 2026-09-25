@@ -1,6 +1,7 @@
 package com.configdirector.internal.value;
 
 import com.configdirector.ConfigState;
+import com.configdirector.ConfigType;
 import com.configdirector.EvaluationReason;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
@@ -9,10 +10,12 @@ import com.google.gson.JsonParser;
 import com.google.gson.JsonPrimitive;
 import java.math.BigDecimal;
 import java.util.ArrayList;
+import java.util.EnumSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 // Coerces an evaluated value into the type the caller asked for. The requested type comes from the
 // default, not from how the config was declared in the dashboard: a caller who passes a boolean
@@ -23,6 +26,9 @@ public final class ValueParser {
   // Java's parsers would otherwise accept: surrounding whitespace, a trailing "d" or "f", hex,
   // and the words "Infinity" and "NaN".
   private static final String DECIMAL_CHARACTERS = "0123456789+-.eE";
+
+  private static final Set<ConfigType> TYPES_NOT_READABLE_AS_STRING =
+      EnumSet.of(ConfigType.BOOLEAN, ConfigType.INTEGER, ConfigType.FLOAT);
 
   private ValueParser() {}
 
@@ -42,7 +48,9 @@ public final class ValueParser {
           : usedDefault(defaultValue, EvaluationReason.INVALID_BOOLEAN);
     }
     if (defaultValue instanceof String) {
-      return matched(raw, state);
+      return TYPES_NOT_READABLE_AS_STRING.contains(state.type())
+          ? usedDefault(defaultValue, EvaluationReason.TYPE_MISMATCH)
+          : matched(raw, state);
     }
     if (defaultValue instanceof Integer || defaultValue instanceof Long) {
       Long parsed = parseInteger(raw);

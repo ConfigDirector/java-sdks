@@ -8,6 +8,19 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.6.0] - 2026-09-25
+
+### Added
+
+- `EvaluationReason.TYPE_MISMATCH`, reported when a config holds a type the default did not ask
+  for. It is spelled `type-mismatch` on the wire, as the other SDKs already spell it.
+
+### Changed
+
+- A boolean, integer, or float config requested as a `String` now evaluates to the default value
+  with the `TYPE_MISMATCH` reason, instead of the value's text with `FOUND_MATCH`. Reading a JSON
+  config as a `String` still returns its raw document.
+
 ## [1.5.0] - 2026-09-23
 
 ### Fixed

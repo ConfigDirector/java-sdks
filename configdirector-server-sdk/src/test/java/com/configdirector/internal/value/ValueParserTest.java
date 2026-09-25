@@ -11,12 +11,17 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
 class ValueParserTest {
 
   private static ConfigState state(String value) {
-    return new ConfigState("c1", "k", ConfigType.STRING, value, "vid-1");
+    return state(ConfigType.STRING, value);
+  }
+
+  private static ConfigState state(ConfigType type, String value) {
+    return new ConfigState("c1", "k", type, value, "vid-1");
   }
 
   private static ParseResult parse(String value, Object defaultValue) {
@@ -89,12 +94,40 @@ class ValueParserTest {
   @DisplayName("strings")
   class Strings {
 
+    @ParameterizedTest
+    @EnumSource(
+        value = ConfigType.class,
+        names = {"STRING", "ENUM", "URL", "CUSTOM"})
+    void take_the_value_of_a_text_config_verbatim(ConfigType type) {
+      ParseResult result = ValueParser.parse(state(type, "true"), "x");
+
+      assertThat(result.value()).isEqualTo("true");
+      assertThat(result.usedDefault()).isFalse();
+      assertThat(result.reason()).isEqualTo(EvaluationReason.FOUND_MATCH);
+    }
+
     @Test
-    void take_the_value_verbatim() {
-      // A caller who asked for a string gets the text, whatever it happens to look like.
-      assertThat(parse("true", "x").value()).isEqualTo("true");
-      assertThat(parse("26", "x").value()).isEqualTo("26");
-      assertThat(parse("{\"a\":1}", "x").value()).isEqualTo("{\"a\":1}");
+    void take_a_json_documents_raw_text() {
+      assertThat(ValueParser.parse(state(ConfigType.JSON, "{\"a\":1}"), "x").value())
+          .isEqualTo("{\"a\":1}");
+    }
+
+    @Test
+    void take_the_value_of_a_config_type_this_version_does_not_know() {
+      assertThat(ValueParser.parse(state(null, "26"), "x").value()).isEqualTo("26");
+    }
+
+    @ParameterizedTest
+    @EnumSource(
+        value = ConfigType.class,
+        names = {"BOOLEAN", "INTEGER", "FLOAT"})
+    void fall_back_when_the_config_holds_a_boolean_or_a_number(ConfigType type) {
+      ParseResult result = ValueParser.parse(state(type, "26"), "x");
+
+      assertThat(result.value()).isEqualTo("x");
+      assertThat(result.usedDefault()).isTrue();
+      assertThat(result.reason()).isEqualTo(EvaluationReason.TYPE_MISMATCH);
+      assertThat(result.valueId()).isNull();
     }
   }
 
