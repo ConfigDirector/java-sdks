@@ -8,6 +8,14 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.6.1] - 2026-09-26
+
+### Fixed
+
+- The telemetry report now carries the application name and version given through
+  `ClientOptions.metadata`, as the config requests already did, so the dashboard can show the
+  SDK's activity per application in its activity graphs.
+
 ## [1.6.0] - 2026-09-25
 
 ### Added

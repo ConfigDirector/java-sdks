@@ -3,6 +3,7 @@ package com.configdirector.client;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
 
+import com.configdirector.ClientOptions;
 import com.configdirector.ConfigDirector;
 import com.configdirector.ConfigDirectorClient;
 import com.configdirector.ConfigEvaluatedEvent;
@@ -50,6 +51,10 @@ class ClientTelemetryTest {
   }
 
   private ConfigDirectorClient readyClient() {
+    return readyClient(options -> {});
+  }
+
+  private ConfigDirectorClient readyClient(Consumer<ClientOptions> customize) {
     server =
         start(
             session -> {
@@ -71,9 +76,11 @@ class ClientTelemetryTest {
     client =
         ConfigDirector.client(
             "sdk-key",
-            options ->
-                options.connection(
-                    connection -> connection.mode(ConnectionMode.POLLING).url(url).timeout(TIMEOUT)));
+            options -> {
+              options.connection(
+                  connection -> connection.mode(ConnectionMode.POLLING).url(url).timeout(TIMEOUT));
+              customize.accept(options);
+            });
     client.initialize();
     return client;
   }
@@ -162,6 +169,26 @@ class ClientTelemetryTest {
       assertThat(report.get("serverSdkKey").getAsString()).isEqualTo("sdk-key");
       assertThat(report.getAsJsonObject("metaContext").get("sdkName").getAsString())
           .isEqualTo("java-server-sdk");
+    }
+
+    @Test
+    void identifies_the_application_the_way_config_requests_do() {
+      readyClient(options -> options.metadata("checkout", "4.5.6"))
+          .getString("greeting", "fallback");
+
+      JsonObject metaContext = reportAfterClosing().getAsJsonObject("metaContext");
+
+      assertThat(metaContext.get("appName").getAsString()).isEqualTo("checkout");
+      assertThat(metaContext.get("appVersion").getAsString()).isEqualTo("4.5.6");
+    }
+
+    @Test
+    void leaves_the_application_out_when_none_was_configured() {
+      readyClient().getString("greeting", "fallback");
+
+      JsonObject metaContext = reportAfterClosing().getAsJsonObject("metaContext");
+
+      assertThat(metaContext.keySet()).containsExactlyInAnyOrder("sdkName", "sdkVersion");
     }
 
     @Test

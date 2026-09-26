@@ -104,6 +104,7 @@ public final class DefaultConfigDirectorClient implements ConfigDirectorClient {
     // Owned here so close() releases the connections it opened, rather than leaving them in a pool
     // shared across the process.
     this.http = new HttpClient();
+    Map<String, String> metaContext = metaContext(identity, this.metadata);
     this.transport =
         Transports.create(
             modeOf(this.connection.mode()),
@@ -111,7 +112,7 @@ public final class DefaultConfigDirectorClient implements ConfigDirectorClient {
                 serverSdkKey,
                 baseUrl,
                 identity,
-                metaContext(identity, this.metadata),
+                metaContext,
                 logger,
                 this::onBundle,
                 http,
@@ -124,6 +125,7 @@ public final class DefaultConfigDirectorClient implements ConfigDirectorClient {
                 serverSdkKey,
                 baseUrl,
                 identity,
+                metaContext,
                 logger,
                 http,
                 telemetryOptions.eventQueueLimit(),

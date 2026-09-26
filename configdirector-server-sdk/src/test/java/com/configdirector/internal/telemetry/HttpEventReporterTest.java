@@ -62,10 +62,15 @@ class HttpEventReporterTest {
   }
 
   private HttpEventReporter reporterFor(String baseUrl) {
+    return reporterFor(baseUrl, Map.of("sdkName", "some-wrapper", "sdkVersion", "1.2.3"));
+  }
+
+  private HttpEventReporter reporterFor(String baseUrl, Map<String, String> metaContext) {
     return new HttpEventReporter(
         "sdk-key",
         baseUrl,
         new SdkIdentity("some-wrapper", "1.2.3"),
+        metaContext,
         LoggerFactory.getLogger(HttpEventReporterTest.class),
         http);
   }
@@ -158,6 +163,37 @@ class HttpEventReporterTest {
       JsonObject metaContext = payload.getAsJsonObject("metaContext");
       assertThat(metaContext.get("sdkName").getAsString()).isEqualTo("some-wrapper");
       assertThat(metaContext.get("sdkVersion").getAsString()).isEqualTo("1.2.3");
+    }
+
+    @Test
+    void carries_the_application_in_the_same_meta_context_the_transport_sends() {
+      server =
+          start(
+              session -> {
+                bodies.add(session.bodyAsString());
+                session.respond(200, "Content-Length: 0", "Connection: close");
+                session.close();
+              });
+      Map<String, String> metaContext =
+          Map.of(
+              "sdkName", "some-wrapper",
+              "sdkVersion", "1.2.3",
+              "appName", "checkout",
+              "appVersion", "4.5.6");
+
+      reporterFor(server.url("/"), metaContext).report(reportOf(event("a", null)));
+
+      JsonObject sent = sentPayload().getAsJsonObject("metaContext");
+      assertThat(sent.get("appName").getAsString()).isEqualTo("checkout");
+      assertThat(sent.get("appVersion").getAsString()).isEqualTo("4.5.6");
+    }
+
+    @Test
+    void sends_no_application_fields_it_was_not_given() {
+      reporterAgainst(200).report(reportOf(event("a", null)));
+
+      assertThat(sentPayload().getAsJsonObject("metaContext").keySet())
+          .containsExactlyInAnyOrder("sdkName", "sdkVersion");
     }
 
     @Test

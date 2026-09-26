@@ -3,6 +3,7 @@ package com.configdirector.internal.telemetry;
 import com.configdirector.internal.SdkIdentity;
 import com.configdirector.internal.transport.HttpClient;
 import java.time.Duration;
+import java.util.Map;
 import java.util.Objects;
 import org.slf4j.Logger;
 
@@ -10,6 +11,7 @@ public record TelemetryCollectorOptions(
     String serverSdkKey,
     String baseUrl,
     SdkIdentity identity,
+    Map<String, String> metaContext,
     Logger logger,
     // Owned by the client and shared with the transport: both talk to the same host.
     HttpClient http,
@@ -21,9 +23,11 @@ public record TelemetryCollectorOptions(
     Objects.requireNonNull(serverSdkKey, "serverSdkKey");
     Objects.requireNonNull(baseUrl, "baseUrl");
     Objects.requireNonNull(identity, "identity");
+    Objects.requireNonNull(metaContext, "metaContext");
     Objects.requireNonNull(logger, "logger");
     Objects.requireNonNull(http, "http");
     Objects.requireNonNull(flushInterval, "flushInterval");
     Objects.requireNonNull(initialFlushDelay, "initialFlushDelay");
+    metaContext = Map.copyOf(metaContext);
   }
 }

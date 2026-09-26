@@ -26,6 +26,7 @@ public final class HttpEventReporter implements EventReporter {
   private final String serverSdkKey;
   private final String url;
   private final SdkIdentity identity;
+  private final Map<String, String> metaContext;
   private final Logger logger;
   private final HttpClient http;
   private final Duration timeout;
@@ -33,20 +34,27 @@ public final class HttpEventReporter implements EventReporter {
   private volatile boolean sendRequests = true;
 
   public HttpEventReporter(
-      String serverSdkKey, String baseUrl, SdkIdentity identity, Logger logger, HttpClient http) {
-    this(serverSdkKey, baseUrl, identity, logger, http, REQUEST_TIMEOUT);
+      String serverSdkKey,
+      String baseUrl,
+      SdkIdentity identity,
+      Map<String, String> metaContext,
+      Logger logger,
+      HttpClient http) {
+    this(serverSdkKey, baseUrl, identity, metaContext, logger, http, REQUEST_TIMEOUT);
   }
 
   public HttpEventReporter(
       String serverSdkKey,
       String baseUrl,
       SdkIdentity identity,
+      Map<String, String> metaContext,
       Logger logger,
       HttpClient http,
       Duration timeout) {
     this.serverSdkKey = serverSdkKey;
     this.url = Transports.resolve(baseUrl, PATH);
     this.identity = identity;
+    this.metaContext = Map.copyOf(metaContext);
     this.logger = logger;
     this.http = http;
     this.timeout = timeout;
@@ -74,10 +82,6 @@ public final class HttpEventReporter implements EventReporter {
     report.evaluations().forEach(evaluation -> evaluations.add(evaluation.toWire()));
     List<Object> contexts = new ArrayList<>(report.contexts().size());
     report.contexts().forEach(context -> contexts.add(contextToWire(context)));
-
-    Map<String, Object> metaContext = new LinkedHashMap<>();
-    metaContext.put("sdkName", identity.name());
-    metaContext.put("sdkVersion", identity.version());
 
     Map<String, Object> droppedEvents = new LinkedHashMap<>();
     droppedEvents.put("evaluatedConfig", report.droppedEvaluations());

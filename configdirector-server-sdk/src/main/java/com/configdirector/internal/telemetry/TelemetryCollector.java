@@ -47,6 +47,7 @@ public final class TelemetryCollector implements AutoCloseable {
             options.serverSdkKey(),
             options.baseUrl(),
             options.identity(),
+            options.metaContext(),
             options.logger(),
             options.http()));
   }
