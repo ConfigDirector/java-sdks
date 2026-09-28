@@ -88,10 +88,9 @@ public final class ConfigEvaluator {
       List<Percentage> percentages, Config config, EvaluationContext context) {
     String identifier = context == null ? null : context.contextOrEmpty().id();
 
-    // An anonymous caller still gets a bucket, just not a stable one.
     double assigned =
         identifier == null
-            ? PercentHashing.arbitraryPercentage()
+            ? PercentHashing.PERCENTAGE_WITHOUT_IDENTIFIER
             : PercentHashing.assignPercentage(config.id(), identifier);
 
     // A bucket spans [total, total + percentage). Strict, so a context landing exactly on a

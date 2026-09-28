@@ -8,6 +8,11 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- Default a percentage rollout to bucket 0 when there is no context identifier provided, rather than
+  randomly assign on each evaluation.
+
 ## [1.6.1] - 2026-09-26
 
 ### Fixed
