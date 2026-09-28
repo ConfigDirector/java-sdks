@@ -8,6 +8,12 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- The polling interval defaults to 5 minutes with a minimum of 60 seconds. A `pollingInterval`
+  below the minimum is now raised to the minimum with a warning when a polling client is built,
+  instead of being rejected.
+
 ## [1.3.1] - 2026-09-26
 
 ### Changed

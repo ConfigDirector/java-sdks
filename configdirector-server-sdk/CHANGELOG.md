@@ -12,6 +12,10 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 - Default a percentage rollout to bucket 0 when there is no context identifier provided, rather than
   randomly assign on each evaluation.
+- The polling interval defaults to 5 minutes with a minimum of 60 seconds. A `pollingInterval`
+  below the minimum is now raised to the minimum with a warning when a polling client is built,
+  instead of `ConnectionOptions.Builder.build()` throwing. `ConnectionOptions.pollingInterval()`
+  returns the value as configured.
 
 ## [1.6.1] - 2026-09-26
 

@@ -15,6 +15,7 @@ import com.configdirector.EvaluationReason;
 import com.configdirector.Metadata;
 import com.configdirector.Subscription;
 import com.configdirector.TelemetryOptions;
+import com.configdirector.internal.PollingIntervals;
 import com.configdirector.internal.SdkIdentity;
 import com.configdirector.internal.evaluation.Config;
 import com.configdirector.internal.evaluation.ConfigEvaluator;
@@ -25,6 +26,7 @@ import com.configdirector.internal.telemetry.TelemetryValue;
 import com.configdirector.internal.transport.ConfigBundle;
 import com.configdirector.internal.transport.HttpClient;
 import com.configdirector.internal.transport.Transport;
+import com.configdirector.internal.transport.TransportFactory;
 import com.configdirector.internal.transport.TransportOptions;
 import com.configdirector.internal.transport.Transports;
 import com.configdirector.internal.value.ParseResult;
@@ -88,6 +90,17 @@ public final class DefaultConfigDirectorClient implements ConfigDirectorClient {
       ConnectionOptions connection,
       TelemetryOptions telemetry,
       Logger logger) {
+    this(serverSdkKey, identity, metadata, connection, telemetry, logger, Transports::create);
+  }
+
+  DefaultConfigDirectorClient(
+      String serverSdkKey,
+      SdkIdentity identity,
+      Metadata metadata,
+      ConnectionOptions connection,
+      TelemetryOptions telemetry,
+      Logger logger,
+      TransportFactory transportFactory) {
     if (serverSdkKey == null || serverSdkKey.isBlank()) {
       throw new ConfigDirectorValidationException(
           "No server SDK key was provided, the client cannot be instantiated without a valid "
@@ -106,7 +119,7 @@ public final class DefaultConfigDirectorClient implements ConfigDirectorClient {
     this.http = new HttpClient();
     Map<String, String> metaContext = metaContext(identity, this.metadata);
     this.transport =
-        Transports.create(
+        transportFactory.create(
             modeOf(this.connection.mode()),
             new TransportOptions(
                 serverSdkKey,
@@ -116,7 +129,7 @@ public final class DefaultConfigDirectorClient implements ConfigDirectorClient {
                 logger,
                 this::onBundle,
                 http,
-                this.connection.pollingInterval()));
+                resolvePollingInterval(this.connection)));
 
     TelemetryOptions telemetryOptions = telemetry == null ? TelemetryOptions.defaults() : telemetry;
     this.telemetry =
@@ -131,6 +144,20 @@ public final class DefaultConfigDirectorClient implements ConfigDirectorClient {
                 telemetryOptions.eventQueueLimit(),
                 telemetryOptions.flushInterval(),
                 TelemetryCollector.INITIAL_FLUSH_DELAY));
+  }
+
+  private Duration resolvePollingInterval(ConnectionOptions connection) {
+    Duration configured = connection.pollingInterval();
+    if (connection.mode() != ConnectionMode.POLLING
+        || configured.compareTo(PollingIntervals.MINIMUM) >= 0) {
+      return configured;
+    }
+    logger.warn(
+        "[ConfigDirectorClient] pollingInterval of {} is below the minimum of {}. Using {}.",
+        configured,
+        PollingIntervals.MINIMUM,
+        PollingIntervals.MINIMUM);
+    return PollingIntervals.MINIMUM;
   }
 
   @Override

@@ -41,16 +41,17 @@ class ConnectionOptionsTest {
   @DisplayName("the polling interval")
   class PollingInterval {
 
-    // A negative interval used to reach the transport, which read it as zero and then started no
-    // polling thread at all: a client in polling mode would fetch once and never update again,
-    // without a word in the log.
+    @Test
+    void a_shorter_interval_is_kept_as_configured() {
+      assertThat(builder().pollingInterval(Duration.ofSeconds(10)).build().pollingInterval())
+          .isEqualTo(Duration.ofSeconds(10));
+    }
+
     @ParameterizedTest
     @ValueSource(longs = {-60_000, -1, 0, 1, 59_999})
-    void must_be_at_least_a_minute(long millis) {
-      assertThatExceptionOfType(ConfigDirectorValidationException.class)
-          .isThrownBy(() -> builder().pollingInterval(Duration.ofMillis(millis)).build())
-          .withMessageContaining("pollingInterval")
-          .withMessageContaining("at least 60 seconds");
+    void an_interval_below_the_minimum_does_not_throw_when_built(long millis) {
+      assertThat(builder().pollingInterval(Duration.ofMillis(millis)).build().pollingInterval())
+          .isEqualTo(Duration.ofMillis(millis));
     }
 
     @Test
