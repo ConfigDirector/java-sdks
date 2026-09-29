@@ -29,6 +29,12 @@ class ArrayComparisonTest {
     }
 
     @Test
+    void elements_compare_case_sensitively() {
+      assertThat(compare(List.of("Blue", "RED"), CONTAINS, "blue")).isFalse();
+      assertThat(compare(List.of("Blue", "RED"), EXCLUDES, "blue")).isTrue();
+    }
+
+    @Test
     void the_negative_operator_is_the_inverse() {
       assertThat(compare(List.of("a", "b"), EXCLUDES, "c")).isTrue();
       assertThat(compare(List.of("a", "b"), EXCLUDES, "b")).isFalse();

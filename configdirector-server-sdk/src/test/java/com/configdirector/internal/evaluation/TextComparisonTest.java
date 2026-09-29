@@ -6,6 +6,8 @@ import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 
 class TextComparisonTest {
 
@@ -93,6 +95,26 @@ class TextComparisonTest {
     void an_empty_target_list_matches_nothing() {
       assertThat(withNoTargets("hello", "starts with any of")).isFalse();
       assertThat(withNoTargets("hello", "does not start with any of")).isTrue();
+    }
+  }
+
+  @Nested
+  @DisplayName("letter case")
+  class LetterCase {
+
+    @ParameterizedTest(name = "{0} {1}")
+    @CsvSource({
+      "equals, premium, false",
+      "does NOT equal, premium, true",
+      "is one of, premium, false",
+      "is NOT one of, premium, true",
+      "starts with any of, pre, false",
+      "does NOT start with any of, pre, true",
+      "ends with any of, IUM, false",
+      "does NOT end with any of, IUM, true",
+    })
+    void every_operator_compares_case_sensitively(String operator, String target, boolean expected) {
+      assertThat(compare("Premium", operator, target)).isEqualTo(expected);
     }
   }
 

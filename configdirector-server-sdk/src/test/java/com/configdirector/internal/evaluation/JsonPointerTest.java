@@ -38,6 +38,13 @@ class JsonPointerTest {
     return JsonPointer.findByPath(JsonPointer.parse(pointer), DOCUMENT);
   }
 
+  private static Object findIn(String pointer, Object document) {
+    return JsonPointer.findByPath(JsonPointer.parse(pointer), document);
+  }
+
+  private static final Map<String, Object> ELEVEN_ELEMENTS =
+      Map.of("list", List.of("e0", "e1", "e2", "e3", "e4", "e5", "e6", "e7", "e8", "e9", "e10"));
+
   @Nested
   @DisplayName("resolution")
   class Resolution {
@@ -96,6 +103,221 @@ class JsonPointerTest {
 
       assertThat(JsonPointer.findByPath(JsonPointer.parse("/~01"), document))
           .isEqualTo("literal");
+    }
+  }
+
+  @Nested
+  @DisplayName("valid escapes")
+  class ValidEscapes {
+
+    @Test
+    void a_lone_tilde_zero_is_a_member_named_tilde() {
+      assertThat(findIn("/~0", Map.of("~", "tilde", "~0", "literal"))).isEqualTo("tilde");
+    }
+
+    @Test
+    void a_lone_tilde_one_is_a_member_named_slash() {
+      assertThat(findIn("/~1", Map.of("/", "slash", "~1", "literal"))).isEqualTo("slash");
+    }
+
+    @Test
+    void tilde_zero_one_is_the_name_tilde_one_rather_than_slash() {
+      assertThat(findIn("/~01", Map.of("~1", "tilde-one", "/", "slash"))).isEqualTo("tilde-one");
+    }
+
+    @Test
+    void tilde_one_zero_is_the_name_slash_zero() {
+      assertThat(findIn("/~10", Map.of("/0", "slash-zero", "~10", "literal")))
+          .isEqualTo("slash-zero");
+    }
+
+    @Test
+    void tilde_zero_zero_is_the_name_tilde_zero() {
+      assertThat(findIn("/~00", Map.of("~0", "tilde-zero", "~", "tilde"))).isEqualTo("tilde-zero");
+    }
+
+    @Test
+    void repeated_tilde_zero_escapes_each_decode_to_a_tilde() {
+      assertThat(findIn("/a~0b~0c", Map.of("a~b~c", "tildes"))).isEqualTo("tildes");
+    }
+
+    @Test
+    void repeated_tilde_one_escapes_each_decode_to_a_slash() {
+      assertThat(findIn("/a~1b~1c", Map.of("a/b/c", "slashes"))).isEqualTo("slashes");
+    }
+
+    @Test
+    void mixed_escapes_decode_in_place() {
+      assertThat(findIn("/~0~1", Map.of("~/", "tilde-slash"))).isEqualTo("tilde-slash");
+      assertThat(findIn("/~1~0", Map.of("/~", "slash-tilde"))).isEqualTo("slash-tilde");
+    }
+
+    @Test
+    void escapes_decode_in_every_token_of_the_path() {
+      Map<String, Object> document = Map.of("a/b~c", Map.of("d~/e", "deep"));
+
+      assertThat(findIn("/a~1b~0c/d~0~1e", document)).isEqualTo("deep");
+    }
+  }
+
+  @Nested
+  @DisplayName("invalid escapes")
+  class InvalidEscapes {
+
+    @Test
+    void a_pointer_with_an_invalid_escape_addresses_nothing() {
+      assertThat(JsonPointer.parse("/~2")).isNull();
+    }
+
+    @Test
+    void a_tilde_followed_by_two_is_absent() {
+      assertThat(findIn("/~2", Map.of("~2", "literal"))).isNull();
+    }
+
+    @Test
+    void a_tilde_followed_by_a_letter_is_absent() {
+      assertThat(findIn("/~a", Map.of("~a", "literal"))).isNull();
+    }
+
+    @Test
+    void a_tilde_that_is_the_whole_token_is_absent() {
+      assertThat(findIn("/~", Map.of("~", "literal"))).isNull();
+    }
+
+    @Test
+    void a_tilde_at_the_end_of_a_token_is_absent() {
+      assertThat(findIn("/a~", Map.of("a~", "literal"))).isNull();
+    }
+
+    @Test
+    void a_tilde_followed_by_a_tilde_is_absent() {
+      assertThat(findIn("/~~", Map.of("~~", "literal"))).isNull();
+    }
+
+    @Test
+    void a_tilde_before_a_separator_is_absent() {
+      assertThat(findIn("/a~/b", Map.of("a~", Map.of("b", "literal")))).isNull();
+    }
+
+    @Test
+    void an_invalid_escape_in_a_later_token_is_absent() {
+      assertThat(findIn("/a/~2", Map.of("a", Map.of("~2", "literal")))).isNull();
+    }
+
+    @Test
+    void an_invalid_escape_in_an_earlier_token_is_absent() {
+      assertThat(findIn("/~2/b", Map.of("~2", Map.of("b", "literal")))).isNull();
+    }
+
+    @Test
+    void an_invalid_escape_after_a_valid_one_is_absent() {
+      assertThat(findIn("/~0~2", Map.of("~~2", "literal", "~~0", "other"))).isNull();
+    }
+  }
+
+  @Nested
+  @DisplayName("array indexes")
+  class ArrayIndexes {
+
+    @Test
+    void zero_selects_the_first_element() {
+      assertThat(findIn("/list/0", ELEVEN_ELEMENTS)).isEqualTo("e0");
+    }
+
+    @Test
+    void a_multi_digit_index_selects_its_element() {
+      assertThat(findIn("/list/10", ELEVEN_ELEMENTS)).isEqualTo("e10");
+    }
+
+    @Test
+    void an_index_equal_to_the_size_is_absent() {
+      assertThat(findIn("/list/11", ELEVEN_ELEMENTS)).isNull();
+    }
+
+    @Test
+    void a_leading_zero_is_absent() {
+      assertThat(findIn("/list/01", ELEVEN_ELEMENTS)).isNull();
+    }
+
+    @Test
+    void a_double_zero_is_absent() {
+      assertThat(findIn("/list/00", ELEVEN_ELEMENTS)).isNull();
+    }
+
+    @Test
+    void a_leading_zero_before_a_multi_digit_index_is_absent() {
+      assertThat(findIn("/list/010", ELEVEN_ELEMENTS)).isNull();
+    }
+
+    @Test
+    void a_plus_sign_is_absent() {
+      assertThat(findIn("/list/+1", ELEVEN_ELEMENTS)).isNull();
+    }
+
+    @Test
+    void negative_zero_is_absent() {
+      assertThat(findIn("/list/-0", ELEVEN_ELEMENTS)).isNull();
+    }
+
+    @Test
+    void an_arabic_indic_digit_is_absent() {
+      assertThat(findIn("/list/\u0661", ELEVEN_ELEMENTS)).isNull();
+    }
+
+    @Test
+    void a_fullwidth_digit_is_absent() {
+      assertThat(findIn("/list/\uFF11", ELEVEN_ELEMENTS)).isNull();
+    }
+
+    @Test
+    void a_non_ascii_digit_after_an_ascii_digit_is_absent() {
+      assertThat(findIn("/list/1\u0660", ELEVEN_ELEMENTS)).isNull();
+    }
+
+    @Test
+    void the_end_of_array_marker_is_absent() {
+      assertThat(findIn("/list/-", ELEVEN_ELEMENTS)).isNull();
+    }
+
+    @Test
+    void an_empty_index_is_absent() {
+      assertThat(findIn("/list/", ELEVEN_ELEMENTS)).isNull();
+    }
+
+    @Test
+    void a_decimal_index_is_absent() {
+      assertThat(findIn("/list/1.0", ELEVEN_ELEMENTS)).isNull();
+    }
+
+    @Test
+    void an_exponent_index_is_absent() {
+      assertThat(findIn("/list/1e0", ELEVEN_ELEMENTS)).isNull();
+    }
+
+    @Test
+    void a_surrounding_space_is_absent() {
+      assertThat(findIn("/list/ 1", ELEVEN_ELEMENTS)).isNull();
+      assertThat(findIn("/list/1 ", ELEVEN_ELEMENTS)).isNull();
+    }
+
+    @Test
+    void a_digit_separator_is_absent() {
+      assertThat(findIn("/list/1_0", ELEVEN_ELEMENTS)).isNull();
+    }
+
+    @Test
+    void an_index_just_past_the_int_range_is_absent() {
+      assertThat(findIn("/list/2147483648", ELEVEN_ELEMENTS)).isNull();
+    }
+
+    @Test
+    void an_index_past_the_long_range_is_absent() {
+      assertThat(findIn("/list/99999999999999999999999999", ELEVEN_ELEMENTS)).isNull();
+    }
+
+    @Test
+    void an_index_that_wraps_to_a_valid_int_is_absent() {
+      assertThat(findIn("/list/4294967297", ELEVEN_ELEMENTS)).isNull();
     }
   }
 
