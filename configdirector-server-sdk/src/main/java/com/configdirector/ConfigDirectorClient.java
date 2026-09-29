@@ -19,8 +19,9 @@ import java.util.function.Consumer;
  * targeting rules are evaluated against, so the same key can resolve differently per user.
  *
  * <p>Watching mirrors that: one watch per type, each in the same two forms. A watch fires whenever
- * an update carries its key, with the value evaluated afresh, and handlers run on the transport
- * thread, so one that blocks delays later updates.
+ * an update carries its key, with the value evaluated afresh, and whenever a full update no longer
+ * carries it, with the default. Handlers run on the transport thread, so one that blocks delays
+ * later updates.
  */
 public interface ConfigDirectorClient extends AutoCloseable {
 
@@ -406,7 +407,7 @@ public interface ConfigDirectorClient extends AutoCloseable {
   /**
    * Calls {@code handler} every time new config state arrives.
    *
-   * @param handler receives the keys the update carried
+   * @param handler receives the keys the update carried and the keys it removed
    * @return a handle that cancels this registration
    */
   Subscription onConfigsUpdated(Consumer<ConfigsUpdatedEvent> handler);

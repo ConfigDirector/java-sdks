@@ -294,6 +294,26 @@ class ConfigDirectorProviderTest {
   }
 
   @Test
+  void emits_configuration_changed_with_removed_keys_after_the_keys_an_update_carried() {
+    List<EventDetails> changes = new CopyOnWriteArrayList<>();
+    api.onProviderConfigurationChanged(changes::add);
+    Client client =
+        clientServing(
+            bundleOf(config("greeting", "string", "Bye"), config("farewell", "string", "Ciao")));
+
+    server.send(bundleOf(config("greeting", "string", "Hi")));
+
+    await()
+        .atMost(TIMEOUT)
+        .untilAsserted(
+            () ->
+                assertThat(changes)
+                    .extracting(EventDetails::getFlagsChanged)
+                    .contains(List.of("greeting", "farewell")));
+    assertThat(client.getStringValue("farewell", "Hello")).isEqualTo("Hello");
+  }
+
+  @Test
   void finishes_initializing_without_configs_and_becomes_ready_when_they_arrive() {
     List<EventDetails> ready = new CopyOnWriteArrayList<>();
     api.onProviderReady(ready::add);

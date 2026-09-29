@@ -471,6 +471,76 @@ class ConfigDirectorClientTest {
 
       assertThat(client.getBoolean("flag", false)).isTrue();
     }
+
+    private ConfigDirectorClient streamingClientOpeningWith(
+        String bundle, BlockingQueue<TestHttpServer.Session> live) {
+      server =
+          start(
+              session -> {
+                session.respondStreaming();
+                session.send("data: " + bundle + "\n\n");
+                live.add(session);
+              });
+      String url = server.url("/");
+      return build(connection -> connection.mode(ConnectionMode.STREAMING).url(url));
+    }
+
+    @Test
+    void a_full_update_that_drops_a_key_reports_it_removed_and_notifies_its_watcher()
+        throws Exception {
+      BlockingQueue<TestHttpServer.Session> live = new LinkedBlockingQueue<>();
+      List<ConfigsUpdatedEvent> events = Collections.synchronizedList(new ArrayList<>());
+      List<Boolean> seen = Collections.synchronizedList(new ArrayList<>());
+      client =
+          streamingClientOpeningWith(
+              bundleOf(
+                  config("flag", "boolean", "\"true\"")
+                      + ","
+                      + config("other", "string", "\"x\"")
+                      + ","
+                      + config("another", "string", "\"y\"")),
+              live);
+      client.onConfigsUpdated(events::add);
+      client.watchBoolean("flag", false, seen::add);
+      client.initialize();
+      assertThat(client.isReady()).isTrue();
+      assertThat(snapshot(events).get(0).removedKeys()).isEmpty();
+
+      TestHttpServer.Session session = live.poll(5, TimeUnit.SECONDS);
+      assertThat(session).isNotNull();
+      session.send("data: " + bundleOf(config("other", "string", "\"z\"")) + "\n\n");
+      await().atMost(TIMEOUT).until(() -> snapshot(events).size() == 2);
+
+      assertThat(snapshot(events).get(1).keys()).containsExactly("other");
+      assertThat(snapshot(events).get(1).removedKeys()).containsExactly("another", "flag");
+      assertThat(snapshot(seen)).containsExactly(true, false);
+      assertThat(client.getBoolean("flag", true)).isTrue();
+    }
+
+    @Test
+    void a_delta_update_removes_nothing() throws Exception {
+      BlockingQueue<TestHttpServer.Session> live = new LinkedBlockingQueue<>();
+      List<ConfigsUpdatedEvent> events = Collections.synchronizedList(new ArrayList<>());
+      List<Boolean> seen = Collections.synchronizedList(new ArrayList<>());
+      client =
+          streamingClientOpeningWith(
+              bundleOf(
+                  config("flag", "boolean", "\"true\"") + "," + config("other", "string", "\"x\"")),
+              live);
+      client.onConfigsUpdated(events::add);
+      client.watchBoolean("flag", false, seen::add);
+      client.initialize();
+
+      TestHttpServer.Session session = live.poll(5, TimeUnit.SECONDS);
+      assertThat(session).isNotNull();
+      session.send("data: " + deltaOf(config("other", "string", "\"z\"")) + "\n\n");
+      await().atMost(TIMEOUT).until(() -> snapshot(events).size() == 2);
+
+      assertThat(snapshot(events).get(1).keys()).containsExactly("other");
+      assertThat(snapshot(events).get(1).removedKeys()).isEmpty();
+      assertThat(snapshot(seen)).containsExactly(true);
+      assertThat(client.getBoolean("flag", false)).isTrue();
+    }
   }
 
   @Nested
@@ -501,6 +571,7 @@ class ConfigDirectorClientTest {
 
       await().atMost(TIMEOUT).until(() -> !snapshot(events).isEmpty());
       assertThat(snapshot(events).get(0).keys()).containsExactly("a", "b");
+      assertThat(snapshot(events).get(0).removedKeys()).isEmpty();
     }
 
     @Test

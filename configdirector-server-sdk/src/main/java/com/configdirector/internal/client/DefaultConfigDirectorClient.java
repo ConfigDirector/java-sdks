@@ -33,6 +33,7 @@ import com.configdirector.internal.value.ParseResult;
 import com.configdirector.internal.value.ValueParser;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -271,6 +272,7 @@ public final class DefaultConfigDirectorClient implements ConfigDirectorClient {
 
   private void onBundle(ConfigBundle bundle) {
     boolean firstBundle;
+    List<String> removedKeys = List.of();
     Map<String, List<Watcher>> affected = new LinkedHashMap<>();
     synchronized (lock) {
       if (closed) {
@@ -281,6 +283,9 @@ public final class DefaultConfigDirectorClient implements ConfigDirectorClient {
       if (current == null || bundle.kind() == ConfigBundle.BundleKind.FULL) {
         merged = new LinkedHashMap<>(bundle.configs());
         firstBundle = ready.getCount() > 0;
+        if (current != null) {
+          removedKeys = keysAbsentFrom(current, bundle.configs());
+        }
       } else {
         // A delta merges onto a copy rather than onto the live map: readers hold a reference to
         // whatever was published last, and it has to stay whole while they walk it.
@@ -293,20 +298,17 @@ public final class DefaultConfigDirectorClient implements ConfigDirectorClient {
 
     // Snapshotted outside the lock, so a user callback cannot observe the list being edited from
     // under it.
-    bundle
-        .configs()
-        .keySet()
-        .forEach(
-            key -> {
-              List<Watcher> entries = watchers.get(key);
-              if (entries != null && !entries.isEmpty()) {
-                affected.put(key, List.copyOf(entries));
-              }
-            });
+    collectWatchers(bundle.configs().keySet(), affected);
+    collectWatchers(removedKeys, affected);
 
     List<String> keys = new ArrayList<>(new TreeMap<>(bundle.configs()).keySet());
-    logger.debug("[ConfigDirectorClient] Config state updated with {} key(s): {}", keys.size(), keys);
-    emit(updateHandlers, new ConfigsUpdatedEvent(keys), "configsUpdated");
+    logger.debug(
+        "[ConfigDirectorClient] Config state updated with {} key(s): {}, {} removed: {}",
+        keys.size(),
+        keys,
+        removedKeys.size(),
+        removedKeys);
+    emit(updateHandlers, new ConfigsUpdatedEvent(keys, removedKeys), "configsUpdated");
     notifyWatchers(affected, bundle.configs());
 
     if (firstBundle) {
@@ -316,8 +318,28 @@ public final class DefaultConfigDirectorClient implements ConfigDirectorClient {
     }
   }
 
-  // Evaluated against the bundle rather than the merged state: a watcher only fires for a key the
-  // update carried, and for those two are the same definition.
+  private static List<String> keysAbsentFrom(
+      Map<String, Config> previous, Map<String, Config> updated) {
+    List<String> absent = new ArrayList<>();
+    for (String key : new TreeMap<>(previous).keySet()) {
+      if (!updated.containsKey(key)) {
+        absent.add(key);
+      }
+    }
+    return absent;
+  }
+
+  private void collectWatchers(Collection<String> keys, Map<String, List<Watcher>> into) {
+    for (String key : keys) {
+      List<Watcher> entries = watchers.get(key);
+      if (entries != null && !entries.isEmpty()) {
+        into.put(key, List.copyOf(entries));
+      }
+    }
+  }
+
+  // Evaluated against the bundle rather than the merged state: for a key the update carried the
+  // two hold the same definition, and a removed key has none, so its watcher gets the default.
   private void notifyWatchers(Map<String, List<Watcher>> affected, Map<String, Config> updated) {
     affected.forEach(
         (key, entries) -> {

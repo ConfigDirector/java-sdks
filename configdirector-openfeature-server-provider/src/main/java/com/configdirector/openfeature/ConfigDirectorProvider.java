@@ -4,6 +4,7 @@ import com.configdirector.ClientOptions;
 import com.configdirector.ConfigDirector;
 import com.configdirector.ConfigDirectorClient;
 import com.configdirector.ConfigEvaluation;
+import com.configdirector.ConfigsUpdatedEvent;
 import com.configdirector.Context;
 import com.configdirector.internal.SdkIdentity;
 import com.configdirector.internal.client.ClientFactory;
@@ -13,6 +14,8 @@ import dev.openfeature.sdk.Metadata;
 import dev.openfeature.sdk.ProviderEvaluation;
 import dev.openfeature.sdk.ProviderEventDetails;
 import dev.openfeature.sdk.Value;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 
@@ -70,7 +73,13 @@ public final class ConfigDirectorProvider extends EventProvider {
     this.client.onConfigsUpdated(
         event ->
             emitProviderConfigurationChanged(
-                ProviderEventDetails.builder().flagsChanged(event.keys()).build()));
+                ProviderEventDetails.builder().flagsChanged(changedFlags(event)).build()));
+  }
+
+  private static List<String> changedFlags(ConfigsUpdatedEvent event) {
+    List<String> flags = new ArrayList<>(event.keys());
+    flags.addAll(event.removedKeys());
+    return flags;
   }
 
   @Override
