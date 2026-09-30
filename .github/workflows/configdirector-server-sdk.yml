@@ -63,6 +63,7 @@ jobs:
           name: jar
           path: |
             configdirector-server-sdk/build/libs/*.jar
+            configdirector-server-sdk-testing/build/libs/*.jar
             configdirector-openfeature-server-provider/build/libs/*.jar
 
       - name: Upload test report
@@ -73,6 +74,8 @@ jobs:
           path: |
             configdirector-server-sdk/build/reports/tests/test
             configdirector-server-sdk/build/test-results/test
+            configdirector-server-sdk-testing/build/reports/tests
+            configdirector-server-sdk-testing/build/test-results
             configdirector-openfeature-server-provider/build/reports/tests/test
             configdirector-openfeature-server-provider/build/test-results/test
 
@@ -106,7 +109,7 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
 
       - run: >
-          ./gradlew test
+          ./gradlew test junit5Test
           -Porg.gradle.java.installations.paths=${{ steps.gradle-jdk.outputs.path }},${{ steps.sdk-toolchain-jdk.outputs.path }}
 
       - name: Upload test report
@@ -117,6 +120,8 @@ jobs:
           path: |
             configdirector-server-sdk/build/reports/tests/test
             configdirector-server-sdk/build/test-results/test
+            configdirector-server-sdk-testing/build/reports/tests
+            configdirector-server-sdk-testing/build/test-results
             configdirector-openfeature-server-provider/build/reports/tests/test
             configdirector-openfeature-server-provider/build/test-results/test
 
@@ -155,7 +160,7 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
 
       - run: >
-          ./gradlew test
+          ./gradlew test junit5Test
           -PtestJavaVersion=${{ matrix.java }}
           -Porg.gradle.java.installations.paths=${{ steps.gradle-jdk.outputs.path }},${{ steps.sdk-toolchain-jdk.outputs.path }},${{ steps.runtime-jdk.outputs.path }}
 
@@ -167,5 +172,7 @@ jobs:
           path: |
             configdirector-server-sdk/build/reports/tests/test
             configdirector-server-sdk/build/test-results/test
+            configdirector-server-sdk-testing/build/reports/tests
+            configdirector-server-sdk-testing/build/test-results
             configdirector-openfeature-server-provider/build/reports/tests/test
             configdirector-openfeature-server-provider/build/test-results/test

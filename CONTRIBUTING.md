@@ -28,20 +28,28 @@ The samples resolve the SDK from Maven Central. Build them against the working t
 The version lives in exactly one place: `version` in
 [configdirector-server-sdk/build.gradle](configdirector-server-sdk/build.gradle). There is no
 constant to keep in step with it — the version reported in telemetry is read from the jar manifest.
+`configdirector-server-sdk-testing` takes that same version and is released together with the SDK:
+it relies on the SDK's internals, so a consumer's SDK must be the very same version, which the
+artifact checks from both jar manifests when a test client is created.
 
-1. In [configdirector-server-sdk/CHANGELOG.md](configdirector-server-sdk/CHANGELOG.md), rename
-   `## [Unreleased]` to `## [X.Y.Z] - YYYY-MM-DD` and open a fresh, empty `## [Unreleased]` above
-   it.
+1. In [configdirector-server-sdk/CHANGELOG.md](configdirector-server-sdk/CHANGELOG.md) and
+   [configdirector-server-sdk-testing/CHANGELOG.md](configdirector-server-sdk-testing/CHANGELOG.md),
+   rename `## [Unreleased]` to `## [X.Y.Z] - YYYY-MM-DD` and open a fresh, empty `## [Unreleased]`
+   above it. The testing changelog gets the entry even when nothing in it changed, since a version
+   of it is published either way.
 2. Bump `version` in `configdirector-server-sdk/build.gradle` to match.
 3. Merge both to `main`.
 4. Run the [Release configdirector-server-sdk](.github/workflows/release-configdirector-server-sdk.yml)
    workflow against `main`. It is manual (`workflow_dispatch`) by design, and releases whatever
-   version `main` currently declares.
-5. **Release the deployment by hand in the [Central Portal](https://central.sonatype.com).** The
-   workflow uploads a signed bundle and stops there, so a green run is not a published version —
-   this is the last chance to look at what is about to become permanent, or to drop it.
-6. Once the version resolves on Central, bump the three samples to it. They deliberately lag the
-   SDK: naming a version that is not published yet leaves them unresolvable for anyone who is not
+   version `main` currently declares, for the SDK and the testing artifact together.
+5. **Release both deployments by hand in the [Central Portal](https://central.sonatype.com).** The
+   workflow uploads one signed bundle per artifact and stops there, so a green run is not a
+   published version — this is the last chance to look at what is about to become permanent, or to
+   drop it. Release the two together: the testing artifact refuses to run against any other SDK
+   version, so one without the other leaves consumers stuck.
+6. Once the version resolves on Central, bump the three samples to it, including their
+   `testImplementation` of the testing artifact once they use it. They deliberately lag the SDK:
+   naming a version that is not published yet leaves them unresolvable for anyone who is not
    passing `-PuseLocalSdk`.
 
 ### The OpenFeature provider

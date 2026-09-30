@@ -1,0 +1,163 @@
+import com.github.spotbugs.snom.Confidence
+import com.github.spotbugs.snom.Effort
+
+plugins {
+    id 'java-library'
+    alias libs.plugins.errorprone
+    alias libs.plugins.spotbugs
+    alias libs.plugins.maven.publish
+}
+
+// Released in step with the SDK, at the SDK's version: it reaches into the SDK's internals, so a
+// consumer's SDK must be the very same version, which the artifact checks at runtime.
+evaluationDependsOn(':configdirector-server-sdk')
+
+group = 'com.configdirector'
+version = project(':configdirector-server-sdk').version
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    api project(':configdirector-server-sdk')
+
+    // The oldest Jupiter API the extension supports. Compiling against it keeps a newer method
+    // from slipping in; the two test suites below run it against the newest 5.x and 6.x.
+    compileOnly libs.junit.jupiter.api.minimum
+    compileOnly libs.junit.platform.commons.minimum
+
+    testImplementation libs.junit.jupiter
+    testImplementation libs.assertj.core
+    testImplementation libs.awaitility
+    testImplementation libs.logback.classic
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+
+    errorprone libs.errorprone.core
+}
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
+}
+
+def testJavaVersion = providers.gradleProperty('testJavaVersion')
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+    options.release = 17
+    options.compilerArgs << '-Xlint:all' << '-Werror'
+
+    options.errorprone {
+        disableWarningsInGeneratedCode = true
+    }
+}
+
+tasks.named('javadoc') {
+    options.encoding = 'UTF-8'
+    options.addBooleanOption('Xwerror', true)
+}
+
+tasks.named('check') {
+    dependsOn tasks.named('javadoc')
+}
+
+tasks.named('jar') {
+    manifest {
+        attributes(
+            'Implementation-Title': 'configdirector-server-sdk-testing',
+            'Implementation-Version': project.version,
+            'Automatic-Module-Name': 'com.configdirector.testing'
+        )
+    }
+    from(rootProject.file('LICENSE')) {
+        into 'META-INF'
+    }
+}
+
+spotbugs {
+    effort = Effort.valueOf('MAX')
+    reportLevel = Confidence.valueOf('DEFAULT')
+}
+
+// The same tests once more on the newest JUnit 5, since consumers on either major keep their
+// own version and the extension must work with both.
+testing {
+    suites {
+        junit5Test(JvmTestSuite) {
+            useJUnitJupiter(libs.versions.junit5.jupiter)
+            sources {
+                java {
+                    srcDirs = ['src/test/java']
+                }
+            }
+            dependencies {
+                implementation project()
+                implementation libs.assertj.core
+                implementation libs.awaitility
+                implementation libs.logback.classic
+            }
+        }
+    }
+}
+
+tasks.named('check') {
+    dependsOn testing.suites.junit5Test
+}
+
+tasks.withType(Test).configureEach {
+    useJUnitPlatform()
+    if (testJavaVersion.present) {
+        javaLauncher = javaToolchains.launcherFor {
+            languageVersion = JavaLanguageVersion.of(testJavaVersion.get() as Integer)
+        }
+    }
+    timeout = Duration.ofMinutes(5)
+    testLogging {
+        events 'failed'
+        exceptionFormat = 'full'
+    }
+}
+
+mavenPublishing {
+    publishToMavenCentral()
+
+    if (providers.gradleProperty('signingInMemoryKey').present
+            || providers.gradleProperty('signing.keyId').present) {
+        signAllPublications()
+    }
+
+    coordinates(group.toString(), 'configdirector-server-sdk-testing', version.toString())
+
+    pom {
+        name = 'ConfigDirector Java Server SDK Testing'
+        description = 'Testing tools for the ConfigDirector Java server SDK: a real client over an ' +
+            'in-memory connection that tests control, and a JUnit Jupiter extension. ' +
+            'ConfigDirector is a remote configuration and feature flag service.'
+        url = 'https://github.com/ConfigDirector/java-sdks'
+        inceptionYear = '2026'
+
+        licenses {
+            license {
+                name = 'MIT License'
+                url = 'https://github.com/ConfigDirector/java-sdks/blob/main/LICENSE'
+                distribution = 'repo'
+            }
+        }
+
+        developers {
+            developer {
+                id = 'configdirector'
+                name = 'ConfigDirector'
+                url = 'https://www.configdirector.com'
+            }
+        }
+
+        scm {
+            url = 'https://github.com/ConfigDirector/java-sdks'
+            connection = 'scm:git:https://github.com/ConfigDirector/java-sdks.git'
+            developerConnection = 'scm:git:ssh://git@github.com/ConfigDirector/java-sdks.git'
+        }
+    }
+}

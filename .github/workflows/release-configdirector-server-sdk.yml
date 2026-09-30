@@ -1,7 +1,9 @@
 name: Release configdirector-server-sdk
 
 # Deliberately manual. The version is whatever configdirector-server-sdk/build.gradle says, so a
-# release is two steps: merge the version bump, then run this against main.
+# release is two steps: merge the version bump, then run this against main. It publishes the SDK and
+# configdirector-server-sdk-testing together, at that one version: the testing artifact relies on
+# the SDK's internals and refuses to run against any other SDK version.
 on:
   workflow_dispatch:
 
@@ -16,6 +18,7 @@ env:
   GRADLE_JDK: "25"
   SDK_TOOLCHAIN_JDK: "21"
   ARTIFACT: configdirector-server-sdk
+  TESTING_ARTIFACT: configdirector-server-sdk-testing
 
   # The build below must exercise the sample against the SDK being released, not against whatever
   # version is already on Central.
@@ -81,11 +84,13 @@ jobs:
           ./gradlew build
           -Porg.gradle.java.installations.paths=${{ steps.gradle-jdk.outputs.path }},${{ steps.sdk-toolchain-jdk.outputs.path }}
 
-      # Uploads a signed bundle to the Central Portal and stops. The deployment is released from
-      # the Portal by hand, which is the last chance to look at what is about to become permanent.
+      # Uploads one signed bundle per artifact to the Central Portal and stops. Both deployments are
+      # released from the Portal by hand, which is the last chance to look at what is about to
+      # become permanent; release them together, since neither is useful without the other.
       - name: Publish to the Central Portal
         run: >
-          ./gradlew :"$ARTIFACT":publishToMavenCentral --no-configuration-cache
+          ./gradlew :"$ARTIFACT":publishToMavenCentral :"$TESTING_ARTIFACT":publishToMavenCentral
+          --no-configuration-cache
           -Porg.gradle.java.installations.paths=${{ steps.gradle-jdk.outputs.path }},${{ steps.sdk-toolchain-jdk.outputs.path }}
         env:
           ORG_GRADLE_PROJECT_mavenCentralUsername: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
@@ -96,7 +101,9 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: jar
-          path: ${{ env.ARTIFACT }}/build/libs/*.jar
+          path: |
+            ${{ env.ARTIFACT }}/build/libs/*.jar
+            ${{ env.TESTING_ARTIFACT }}/build/libs/*.jar
 
       # Last, so that a bundle the Portal rejected does not leave a tag behind claiming it was
       # released. This marks the commit that was uploaded; whether it then became a permanent

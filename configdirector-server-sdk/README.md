@@ -41,6 +41,29 @@ boolean newCheckout = client.getBoolean("new-checkout", false);
 
 Full details are in the [official documentation](https://docs.configdirector.com/sdks/server/java).
 
+## Test your code
+
+[`configdirector-server-sdk-testing`](../configdirector-server-sdk-testing/) creates a real client
+connected to an in-memory server that your test controls, so the code that reads your configs and
+flags is tested without a network connection and without changing production code. It also ships a
+JUnit Jupiter extension. Add it in test scope, at the same version as the SDK:
+
+```groovy
+testImplementation 'com.configdirector:configdirector-server-sdk-testing:1.6.1'
+```
+
+```java
+try (TestClient testClient = ConfigDirectorTesting.createTestClient(Map.of("new-checkout", true))) {
+  CheckoutService service = new CheckoutService(testClient.client());
+  testClient.client().initialize();
+
+  assertThat(service.isNewCheckoutEnabled("user-123")).isTrue();
+
+  testClient.setValue("new-checkout", false);
+  assertThat(service.isNewCheckoutEnabled("user-123")).isFalse();
+}
+```
+
 ## Documentation
 
 Refer to the [official documentation for the Java SDK](https://docs.configdirector.com/sdks/server/java).
