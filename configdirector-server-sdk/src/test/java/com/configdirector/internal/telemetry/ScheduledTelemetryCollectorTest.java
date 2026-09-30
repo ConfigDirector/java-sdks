@@ -18,7 +18,7 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.slf4j.LoggerFactory;
 
-class TelemetryCollectorTest {
+class ScheduledTelemetryCollectorTest {
 
   // Long enough that nothing flushes on its own unless a test asks for it.
   private static final Duration NEVER = Duration.ofMinutes(10);
@@ -26,7 +26,7 @@ class TelemetryCollectorTest {
   private final FakeEventReporter reporter = new FakeEventReporter();
   private final HttpClient http = new HttpClient();
 
-  private TelemetryCollector collector;
+  private ScheduledTelemetryCollector collector;
 
   @AfterEach
   void tearDown() {
@@ -36,15 +36,15 @@ class TelemetryCollectorTest {
     http.close();
   }
 
-  private TelemetryCollector collectorWith(int queueLimit, Duration initialDelay) {
+  private ScheduledTelemetryCollector collectorWith(int queueLimit, Duration initialDelay) {
     collector =
-        new TelemetryCollector(
+        new ScheduledTelemetryCollector(
             new TelemetryCollectorOptions(
                 "sdk-key",
                 "https://api.test",
                 SdkIdentity.SERVER_SDK,
                 Map.of(),
-                LoggerFactory.getLogger(TelemetryCollectorTest.class),
+                LoggerFactory.getLogger(ScheduledTelemetryCollectorTest.class),
                 http,
                 queueLimit,
                 NEVER,
@@ -53,7 +53,7 @@ class TelemetryCollectorTest {
     return collector;
   }
 
-  private TelemetryCollector collector() {
+  private ScheduledTelemetryCollector collector() {
     return collectorWith(1_000, NEVER);
   }
 
@@ -61,7 +61,7 @@ class TelemetryCollectorTest {
     return new ConfigEvaluation(key, value, false, EvaluationReason.FOUND_MATCH, null, context);
   }
 
-  private static void record(TelemetryCollector collector, String key) {
+  private static void record(ScheduledTelemetryCollector collector, String key) {
     collector.recordEvaluation(evaluation(key, "hello", null), "fallback", ConfigType.STRING);
   }
 
@@ -75,7 +75,7 @@ class TelemetryCollectorTest {
 
     @Test
     void reports_what_was_recorded_on_flush() {
-      TelemetryCollector collector = collector();
+      ScheduledTelemetryCollector collector = collector();
       record(collector, "a");
 
       collector.flush();
@@ -85,7 +85,7 @@ class TelemetryCollectorTest {
 
     @Test
     void collapses_identical_evaluations_into_a_count() {
-      TelemetryCollector collector = collector();
+      ScheduledTelemetryCollector collector = collector();
       record(collector, "a");
       record(collector, "a");
 
@@ -99,7 +99,7 @@ class TelemetryCollectorTest {
 
     @Test
     void keeps_evaluations_of_different_configs_apart() {
-      TelemetryCollector collector = collector();
+      ScheduledTelemetryCollector collector = collector();
       record(collector, "a");
       record(collector, "b");
 
@@ -110,7 +110,7 @@ class TelemetryCollectorTest {
 
     @Test
     void a_flush_does_not_resend_what_was_already_reported() {
-      TelemetryCollector collector = collector();
+      ScheduledTelemetryCollector collector = collector();
       record(collector, "a");
       collector.flush();
 
@@ -130,7 +130,7 @@ class TelemetryCollectorTest {
     @Test
     void reports_a_value_too_large_to_send_inline_by_its_id() {
       String oversized = "x".repeat(TelemetryValue.CONFIG_VALUE_MAX_LENGTH + 1);
-      TelemetryCollector collector = collector();
+      ScheduledTelemetryCollector collector = collector();
       collector.recordEvaluation(
           evaluation("a", oversized, null), "fallback", ConfigType.STRING);
 
@@ -145,7 +145,7 @@ class TelemetryCollectorTest {
     void reports_how_many_evaluations_were_dropped() {
       // 70% of the queue limit belongs to evaluations, the rest to the contexts they were made
       // against.
-      TelemetryCollector collector = collectorWith(100, NEVER);
+      ScheduledTelemetryCollector collector = collectorWith(100, NEVER);
       for (int index = 0; index < 72; index++) {
         record(collector, "a");
       }
@@ -165,7 +165,7 @@ class TelemetryCollectorTest {
 
     @Test
     void captures_the_context_an_evaluation_was_made_against() {
-      TelemetryCollector collector = collector();
+      ScheduledTelemetryCollector collector = collector();
       collector.recordEvaluation(evaluation("a", "hello", user), "fallback", ConfigType.STRING);
 
       collector.flush();
@@ -176,7 +176,7 @@ class TelemetryCollectorTest {
 
     @Test
     void captures_each_distinct_context_once() {
-      TelemetryCollector collector = collector();
+      ScheduledTelemetryCollector collector = collector();
       Context other = Context.builder().id("user-2").build();
       collector.recordEvaluation(evaluation("a", "hello", user), "fallback", ConfigType.STRING);
       collector.recordEvaluation(evaluation("a", "hello", user), "fallback", ConfigType.STRING);
@@ -189,7 +189,7 @@ class TelemetryCollectorTest {
 
     @Test
     void ignores_a_context_without_an_id() {
-      TelemetryCollector collector = collector();
+      ScheduledTelemetryCollector collector = collector();
       Context unidentified = Context.builder().name("Ada").build();
       collector.recordEvaluation(
           evaluation("a", "hello", unidentified), "fallback", ConfigType.STRING);
@@ -204,7 +204,7 @@ class TelemetryCollectorTest {
     void an_anonymous_context_is_neither_captured_nor_identified() {
       // It still targets rules, but it is not persisted and must not be identifiable in what is
       // reported.
-      TelemetryCollector collector = collector();
+      ScheduledTelemetryCollector collector = collector();
       Context anonymous = Context.builder().id("user-1").anonymous(true).build();
       collector.recordEvaluation(evaluation("a", "hello", anonymous), "fallback", ConfigType.STRING);
 
@@ -216,7 +216,7 @@ class TelemetryCollectorTest {
 
     @Test
     void a_flush_does_not_resend_contexts() {
-      TelemetryCollector collector = collector();
+      ScheduledTelemetryCollector collector = collector();
       collector.recordEvaluation(evaluation("a", "hello", user), "fallback", ConfigType.STRING);
       collector.flush();
 
@@ -229,7 +229,7 @@ class TelemetryCollectorTest {
     @Test
     void reports_how_many_contexts_were_dropped() {
       // 30% of the queue limit belongs to contexts.
-      TelemetryCollector collector = collectorWith(100, NEVER);
+      ScheduledTelemetryCollector collector = collectorWith(100, NEVER);
       for (int index = 0; index < 32; index++) {
         Context each = Context.builder().id("user-" + index).build();
         collector.recordEvaluation(evaluation("a", "hello", each), "fallback", ConfigType.STRING);
@@ -248,7 +248,7 @@ class TelemetryCollectorTest {
 
     @Test
     void flushes_on_its_own_without_being_asked() {
-      TelemetryCollector collector = collectorWith(1_000, Duration.ofMillis(50));
+      ScheduledTelemetryCollector collector = collectorWith(1_000, Duration.ofMillis(50));
       record(collector, "a");
 
       await().atMost(Duration.ofSeconds(5)).until(() -> reporter.reportCount() >= 1);
@@ -258,13 +258,13 @@ class TelemetryCollectorTest {
     @Test
     void keeps_flushing_after_the_first_report() {
       collector =
-          new TelemetryCollector(
+          new ScheduledTelemetryCollector(
               new TelemetryCollectorOptions(
                   "sdk-key",
                   "https://api.test",
                   SdkIdentity.SERVER_SDK,
                   Map.of(),
-                  LoggerFactory.getLogger(TelemetryCollectorTest.class),
+                  LoggerFactory.getLogger(ScheduledTelemetryCollectorTest.class),
                   http,
                   1_000,
                   Duration.ofMillis(50),
@@ -293,7 +293,7 @@ class TelemetryCollectorTest {
 
     @Test
     void stops_collection_for_good() {
-      TelemetryCollector collector = collector();
+      ScheduledTelemetryCollector collector = collector();
       reporter.respondWith(ReporterResponse.FATAL);
       record(collector, "a");
       collector.flush();
@@ -306,7 +306,7 @@ class TelemetryCollectorTest {
 
     @Test
     void discards_what_was_already_collected() {
-      TelemetryCollector collector = collector();
+      ScheduledTelemetryCollector collector = collector();
       record(collector, "a");
       reporter.respondWith(ReporterResponse.FATAL);
       collector.flush();
@@ -319,7 +319,7 @@ class TelemetryCollectorTest {
 
     @Test
     void a_failure_worth_retrying_leaves_collection_running() {
-      TelemetryCollector collector = collector();
+      ScheduledTelemetryCollector collector = collector();
       reporter.respondWith(ReporterResponse.FAILED);
       record(collector, "a");
       collector.flush();
@@ -332,7 +332,7 @@ class TelemetryCollectorTest {
 
     @Test
     void a_reporter_that_raises_does_not_stop_collection() {
-      TelemetryCollector collector = collector();
+      ScheduledTelemetryCollector collector = collector();
       reporter.throwOnReport(new IllegalStateException("boom"));
       record(collector, "a");
       collector.flush();
@@ -347,13 +347,13 @@ class TelemetryCollectorTest {
     void the_flush_schedule_stops_itself_after_a_fatal_response() {
       reporter.respondWith(ReporterResponse.FATAL);
       collector =
-          new TelemetryCollector(
+          new ScheduledTelemetryCollector(
               new TelemetryCollectorOptions(
                   "sdk-key",
                   "https://api.test",
                   SdkIdentity.SERVER_SDK,
                   Map.of(),
-                  LoggerFactory.getLogger(TelemetryCollectorTest.class),
+                  LoggerFactory.getLogger(ScheduledTelemetryCollectorTest.class),
                   http,
                   1_000,
                   Duration.ofMillis(50),
@@ -376,7 +376,7 @@ class TelemetryCollectorTest {
 
     @Test
     void reports_what_is_left() {
-      TelemetryCollector collector = collector();
+      ScheduledTelemetryCollector collector = collector();
       record(collector, "a");
 
       collector.close();
@@ -386,7 +386,7 @@ class TelemetryCollectorTest {
 
     @Test
     void stops_collecting() {
-      TelemetryCollector collector = collector();
+      ScheduledTelemetryCollector collector = collector();
       collector.close();
 
       record(collector, "a");
@@ -397,7 +397,7 @@ class TelemetryCollectorTest {
 
     @Test
     void closing_twice_reports_once() {
-      TelemetryCollector collector = collector();
+      ScheduledTelemetryCollector collector = collector();
       record(collector, "a");
 
       collector.close();
@@ -408,7 +408,7 @@ class TelemetryCollectorTest {
 
     @Test
     void survives_the_closing_report_failing() {
-      TelemetryCollector collector = collector();
+      ScheduledTelemetryCollector collector = collector();
       reporter.throwOnReport(new IllegalStateException("boom"));
       record(collector, "a");
 
@@ -419,7 +419,7 @@ class TelemetryCollectorTest {
 
     @Test
     void an_evaluation_of_a_json_value_survives_the_round_trip() {
-      TelemetryCollector collector = collector();
+      ScheduledTelemetryCollector collector = collector();
       collector.recordEvaluation(
           evaluation("a", Map.of("on", true), null), Map.of("on", false), ConfigType.JSON);
 

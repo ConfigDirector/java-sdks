@@ -10,6 +10,9 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- An in-memory connection, `com.configdirector.internal.client.InMemoryConnection`, that builds a
+  real client over an in-memory transport with telemetry switched off, for the upcoming
+  `configdirector-server-sdk-testing` artifact. It is internal: use it through that artifact.
 - `ConfigsUpdatedEvent.removedKeys()`: the keys a full update no longer carried, sorted, so a
   handler can tell a config that was removed from one that was updated. `keys()` still lists only
   the keys the update carried. The one-argument `ConfigsUpdatedEvent(List<String> keys)`

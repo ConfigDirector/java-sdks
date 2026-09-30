@@ -20,7 +20,9 @@ import com.configdirector.internal.SdkIdentity;
 import com.configdirector.internal.evaluation.Config;
 import com.configdirector.internal.evaluation.ConfigEvaluator;
 import com.configdirector.internal.evaluation.EvaluationContext;
+import com.configdirector.internal.telemetry.ScheduledTelemetryCollector;
 import com.configdirector.internal.telemetry.TelemetryCollector;
+import com.configdirector.internal.telemetry.TelemetryCollectorFactory;
 import com.configdirector.internal.telemetry.TelemetryCollectorOptions;
 import com.configdirector.internal.telemetry.TelemetryValue;
 import com.configdirector.internal.transport.ConfigBundle;
@@ -91,7 +93,15 @@ public final class DefaultConfigDirectorClient implements ConfigDirectorClient {
       ConnectionOptions connection,
       TelemetryOptions telemetry,
       Logger logger) {
-    this(serverSdkKey, identity, metadata, connection, telemetry, logger, Transports::create);
+    this(
+        serverSdkKey,
+        identity,
+        metadata,
+        connection,
+        telemetry,
+        logger,
+        Transports::create,
+        ScheduledTelemetryCollector::new);
   }
 
   DefaultConfigDirectorClient(
@@ -101,7 +111,8 @@ public final class DefaultConfigDirectorClient implements ConfigDirectorClient {
       ConnectionOptions connection,
       TelemetryOptions telemetry,
       Logger logger,
-      TransportFactory transportFactory) {
+      TransportFactory transportFactory,
+      TelemetryCollectorFactory telemetryFactory) {
     if (serverSdkKey == null || serverSdkKey.isBlank()) {
       throw new ConfigDirectorValidationException(
           "No server SDK key was provided, the client cannot be instantiated without a valid "
@@ -134,7 +145,7 @@ public final class DefaultConfigDirectorClient implements ConfigDirectorClient {
 
     TelemetryOptions telemetryOptions = telemetry == null ? TelemetryOptions.defaults() : telemetry;
     this.telemetry =
-        new TelemetryCollector(
+        telemetryFactory.create(
             new TelemetryCollectorOptions(
                 serverSdkKey,
                 baseUrl,
@@ -144,7 +155,7 @@ public final class DefaultConfigDirectorClient implements ConfigDirectorClient {
                 http,
                 telemetryOptions.eventQueueLimit(),
                 telemetryOptions.flushInterval(),
-                TelemetryCollector.INITIAL_FLUSH_DELAY));
+                ScheduledTelemetryCollector.INITIAL_FLUSH_DELAY));
   }
 
   private Duration resolvePollingInterval(ConnectionOptions connection) {

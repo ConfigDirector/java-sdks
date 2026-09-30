@@ -9,6 +9,7 @@ import ch.qos.logback.core.read.ListAppender;
 import com.configdirector.ConnectionMode;
 import com.configdirector.ConnectionOptions;
 import com.configdirector.internal.SdkIdentity;
+import com.configdirector.internal.telemetry.DiscardingTelemetryCollector;
 import com.configdirector.internal.transport.Transport;
 import com.configdirector.internal.transport.TransportOptions;
 import java.time.Duration;
@@ -54,7 +55,8 @@ class PollingIntervalResolutionTest {
             (mode, options) -> {
               transportOptions.add(options);
               return new IdleTransport();
-            });
+            },
+            options -> DiscardingTelemetryCollector.INSTANCE);
     return client;
   }
 
