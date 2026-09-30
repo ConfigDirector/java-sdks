@@ -164,6 +164,27 @@ class ValueParserTest {
     void a_negative_number_is_read() {
       assertThat(parse("-5", 0).value()).isEqualTo(-5);
     }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"3000000000", "-3000000000", "2147483648", "-2147483649"})
+    void a_whole_number_outside_the_int_range_is_an_invalid_number_for_an_int_default(String value) {
+      ParseResult result = parse(value, 7);
+
+      assertThat(result.value()).isEqualTo(7);
+      assertThat(result.reason()).isEqualTo(EvaluationReason.INVALID_NUMBER);
+      assertThat(result.valueId()).isNull();
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"2147483647", "-2147483648"})
+    void the_int_range_boundaries_are_read(String value) {
+      assertThat(parse(value, 7).value()).isEqualTo(Integer.parseInt(value));
+    }
+
+    @Test
+    void a_whole_number_outside_the_int_range_is_read_for_a_long_default() {
+      assertThat(parse("3000000000", 0L).value()).isEqualTo(3_000_000_000L);
+    }
   }
 
   @Nested

@@ -57,7 +57,13 @@ public final class ValueParser {
       if (parsed == null) {
         return usedDefault(defaultValue, EvaluationReason.INVALID_NUMBER);
       }
-      return matched(defaultValue instanceof Integer ? (Object) parsed.intValue() : parsed, state);
+      if (defaultValue instanceof Long) {
+        return matched(parsed, state);
+      }
+      if (parsed < Integer.MIN_VALUE || parsed > Integer.MAX_VALUE) {
+        return usedDefault(defaultValue, EvaluationReason.INVALID_NUMBER);
+      }
+      return matched(parsed.intValue(), state);
     }
     if (defaultValue instanceof Double || defaultValue instanceof Float) {
       Double parsed = parseDouble(raw);

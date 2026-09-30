@@ -18,6 +18,10 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- `getInteger` and `watchInteger` now return the default value with reason `INVALID_NUMBER` for a
+  whole number outside the `int` range, as the Android SDK does. Before, the value wrapped around
+  silently with reason `FOUND_MATCH`, so `3000000000` read as `-1294967296`. `getValue` with a `Long`
+  default still reads such values.
 - A watch on a config that a full update no longer carries is now called with its default value,
   as Swift and Flutter already did. Before, the config silently stopped being served and the watch
   kept its last value.

@@ -91,7 +91,8 @@ public interface ConfigDirectorClient extends AutoCloseable {
    * Evaluates {@code configKey} as a whole number.
    *
    * @param configKey the config to read
-   * @param defaultValue returned when the config is missing, unreachable, or not a whole number
+   * @param defaultValue returned when the config is missing, unreachable, not a whole number, or
+   *     outside the {@code int} range
    * @return the evaluated value, or {@code defaultValue}
    */
   int getInteger(String configKey, int defaultValue);
@@ -100,7 +101,8 @@ public interface ConfigDirectorClient extends AutoCloseable {
    * Evaluates {@code configKey} as a whole number, against {@code context}.
    *
    * @param configKey the config to read
-   * @param defaultValue returned when the config is missing, unreachable, or not a whole number
+   * @param defaultValue returned when the config is missing, unreachable, not a whole number, or
+   *     outside the {@code int} range
    * @param context evaluated against targeting rules; may be null
    * @return the evaluated value, or {@code defaultValue}
    */
@@ -264,7 +266,8 @@ public interface ConfigDirectorClient extends AutoCloseable {
    * Watches {@code configKey} as a whole number.
    *
    * @param configKey the config to watch
-   * @param defaultValue used when the updated value is missing or not a whole number
+   * @param defaultValue used when the updated value is missing, not a whole number, or outside the
+   *     {@code int} range
    * @param onChange receives each newly evaluated value
    * @return a handle that cancels this watch
    */
@@ -274,7 +277,8 @@ public interface ConfigDirectorClient extends AutoCloseable {
    * Watches {@code configKey} as a whole number, against {@code context}.
    *
    * @param configKey the config to watch
-   * @param defaultValue used when the updated value is missing or not a whole number
+   * @param defaultValue used when the updated value is missing, not a whole number, or outside the
+   *     {@code int} range
    * @param onChange receives each newly evaluated value
    * @param context evaluated against targeting rules; may be null
    * @return a handle that cancels this watch
