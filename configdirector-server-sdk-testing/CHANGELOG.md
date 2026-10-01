@@ -10,6 +10,8 @@ checks when a test client is created.
 
 ## [Unreleased]
 
+## [1.7.0] - 2026-10-01
+
 ### Added
 
 - `ConfigDirectorTesting.createTestClient`, returning a `TestClient` whose `client()` is a real

@@ -19,7 +19,7 @@ naming both versions otherwise.
 Gradle:
 
 ```groovy
-testImplementation 'com.configdirector:configdirector-server-sdk-testing:1.6.1'
+testImplementation 'com.configdirector:configdirector-server-sdk-testing:1.7.0'
 ```
 
 Maven:
@@ -28,7 +28,7 @@ Maven:
 <dependency>
   <groupId>com.configdirector</groupId>
   <artifactId>configdirector-server-sdk-testing</artifactId>
-  <version>1.6.1</version>
+  <version>1.7.0</version>
   <scope>test</scope>
 </dependency>
 ```

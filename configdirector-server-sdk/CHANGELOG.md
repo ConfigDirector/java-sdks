@@ -8,6 +8,8 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.7.0] - 2026-10-01
+
 ### Added
 
 - An in-memory connection, `com.configdirector.internal.client.InMemoryConnection`, that builds a

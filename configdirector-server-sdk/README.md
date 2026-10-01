@@ -13,7 +13,7 @@ This is one of several ConfigDirector artifacts for the JVM published from
 Gradle:
 
 ```groovy
-implementation 'com.configdirector:configdirector-server-sdk:1.6.1'
+implementation 'com.configdirector:configdirector-server-sdk:1.7.0'
 ```
 
 Maven:
@@ -22,7 +22,7 @@ Maven:
 <dependency>
   <groupId>com.configdirector</groupId>
   <artifactId>configdirector-server-sdk</artifactId>
-  <version>1.6.1</version>
+  <version>1.7.0</version>
 </dependency>
 ```
 
@@ -49,7 +49,7 @@ flags is tested without a network connection and without changing production cod
 JUnit Jupiter extension. Add it in test scope, at the same version as the SDK:
 
 ```groovy
-testImplementation 'com.configdirector:configdirector-server-sdk-testing:1.6.1'
+testImplementation 'com.configdirector:configdirector-server-sdk-testing:1.7.0'
 ```
 
 ```java
