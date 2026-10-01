@@ -3,29 +3,65 @@ package com.configdirector.samples.springboot;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.configdirector.ConfigDirectorClient;
+import com.configdirector.ConfigEvaluatedEvent;
+import com.configdirector.Context;
+import com.configdirector.Subscription;
+import com.configdirector.testing.ConfigDirectorTesting;
+import com.configdirector.testing.TestClient;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
+import org.springframework.test.context.bean.override.convention.TestBean;
 import org.springframework.web.client.RestClient;
 
-// Runs the app with no reachable ConfigDirector, which is the same path a production app takes
-// when it cannot reach the service: it keeps serving, on the defaults it chose.
+// Tests the app the way an application using the SDK tests itself: with a test client from the
+// SDK's testing artifact, the real client over an in-memory connection the test controls, so no
+// network is involved and no SDK key is needed.
+//
+// The application context outlives a test, so there is one test client for the class, and each
+// test starts by resetting its values. @TestBean swaps it in for the application's own client bean,
+// which is therefore never built and never connects.
 @SpringBootTest(
     webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
-    properties = {
-      // Empty, so a developer's local .env cannot reach these tests.
-      "spring.config.import=",
-      "configdirector.server-key=fake-sample-key",
-      "configdirector.mode=polling",
-      "configdirector.timeout=1s"
-    })
+    // Empty, so a developer's local .env cannot reach these tests.
+    properties = "spring.config.import=")
 class ConfigsControllerTest {
+
+  private static final Map<String, Object> SAMPLE_VALUES =
+      Map.of(
+          "temporary-feature-flag", false,
+          "permanent-kill-switch", true,
+          "integer-config", 42,
+          "day-of-the-week-config", "Tuesday",
+          "json-value-config", Map.of("greeting", "hello"));
+
+  private static final TestClient TEST_CLIENT = ConfigDirectorTesting.createTestClient();
+
+  @TestBean private ConfigDirectorClient client;
+
+  // What @TestBean calls in place of the application's bean method, so the client is initialized
+  // where that method would have initialized it.
+  static ConfigDirectorClient client() {
+    TEST_CLIENT.client().initialize();
+    return TEST_CLIENT.client();
+  }
 
   @LocalServerPort private int port;
 
-  @Autowired private ConfigDirectorClient client;
+  @BeforeEach
+  void seedTheValues() {
+    TEST_CLIENT.replaceValues(SAMPLE_VALUES);
+  }
+
+  @AfterAll
+  static void closeTheTestClient() {
+    TEST_CLIENT.close();
+  }
 
   @SuppressWarnings("unchecked")
   private Map<String, Object> get(String path) {
@@ -39,10 +75,29 @@ class ConfigsControllerTest {
   }
 
   @Test
-  void serves_the_defaults_when_configdirector_is_unreachable() {
-    Map<String, Object> body = get("/configs");
+  void serves_the_values_configdirector_holds() {
+    assertThat(get("/configs")).containsExactlyInAnyOrderEntriesOf(SAMPLE_VALUES);
+  }
 
-    assertThat(body)
+  @Test
+  void a_changed_value_is_served_on_the_next_request() {
+    TEST_CLIENT.setValue("integer-config", 7);
+
+    assertThat(get("/configs")).containsEntry("integer-config", 7);
+  }
+
+  @Test
+  void a_removed_config_falls_back_to_the_default() {
+    TEST_CLIENT.removeValue("day-of-the-week-config");
+
+    assertThat(get("/configs")).containsEntry("day-of-the-week-config", "Friday");
+  }
+
+  @Test
+  void serves_the_defaults_for_configs_configdirector_does_not_hold() {
+    TEST_CLIENT.replaceValues(Map.of());
+
+    assertThat(get("/configs"))
         .containsEntry("temporary-feature-flag", true)
         .containsEntry("permanent-kill-switch", false)
         .containsEntry("integer-config", 10)
@@ -51,17 +106,25 @@ class ConfigsControllerTest {
   }
 
   @Test
-  void accepts_a_context_from_the_query_string() {
-    Map<String, Object> body = get("/configs?id=user-123&name=Ada&plan=pro");
+  void the_query_string_becomes_the_evaluation_context() throws Exception {
+    List<ConfigEvaluatedEvent> evaluated = new ArrayList<>();
+    try (Subscription subscription = client.onConfigEvaluated(evaluated::add)) {
+      get("/configs?id=user-123&name=Ada&anonymous=true&plan=pro");
+    }
 
-    // The context changes which rules match, not the shape of the response.
-    assertThat(body).containsKey("temporary-feature-flag").hasSize(5);
+    assertThat(evaluated).hasSize(5);
+    Context context = evaluated.get(0).evaluation().context();
+    assertThat(evaluated).allSatisfy(event -> assertThat(event.evaluation().context()).isEqualTo(context));
+    assertThat(context.id()).isEqualTo("user-123");
+    assertThat(context.name()).isEqualTo("Ada");
+    assertThat(context.anonymous()).isTrue();
+    assertThat(context.traits()).containsExactlyEntriesOf(Map.of("plan", "pro"));
   }
 
   @Test
   void the_client_is_a_single_shared_instance() {
     // The whole point of the sample: one client for the process, injected everywhere.
-    assertThat(client).isNotNull();
+    assertThat(client).isSameAs(TEST_CLIENT.client());
     assertThat(client.isClosed()).isFalse();
   }
 

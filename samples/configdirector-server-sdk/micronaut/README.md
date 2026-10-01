@@ -46,7 +46,12 @@ matching `Context` fields, and anything else becomes a trait:
 /configs?id=user-123&name=Ada&plan=pro&region=eu
 ```
 
-Run the smoke tests with `./gradlew :samples:configdirector-server-sdk:micronaut:test`.
+Run the tests with `./gradlew :samples:configdirector-server-sdk:micronaut:test`. They use the SDK's
+testing artifact, `configdirector-server-sdk-testing`: a **test client**, the real client over an
+in-memory connection the test controls, so no network is involved and no SDK key is needed.
+[`TestConfigDirectorFactory`](src/test/java/com/configdirector/samples/micronaut/TestConfigDirectorFactory.java)
+uses `@Replaces` to swap the test client's client in for the application's bean, which is therefore
+never built and never connects.
 
 ## Which SDK it builds against
 
@@ -265,5 +270,4 @@ machine cannot change what they assert.
 
 Without a valid key the client stays unready and every config falls back to the default this app
 passes in. That is the same path a production app takes when it cannot reach ConfigDirector, so it
-is worth seeing: the app keeps serving, on the defaults you chose. The smoke tests run in exactly
-this state.
+is worth seeing: the app keeps serving, on the defaults you chose.

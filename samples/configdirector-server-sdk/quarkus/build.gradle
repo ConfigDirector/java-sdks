@@ -7,6 +7,13 @@ repositories {
     mavenCentral()
 }
 
+// -PuseLocalSdk builds against configdirector-server-sdk/ in this repository instead of the
+// release on Central. CI sets it so that a breaking API change fails here first; locally it is
+// how you try an unreleased SDK change against a real consumer.
+def useLocalSdk = providers.gradleProperty('useLocalSdk')
+    .map { it.isEmpty() || Boolean.parseBoolean(it) }
+    .getOrElse(false)
+
 dependencies {
     // Pins every io.quarkus:* version below, so the extensions and the Gradle plugin above stay
     // on the same Quarkus release. enforcedPlatform rather than platform because Quarkus builds
@@ -18,6 +25,9 @@ dependencies {
     // release that publishes it -- naming an unpublished version here leaves the sample
     // unresolvable for everyone who is not passing -PuseLocalSdk below.
     implementation 'com.configdirector:configdirector-server-sdk:1.6.1'
+    testImplementation useLocalSdk
+        ? project(':configdirector-server-sdk-testing')
+        : 'com.configdirector:configdirector-server-sdk-testing:1.6.1'
 
     implementation 'io.quarkus:quarkus-arc'
     implementation 'io.quarkus:quarkus-rest-jackson'
@@ -26,13 +36,6 @@ dependencies {
     testImplementation 'io.rest-assured:rest-assured'
     testImplementation libs.assertj.core
 }
-
-// -PuseLocalSdk builds against configdirector-server-sdk/ in this repository instead of the
-// release on Central. CI sets it so that a breaking API change fails here first; locally it is
-// how you try an unreleased SDK change against a real consumer.
-def useLocalSdk = providers.gradleProperty('useLocalSdk')
-    .map { it.isEmpty() || Boolean.parseBoolean(it) }
-    .getOrElse(false)
 
 if (useLocalSdk) {
     configurations.configureEach {

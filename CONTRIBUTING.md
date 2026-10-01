@@ -48,7 +48,7 @@ artifact checks from both jar manifests when a test client is created.
    drop it. Release the two together: the testing artifact refuses to run against any other SDK
    version, so one without the other leaves consumers stuck.
 6. Once the version resolves on Central, bump the three samples to it, including their
-   `testImplementation` of the testing artifact once they use it. They deliberately lag the SDK:
+   `testImplementation` of the testing artifact. They deliberately lag the SDK:
    naming a version that is not published yet leaves them unresolvable for anyone who is not
    passing `-PuseLocalSdk`.
 

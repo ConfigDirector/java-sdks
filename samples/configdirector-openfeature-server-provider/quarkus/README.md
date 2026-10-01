@@ -37,7 +37,13 @@ curl 'http://localhost:3612/configs?id=user-123&plan=pro'
 }
 ```
 
-Run the smoke tests with `./gradlew :samples:configdirector-openfeature-server-provider:quarkus:test`.
+Run the tests with `./gradlew :samples:configdirector-openfeature-server-provider:quarkus:test`. They
+swap the provider for the OpenFeature SDK's own `InMemoryProvider`, so nothing from ConfigDirector is
+involved, no network is used, and no SDK key is needed. [`TestOpenFeatureProducer`](src/test/java/com/configdirector/samples/openfeature/quarkus/TestOpenFeatureProducer.java)
+is a `@Mock` producer for an `OpenFeatureAPI` holding it, and
+[`InMemoryProviderProfile`](src/test/java/com/configdirector/samples/openfeature/quarkus/InMemoryProviderProfile.java)
+excludes the application's producer, whose `@Startup` would otherwise register the ConfigDirector
+provider anyway.
 
 ## Which provider it builds against
 
@@ -145,4 +151,4 @@ file on your machine cannot change what the tests assert.
 
 Without a valid key the provider never receives config state and every value falls back to the
 default this app passes in. That is the same path a production app takes when it cannot reach
-ConfigDirector. The smoke tests run in exactly this state.
+ConfigDirector.

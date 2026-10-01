@@ -45,6 +45,31 @@ boolean newCheckout = client.getBooleanValue("new-checkout", false);
 
 Full details are in the [official documentation](https://docs.configdirector.com/sdks/openfeature/java).
 
+## Test your code
+
+Tests of code that reads flags through OpenFeature swap the provider for the in-memory one the
+OpenFeature Java SDK ships, `InMemoryProvider`, so the test controls the values and nothing from
+ConfigDirector is involved:
+
+```java
+import dev.openfeature.sdk.providers.memory.Flag;
+import dev.openfeature.sdk.providers.memory.InMemoryProvider;
+
+Map<String, Flag<?>> flags = new HashMap<>();
+flags.put("new-checkout", Flag.builder().variant("on", true).variant("off", false).defaultVariant("on").build());
+InMemoryProvider provider = new InMemoryProvider(flags);
+api.setProviderAndWait(provider);
+
+assertTrue(client.getBooleanValue("new-checkout", false));
+
+provider.updateFlags(Map.of(
+    "new-checkout", Flag.builder().variant("on", true).variant("off", false).defaultVariant("off").build()));
+assertFalse(client.getBooleanValue("new-checkout", true));
+```
+
+Full details are in the
+[testing section of the official documentation](https://docs.configdirector.com/sdks/openfeature/java#test-your-code).
+
 ## Documentation
 
 Refer to the [official documentation for the OpenFeature Java provider](https://docs.configdirector.com/sdks/openfeature/java).

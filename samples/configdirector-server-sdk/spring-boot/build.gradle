@@ -14,6 +14,7 @@ dependencies {
     // release that publishes it -- naming an unpublished version here leaves the sample
     // unresolvable for everyone who is not passing -PuseLocalSdk below.
     implementation 'com.configdirector:configdirector-server-sdk:1.6.1'
+    testImplementation 'com.configdirector:configdirector-server-sdk-testing:1.6.1'
     implementation 'org.springframework.boot:spring-boot-starter-web'
 
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
@@ -32,6 +33,8 @@ if (useLocalSdk) {
         resolutionStrategy.dependencySubstitution {
             substitute(module('com.configdirector:configdirector-server-sdk'))
                 .using(project(':configdirector-server-sdk'))
+            substitute(module('com.configdirector:configdirector-server-sdk-testing'))
+                .using(project(':configdirector-server-sdk-testing'))
         }
     }
 }
