@@ -8,10 +8,13 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-10-01
+
 ### Changed
 
 - `PROVIDER_CONFIGURATION_CHANGED` now lists the flags a full update removed in `flagsChanged`,
-  after the flags the update carried. Before, a removed flag was not reported as changed.
+  after the flags the update carried. Before, a removed flag was not reported as changed. Requires
+  version 1.7.0 of `configdirector-server-sdk`, which adds `ConfigsUpdatedEvent.removedKeys()`.
 
 - The polling interval defaults to 5 minutes with a minimum of 60 seconds. A `pollingInterval`
   below the minimum is now raised to the minimum with a warning when a polling client is built,
