@@ -24,10 +24,10 @@ dependencies {
     // lags the version in configdirector-server-sdk/build.gradle between a version bump and the
     // release that publishes it -- naming an unpublished version here leaves the sample
     // unresolvable for everyone who is not passing -PuseLocalSdk below.
-    implementation 'com.configdirector:configdirector-server-sdk:1.6.1'
+    implementation 'com.configdirector:configdirector-server-sdk:1.7.0'
     testImplementation useLocalSdk
         ? project(':configdirector-server-sdk-testing')
-        : 'com.configdirector:configdirector-server-sdk-testing:1.6.1'
+        : 'com.configdirector:configdirector-server-sdk-testing:1.7.0'
 
     implementation 'io.quarkus:quarkus-arc'
     implementation 'io.quarkus:quarkus-rest-jackson'

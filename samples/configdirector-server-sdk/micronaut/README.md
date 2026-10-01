@@ -58,7 +58,7 @@ never built and never connects.
 By default the sample depends on the released artifact, exactly as your own app would:
 
 ```groovy
-implementation 'com.configdirector:configdirector-server-sdk:1.6.1'
+implementation 'com.configdirector:configdirector-server-sdk:1.7.0'
 ```
 
 Pass `-PuseLocalSdk` to build it against
