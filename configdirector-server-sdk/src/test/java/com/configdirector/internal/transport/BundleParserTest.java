@@ -387,18 +387,18 @@ class BundleParserTest {
 
     private static String setWith(String kind) {
       return """
-          {"payloadVersion":1,"kind":"%s","environmentId":"env-1","projectId":"proj-1",
-           "configs":{"greeting":{"id":"c1","key":"greeting","type":"string","variations":[],"target":{
-             "environmentId":"env-1","defaultValue":"hello","defaultValueId":"value-id-1","rules":[{
-               "id":"r1","type":"conditional","order":0,"target":"value",
-               "value":"bonjour","valueId":"value-id-2",
-               "conditions":[
-                 {"id":"cond1","kind":"attribute","attribute":"identifier","trait":null,
-                  "operator":"=","targetType":"text","targetValues":["10"]},
-                 {"id":"cond2","kind":"attribute","attribute":"traits","trait":"/plan",
-                  "operator":"is one of","targetType":"text","targetValues":["pro","enterprise"]}
-               ]
-             }]}}}}
+          {"payloadVersion":1,"kind":"%s","environmentId":"env-1","projectId":"proj-1",\
+           "configs":{"greeting":{"id":"c1","key":"greeting","type":"string","variations":[],"target":{\
+             "environmentId":"env-1","defaultValue":"hello","defaultValueId":"value-id-1","rules":[{\
+               "id":"r1","type":"conditional","order":0,"target":"value",\
+               "value":"bonjour","valueId":"value-id-2",\
+               "conditions":[\
+                 {"id":"cond1","kind":"attribute","attribute":"identifier","trait":null,\
+                  "operator":"=","targetType":"text","targetValues":["10"]},\
+                 {"id":"cond2","kind":"attribute","attribute":"traits","trait":"/plan",\
+                  "operator":"is one of","targetType":"text","targetValues":["pro","enterprise"]}\
+               ]\
+             }]}}}}\
           """
           .formatted(kind);
     }
