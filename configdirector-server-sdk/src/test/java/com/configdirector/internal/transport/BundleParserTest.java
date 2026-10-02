@@ -3,10 +3,14 @@ package com.configdirector.internal.transport;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 
+import com.configdirector.ConfigState;
 import com.configdirector.ConfigType;
+import com.configdirector.Context;
 import com.configdirector.internal.evaluation.Condition;
 import com.configdirector.internal.evaluation.ConditionalRule;
 import com.configdirector.internal.evaluation.Config;
+import com.configdirector.internal.evaluation.ConfigEvaluator;
+import com.configdirector.internal.evaluation.EvaluationContext;
 import com.configdirector.internal.evaluation.EnumTypeConstraints;
 import com.configdirector.internal.evaluation.NumericTypeConstraints;
 import com.configdirector.internal.evaluation.PercentageRule;
@@ -372,6 +376,65 @@ class BundleParserTest {
       assertThat(constraintsOf("null")).isNull();
       assertThat(constraintsOf("[]")).isNull();
       assertThat(constraintsOf("\"text\"")).isNull();
+    }
+  }
+
+  @Nested
+  @DisplayName("payload fields the SDK does not read")
+  class PayloadFieldsTheSdkDoesNotRead {
+
+    private final ConfigEvaluator evaluator = new ConfigEvaluator();
+
+    private static String setWith(String kind) {
+      return """
+          {"payloadVersion":1,"kind":"%s","environmentId":"env-1","projectId":"proj-1",
+           "configs":{"greeting":{"id":"c1","key":"greeting","type":"string","variations":[],"target":{
+             "environmentId":"env-1","defaultValue":"hello","defaultValueId":"value-id-1","rules":[{
+               "id":"r1","type":"conditional","order":0,"target":"value",
+               "value":"bonjour","valueId":"value-id-2",
+               "conditions":[
+                 {"id":"cond1","kind":"attribute","attribute":"identifier","trait":null,
+                  "operator":"=","targetType":"text","targetValues":["10"]},
+                 {"id":"cond2","kind":"attribute","attribute":"traits","trait":"/plan",
+                  "operator":"is one of","targetType":"text","targetValues":["pro","enterprise"]}
+               ]
+             }]}}}}
+          """
+          .formatted(kind);
+    }
+
+    private static EvaluationContext contextFor(String identifier, String plan) {
+      return new EvaluationContext(Context.builder().id(identifier).trait("plan", plan).build(), null);
+    }
+
+    @Test
+    void a_full_set_with_condition_kinds_and_a_payload_version_serves_as_before() {
+      ConfigBundle bundle = parse(setWith("full"));
+
+      assertThat(bundle.kind()).isEqualTo(ConfigBundle.BundleKind.FULL);
+      assertThat(bundle.configs()).containsOnlyKeys("greeting");
+      Config config = bundle.configs().get("greeting");
+      ConfigState matched = evaluator.evaluate(config, contextFor("10", "pro"));
+      assertThat(matched.value()).isEqualTo("bonjour");
+      assertThat(matched.valueId()).isEqualTo("value-id-2");
+      ConfigState unmatched = evaluator.evaluate(config, contextFor("10", "free"));
+      assertThat(unmatched.value()).isEqualTo("hello");
+      assertThat(unmatched.valueId()).isEqualTo("value-id-1");
+    }
+
+    @Test
+    void a_delta_with_condition_kinds_and_a_payload_version_serves_as_before() {
+      ConfigBundle bundle = parse(setWith("delta"));
+
+      assertThat(bundle.kind()).isEqualTo(ConfigBundle.BundleKind.DELTA);
+      assertThat(bundle.configs()).containsOnlyKeys("greeting");
+      Config config = bundle.configs().get("greeting");
+      ConfigState matched = evaluator.evaluate(config, contextFor("10", "pro"));
+      assertThat(matched.value()).isEqualTo("bonjour");
+      assertThat(matched.valueId()).isEqualTo("value-id-2");
+      ConfigState unmatched = evaluator.evaluate(config, contextFor("10", "free"));
+      assertThat(unmatched.value()).isEqualTo("hello");
+      assertThat(unmatched.valueId()).isEqualTo("value-id-1");
     }
   }
 }
