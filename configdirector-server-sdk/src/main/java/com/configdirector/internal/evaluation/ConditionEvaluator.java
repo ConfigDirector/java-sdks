@@ -18,7 +18,7 @@ public final class ConditionEvaluator {
     UNKNOWN_ATTRIBUTE
   }
 
-  public boolean evaluate(Condition condition, EvaluationContext context) {
+  public boolean evaluate(AttributeCondition condition, EvaluationContext context) {
     EvaluationContext resolved = context == null ? EvaluationContext.empty() : context;
     Object value = resolve(condition, resolved);
     if (value == Unresolved.UNKNOWN_ATTRIBUTE) {
@@ -35,7 +35,7 @@ public final class ConditionEvaluator {
     };
   }
 
-  private static Object resolve(Condition condition, EvaluationContext context) {
+  private static Object resolve(AttributeCondition condition, EvaluationContext context) {
     Context subject = context.contextOrEmpty();
     return switch (condition.attribute()) {
       case "identifier" -> orAbsent(subject.id());
@@ -47,7 +47,7 @@ public final class ConditionEvaluator {
     };
   }
 
-  private static Object resolveTrait(Condition condition, Map<String, Object> traits) {
+  private static Object resolveTrait(AttributeCondition condition, Map<String, Object> traits) {
     List<String> path = condition.traitPath();
     if (path == null) {
       return Unresolved.ABSENT;

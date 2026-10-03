@@ -233,11 +233,17 @@ public final class InMemoryConnection {
 
   private static ConfigBundle deltaUpdate(String key, Config definition) {
     return new ConfigBundle(
-        Map.of(key, definition), ConfigBundle.BundleKind.DELTA, ENVIRONMENT_ID, PROJECT_ID, null);
+        Map.of(key, definition),
+        Map.of(),
+        ConfigBundle.BundleKind.DELTA,
+        ENVIRONMENT_ID,
+        PROJECT_ID,
+        null);
   }
 
   private ConfigBundle fullUpdate() {
-    return new ConfigBundle(configs, ConfigBundle.BundleKind.FULL, ENVIRONMENT_ID, PROJECT_ID, null);
+    return new ConfigBundle(
+        configs, Map.of(), ConfigBundle.BundleKind.FULL, ENVIRONMENT_ID, PROJECT_ID, null);
   }
 
   private void deliverIfAny(ConfigBundle update) {

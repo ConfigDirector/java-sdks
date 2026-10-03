@@ -24,11 +24,11 @@ class ConfigEvaluatorTest {
   }
 
   private static Condition matching(String identifier) {
-    return new Condition("c", "identifier", "=", "text", List.of(identifier), null);
+    return new AttributeCondition("c", "identifier", "=", "text", List.of(identifier), null);
   }
 
   private static Condition never() {
-    return new Condition("c", "identifier", "=", "text", List.of("nobody"), null);
+    return new AttributeCondition("c", "identifier", "=", "text", List.of("nobody"), null);
   }
 
   private static ConditionalRule valueRule(
@@ -97,7 +97,7 @@ class ConfigEvaluatorTest {
   class SeveralConditions {
 
     private static Condition planIs(String plan) {
-      return new Condition("c2", "traits", "=", "text", List.of(plan), "/plan");
+      return new AttributeCondition("c2", "traits", "=", "text", List.of(plan), "/plan");
     }
 
     private static TargetingRules requiring(Condition... conditions) {
@@ -441,7 +441,7 @@ class ConfigEvaluatorTest {
     @Test
     void a_rule_that_throws_is_skipped_rather_than_breaking_the_evaluation() {
       // A missing targetType is malformed wire data, and throws when it is switched on.
-      Condition broken = new Condition("c", "identifier", "=", null, List.of("u1"), null);
+      Condition broken = new AttributeCondition("c", "identifier", "=", null, List.of("u1"), null);
       TargetingRules target =
           new TargetingRules(
               "fallback",

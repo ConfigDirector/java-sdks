@@ -16,9 +16,9 @@ class ConditionEvaluatorTest {
 
   private final ConditionEvaluator evaluator = new ConditionEvaluator();
 
-  private static Condition condition(
+  private static AttributeCondition condition(
       String attribute, String operator, String targetType, String trait, String... targets) {
-    return new Condition("c", attribute, operator, targetType, List.of(targets), trait);
+    return new AttributeCondition("c", attribute, operator, targetType, List.of(targets), trait);
   }
 
   private static EvaluationContext contextWith(Context context) {
@@ -29,7 +29,7 @@ class ConditionEvaluatorTest {
     return contextWith(Context.builder().id("u1").traits(traits).build());
   }
 
-  private boolean evaluate(Condition condition, EvaluationContext context) {
+  private boolean evaluate(AttributeCondition condition, EvaluationContext context) {
     return evaluator.evaluate(condition, context);
   }
 

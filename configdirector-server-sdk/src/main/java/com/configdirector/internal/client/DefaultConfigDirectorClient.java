@@ -20,6 +20,7 @@ import com.configdirector.internal.SdkIdentity;
 import com.configdirector.internal.evaluation.Config;
 import com.configdirector.internal.evaluation.ConfigEvaluator;
 import com.configdirector.internal.evaluation.EvaluationContext;
+import com.configdirector.internal.evaluation.Segment;
 import com.configdirector.internal.telemetry.ScheduledTelemetryCollector;
 import com.configdirector.internal.telemetry.TelemetryCollector;
 import com.configdirector.internal.telemetry.TelemetryCollectorFactory;
@@ -71,7 +72,7 @@ public final class DefaultConfigDirectorClient implements ConfigDirectorClient {
   private final Transport transport;
   private final TelemetryCollector telemetry;
 
-  // Held by whatever replaces config state -- a bundle, or close(). Readers do not take it:
+  // ServedDefinitions by whatever replaces config state -- a bundle, or close(). Readers do not take it:
   // they read the snapshot below, which is only ever swapped, never edited in place.
   private final Object lock = new Object();
   private final CountDownLatch ready = new CountDownLatch(1);
@@ -83,7 +84,7 @@ public final class DefaultConfigDirectorClient implements ConfigDirectorClient {
   // Null until the first bundle arrives, which is what separates "not ready" from "ready but the
   // server does not know this key". Immutable once published, so a config read is a volatile read
   // and a map lookup -- no lock on the path every getX() call takes.
-  private volatile Map<String, Config> configs;
+  private volatile ServedDefinitions served;
   private volatile boolean closed;
 
   public DefaultConfigDirectorClient(
@@ -227,7 +228,7 @@ public final class DefaultConfigDirectorClient implements ConfigDirectorClient {
 
   @Override
   public boolean isReady() {
-    return !closed && configs != null;
+    return !closed && served != null;
   }
 
   @Override
@@ -248,7 +249,7 @@ public final class DefaultConfigDirectorClient implements ConfigDirectorClient {
         return;
       }
       closed = true;
-      configs = null;
+      served = null;
     }
     watchers.clear();
     readyHandlers.clear();
@@ -285,26 +286,32 @@ public final class DefaultConfigDirectorClient implements ConfigDirectorClient {
     boolean firstBundle;
     List<String> removedKeys = List.of();
     Map<String, List<Watcher>> affected = new LinkedHashMap<>();
+    Map<String, Segment> servedSegments;
     synchronized (lock) {
       if (closed) {
         return;
       }
-      Map<String, Config> current = configs;
+      ServedDefinitions current = served;
       Map<String, Config> merged;
+      Map<String, Segment> segments;
       if (current == null || bundle.kind() == ConfigBundle.BundleKind.FULL) {
         merged = new LinkedHashMap<>(bundle.configs());
+        segments = new LinkedHashMap<>(bundle.segments());
         firstBundle = ready.getCount() > 0;
         if (current != null) {
-          removedKeys = keysAbsentFrom(current, bundle.configs());
+          removedKeys = keysAbsentFrom(current.configs(), bundle.configs());
         }
       } else {
         // A delta merges onto a copy rather than onto the live map: readers hold a reference to
         // whatever was published last, and it has to stay whole while they walk it.
-        merged = new LinkedHashMap<>(current);
+        merged = new LinkedHashMap<>(current.configs());
         merged.putAll(bundle.configs());
+        segments = new LinkedHashMap<>(current.segments());
+        segments.putAll(bundle.segments());
         firstBundle = false;
       }
-      configs = Collections.unmodifiableMap(merged);
+      served = new ServedDefinitions(Collections.unmodifiableMap(merged), Collections.unmodifiableMap(segments));
+      servedSegments = served.segments();
     }
 
     // Snapshotted outside the lock, so a user callback cannot observe the list being edited from
@@ -320,7 +327,7 @@ public final class DefaultConfigDirectorClient implements ConfigDirectorClient {
         removedKeys.size(),
         removedKeys);
     emit(updateHandlers, new ConfigsUpdatedEvent(keys, removedKeys), "configsUpdated");
-    notifyWatchers(affected, bundle.configs());
+    notifyWatchers(affected, bundle.configs(), servedSegments);
 
     if (firstBundle) {
       ready.countDown();
@@ -328,6 +335,8 @@ public final class DefaultConfigDirectorClient implements ConfigDirectorClient {
       logger.debug("[ConfigDirectorClient] Received the initial payload, the client is ready");
     }
   }
+
+  private record ServedDefinitions(Map<String, Config> configs, Map<String, Segment> segments) {}
 
   private static List<String> keysAbsentFrom(
       Map<String, Config> previous, Map<String, Config> updated) {
@@ -351,13 +360,17 @@ public final class DefaultConfigDirectorClient implements ConfigDirectorClient {
 
   // Evaluated against the bundle rather than the merged state: for a key the update carried the
   // two hold the same definition, and a removed key has none, so its watcher gets the default.
-  private void notifyWatchers(Map<String, List<Watcher>> affected, Map<String, Config> updated) {
+  private void notifyWatchers(
+      Map<String, List<Watcher>> affected,
+      Map<String, Config> updated,
+      Map<String, Segment> segments) {
     affected.forEach(
         (key, entries) -> {
           Config definition = updated.get(key);
           for (Watcher watcher : entries) {
             try {
-              watcher.notify(evaluate(key, definition, watcher.defaultValue(), watcher.context()));
+              watcher.notify(
+                  evaluate(key, definition, watcher.defaultValue(), watcher.context(), segments));
             } catch (RuntimeException error) {
               // One faulty watcher must not cost the others their update, and must not take down
               // the transport thread this runs on.
@@ -447,12 +460,18 @@ public final class DefaultConfigDirectorClient implements ConfigDirectorClient {
     validateConfigKey(configKey);
     validateDefault(defaultValue);
 
-    Map<String, Config> snapshot = configs;
-    Config definition = snapshot == null ? null : snapshot.get(configKey);
-    return evaluate(configKey, definition, defaultValue, context);
+    ServedDefinitions snapshot = served;
+    Config definition = snapshot == null ? null : snapshot.configs().get(configKey);
+    Map<String, Segment> segments = snapshot == null ? Map.of() : snapshot.segments();
+    return evaluate(configKey, definition, defaultValue, context, segments);
   }
 
-  private Object evaluate(String configKey, Config definition, Object defaultValue, Context context) {
+  private Object evaluate(
+      String configKey,
+      Config definition,
+      Object defaultValue,
+      Context context,
+      Map<String, Segment> segments) {
     if (definition == null) {
       EvaluationReason reason =
           isReady() ? EvaluationReason.CONFIG_STATE_MISSING : EvaluationReason.CLIENT_NOT_READY;
@@ -472,7 +491,8 @@ public final class DefaultConfigDirectorClient implements ConfigDirectorClient {
       return defaultValue;
     }
 
-    ConfigState state = evaluator.evaluate(definition, new EvaluationContext(context, metadata));
+    ConfigState state =
+        evaluator.evaluate(definition, new EvaluationContext(context, metadata), segments);
     ParseResult result = ValueParser.parse(state, defaultValue);
     logger.debug("[ConfigDirectorClient] Evaluated {} to {}", configKey, result.value());
     // The server identifies every value it sends, so the fallback only comes into play for a
@@ -508,10 +528,11 @@ public final class DefaultConfigDirectorClient implements ConfigDirectorClient {
 
   @Override
   public Map<String, ConfigState> getAllConfigs(Context context, List<String> configKeys) {
-    Map<String, Config> definitions = configs;
-    if (closed || definitions == null) {
+    ServedDefinitions snapshot = served;
+    if (closed || snapshot == null) {
       return Map.of();
     }
+    Map<String, Config> definitions = snapshot.configs();
 
     // A set, so filtering stays linear in the number of configs rather than scanning the requested
     // keys once per config. Iterating the definitions rather than the request keeps the result in
@@ -522,7 +543,7 @@ public final class DefaultConfigDirectorClient implements ConfigDirectorClient {
     definitions.forEach(
         (key, config) -> {
           if (requested == null || requested.contains(key)) {
-            evaluated.put(key, evaluator.evaluate(config, evaluationContext));
+            evaluated.put(key, evaluator.evaluate(config, evaluationContext, snapshot.segments()));
           }
         });
     return evaluated;

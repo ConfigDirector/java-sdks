@@ -8,6 +8,13 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- Targeting rules can now use segments: the provider evaluates segment conditions through the
+  server SDK it depends on, which reads the payload's segments. ConfigDirector only sends rules
+  with segment conditions to provider versions that evaluate them, so upgrading is what makes rules
+  that use segments apply to this application.
+
 ## [1.4.0] - 2026-10-01
 
 ### Changed

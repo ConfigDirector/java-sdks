@@ -1,6 +1,7 @@
 package com.configdirector.internal.transport;
 
 import com.configdirector.ConfigType;
+import com.configdirector.internal.evaluation.AttributeCondition;
 import com.configdirector.internal.evaluation.Condition;
 import com.configdirector.internal.evaluation.EnumTypeConstraints;
 import com.configdirector.internal.evaluation.JsonValues;
@@ -10,6 +11,8 @@ import com.configdirector.internal.evaluation.Config;
 import com.configdirector.internal.evaluation.Percentage;
 import com.configdirector.internal.evaluation.PercentageRule;
 import com.configdirector.internal.evaluation.Rule;
+import com.configdirector.internal.evaluation.Segment;
+import com.configdirector.internal.evaluation.SegmentCondition;
 import com.configdirector.internal.evaluation.TargetingRules;
 import com.configdirector.internal.evaluation.TypeConstraints;
 import com.configdirector.internal.evaluation.Variation;
@@ -49,6 +52,7 @@ public final class BundleParser {
 
     return new ConfigBundle(
         parseConfigs(configs, logger),
+        parseSegments(root.get("segments"), logger),
         "delta".equals(optionalString(root.get("kind")))
             ? ConfigBundle.BundleKind.DELTA
             : ConfigBundle.BundleKind.FULL,
@@ -72,6 +76,31 @@ public final class BundleParser {
       }
     }
     return configs;
+  }
+
+  private static Map<String, Segment> parseSegments(JsonElement raw, Logger logger) {
+    Map<String, Segment> segments = new LinkedHashMap<>();
+    if (raw == null || !raw.isJsonObject()) {
+      return segments;
+    }
+    for (Map.Entry<String, JsonElement> entry : raw.getAsJsonObject().entrySet()) {
+      try {
+        segments.put(entry.getKey(), parseSegment(object(entry.getValue())));
+      } catch (RuntimeException error) {
+        logger.warn(
+            "[BundleParser] Skipping the segment {}, its definition could not be read",
+            entry.getKey(),
+            error);
+      }
+    }
+    return segments;
+  }
+
+  private static Segment parseSegment(JsonObject raw) {
+    return new Segment(
+        map(
+            raw.get("groups"),
+            group -> map(group, element -> parseAttributeCondition(object(element)))));
   }
 
   private static Config parseConfig(JsonObject raw) {
@@ -108,8 +137,28 @@ public final class BundleParser {
         percentages);
   }
 
+  private static String conditionKind(JsonObject raw) {
+    return orDefault(optionalString(raw.get("kind")), "attribute");
+  }
+
   private static Condition parseCondition(JsonObject raw) {
-    return new Condition(
+    String kind = conditionKind(raw);
+    return switch (kind) {
+      case "attribute" -> parseAttributeCondition(raw);
+      case "segment" ->
+          new SegmentCondition(
+              requiredString(raw, "id"),
+              requiredString(raw, "operator"),
+              requiredString(raw, "segmentId"));
+      default -> throw new BundleFormatException("Unknown condition kind '" + kind + "'");
+    };
+  }
+
+  private static AttributeCondition parseAttributeCondition(JsonObject raw) {
+    if (!"attribute".equals(conditionKind(raw))) {
+      throw new BundleFormatException("A condition group holds attribute conditions only");
+    }
+    return new AttributeCondition(
         requiredString(raw, "id"),
         requiredString(raw, "attribute"),
         requiredString(raw, "operator"),

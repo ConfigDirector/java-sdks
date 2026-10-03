@@ -44,7 +44,7 @@ class ConfigEvaluatorLoggingTest {
 
   @Test
   void names_the_rule_and_the_config_when_a_rule_cannot_be_evaluated() {
-    Condition broken = new Condition("c", "identifier", "=", null, List.of("u1"), null);
+    Condition broken = new AttributeCondition("c", "identifier", "=", null, List.of("u1"), null);
     ConditionalRule rule =
         new ConditionalRule("broken-rule", 1, List.of(broken), "value", "v", null, List.of());
 
@@ -59,7 +59,7 @@ class ConfigEvaluatorLoggingTest {
 
   @Test
   void says_nothing_when_every_rule_evaluates_cleanly() {
-    Condition matches = new Condition("c", "identifier", "=", "text", List.of("u1"), null);
+    Condition matches = new AttributeCondition("c", "identifier", "=", "text", List.of("u1"), null);
     ConditionalRule rule =
         new ConditionalRule("good-rule", 1, List.of(matches), "value", "v", null, List.of());
 

@@ -2,6 +2,7 @@ package com.configdirector.internal.evaluation;
 
 import com.configdirector.ConfigState;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -9,6 +10,7 @@ import org.slf4j.LoggerFactory;
 public final class ConfigEvaluator {
 
   private final ConditionEvaluator conditionEvaluator = new ConditionEvaluator();
+  private final SegmentEvaluator segmentEvaluator = new SegmentEvaluator(conditionEvaluator);
   private final Logger logger;
 
   public ConfigEvaluator() {
@@ -20,14 +22,20 @@ public final class ConfigEvaluator {
   }
 
   public ConfigState evaluate(Config config, EvaluationContext context) {
-    Selection selected = selectValue(config, context);
+    return evaluate(config, context, Map.of());
+  }
+
+  public ConfigState evaluate(
+      Config config, EvaluationContext context, Map<String, Segment> segments) {
+    Selection selected = selectValue(config, context, segments);
     return new ConfigState(
         config.id(), config.key(), config.type(), selected.value(), selected.valueId());
   }
 
   // Value and value id travel together because which rule produced the value is the only thing
   // that says which id belongs to it.
-  private Selection selectValue(Config config, EvaluationContext context) {
+  private Selection selectValue(
+      Config config, EvaluationContext context, Map<String, Segment> segments) {
     TargetingRules target = config.target();
     if (target == null) {
       return new Selection(null, null);
@@ -35,7 +43,7 @@ public final class ConfigEvaluator {
 
     // Already ordered by TargetingRules, which sorts once at parse time.
     for (Rule rule : target.rules()) {
-      Selection selected = evaluateRule(rule, config, context);
+      Selection selected = evaluateRule(rule, config, context, segments);
       if (selected != null) {
         return selected;
       }
@@ -43,13 +51,14 @@ public final class ConfigEvaluator {
     return new Selection(target.defaultValue(), target.defaultValueId());
   }
 
-  private Selection evaluateRule(Rule rule, Config config, EvaluationContext context) {
+  private Selection evaluateRule(
+      Rule rule, Config config, EvaluationContext context, Map<String, Segment> segments) {
     try {
       if (rule instanceof PercentageRule percentageRule) {
         return evaluatePercentage(percentageRule.percentages(), config, context);
       }
       if (rule instanceof ConditionalRule conditionalRule) {
-        return evaluateConditionalRule(conditionalRule, config, context);
+        return evaluateConditionalRule(conditionalRule, config, context, segments);
       }
     } catch (Exception error) {
       // Malformed rule data must not break the evaluation of the rest of the config.
@@ -64,16 +73,11 @@ public final class ConfigEvaluator {
   }
 
   private Selection evaluateConditionalRule(
-      ConditionalRule rule, Config config, EvaluationContext context) {
-    boolean allConditionsMatched = true;
+      ConditionalRule rule, Config config, EvaluationContext context, Map<String, Segment> segments) {
     for (Condition condition : rule.conditions()) {
-      if (!conditionEvaluator.evaluate(condition, context)) {
-        allConditionsMatched = false;
-        break;
+      if (!conditionHolds(condition, context, segments)) {
+        return null;
       }
-    }
-    if (!allConditionsMatched) {
-      return null;
     }
     if ("value".equals(rule.target()) && rule.value() != null) {
       return new Selection(JsonValues.toJsonString(rule.value()), rule.valueId());
@@ -82,6 +86,17 @@ public final class ConfigEvaluator {
       return evaluatePercentage(rule.percentages(), config, context);
     }
     return null;
+  }
+
+  private boolean conditionHolds(
+      Condition condition, EvaluationContext context, Map<String, Segment> segments) {
+    if (condition instanceof AttributeCondition attributeCondition) {
+      return conditionEvaluator.evaluate(attributeCondition, context);
+    }
+    if (condition instanceof SegmentCondition segmentCondition) {
+      return segmentEvaluator.evaluate(segmentCondition, segments, context);
+    }
+    return false;
   }
 
   private Selection evaluatePercentage(

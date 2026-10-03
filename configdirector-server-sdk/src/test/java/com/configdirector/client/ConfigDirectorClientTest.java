@@ -145,6 +145,138 @@ class ConfigDirectorClientTest {
   }
 
   @Nested
+  @DisplayName("segments")
+  class Segments {
+
+    private static final String ACME = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+
+    private static String membersOf(String domain) {
+      return "{\"groups\":[[{\"id\":\"g0c0\",\"kind\":\"attribute\",\"attribute\":\"traits\","
+          + "\"trait\":\"/email\",\"operator\":\"ends with any of\",\"targetType\":\"text\","
+          + "\"targetValues\":[\""
+          + domain
+          + "\"]}]]}";
+    }
+
+    private static String greetingForMembers(String value) {
+      return "\"greeting\":{\"id\":\"id-greeting\",\"key\":\"greeting\",\"type\":\"string\","
+          + "\"target\":{\"defaultValue\":\"hello\",\"defaultValueId\":\"dv-greeting\",\"rules\":[{"
+          + "\"id\":\"r-greeting\",\"type\":\"conditional\",\"order\":1,\"target\":\"value\",\"value\":\""
+          + value
+          + "\",\"valueId\":\"rv-greeting\",\"conditions\":[{\"id\":\"c-greeting\",\"kind\":\"segment\","
+          + "\"operator\":\"in\",\"segmentId\":\""
+          + ACME
+          + "\"}]}]}}";
+    }
+
+    private static String setOf(String kind, String configsJson, String segmentsJson) {
+      String segments = segmentsJson == null ? "" : ",\"segments\":" + segmentsJson;
+      return "{\"kind\":\"" + kind + "\",\"configs\":{" + configsJson + "}" + segments + "}";
+    }
+
+    private ConfigDirectorClient streamingClientOpeningWith(
+        String bundle, BlockingQueue<TestHttpServer.Session> live) {
+      server =
+          start(
+              session -> {
+                session.respondStreaming();
+                session.send("data: " + bundle + "\n\n");
+                live.add(session);
+              });
+      String url = server.url("/");
+      return build(connection -> connection.mode(ConnectionMode.STREAMING).url(url));
+    }
+
+    private static final Context MEMBER =
+        Context.builder().id("10").trait("email", "ann@acme.com").build();
+    private static final Context OUTSIDER =
+        Context.builder().id("20").trait("email", "bob@other.com").build();
+
+    @Test
+    void evaluates_a_segment_condition_against_the_segments_a_full_set_carries() throws Exception {
+      BlockingQueue<TestHttpServer.Session> live = new LinkedBlockingQueue<>();
+      client =
+          streamingClientOpeningWith(
+              setOf("full", greetingForMembers("bonjour"), "{\"" + ACME + "\":" + membersOf("@acme.com") + "}"),
+              live);
+      client.initialize();
+
+      assertThat(client.getString("greeting", "in-code-default", MEMBER)).isEqualTo("bonjour");
+      assertThat(client.getString("greeting", "in-code-default", OUTSIDER)).isEqualTo("hello");
+      assertThat(client.getAllConfigs(MEMBER).get("greeting").value()).isEqualTo("bonjour");
+    }
+
+    @Test
+    void keeps_the_segments_it_holds_across_a_delta_that_carries_none() throws Exception {
+      BlockingQueue<TestHttpServer.Session> live = new LinkedBlockingQueue<>();
+      client =
+          streamingClientOpeningWith(
+              setOf("full", greetingForMembers("bonjour"), "{\"" + ACME + "\":" + membersOf("@acme.com") + "}"),
+              live);
+      List<String> received = new java.util.concurrent.CopyOnWriteArrayList<>();
+      client.watchString("greeting", "in-code-default", received::add, MEMBER);
+      client.initialize();
+
+      TestHttpServer.Session session = live.poll(5, TimeUnit.SECONDS);
+      assertThat(session).isNotNull();
+      session.send("data: " + setOf("delta", greetingForMembers("salut"), "{}") + "\n\n");
+      await().atMost(TIMEOUT).until(() -> received.size() == 2);
+
+      assertThat(received).containsExactly("bonjour", "salut");
+      assertThat(client.getString("greeting", "in-code-default", MEMBER)).isEqualTo("salut");
+    }
+
+    @Test
+    void adds_the_segments_a_delta_carries_to_the_ones_it_holds() throws Exception {
+      String beta = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+      String farewell =
+          "\"farewell\":{\"id\":\"id-farewell\",\"key\":\"farewell\",\"type\":\"string\","
+              + "\"target\":{\"defaultValue\":\"bye\",\"rules\":[{\"id\":\"r-farewell\",\"type\":\"conditional\","
+              + "\"order\":1,\"target\":\"value\",\"value\":\"ciao\",\"conditions\":[{\"id\":\"c-farewell\","
+              + "\"kind\":\"segment\",\"operator\":\"in\",\"segmentId\":\""
+              + beta
+              + "\"}]}]}}";
+      BlockingQueue<TestHttpServer.Session> live = new LinkedBlockingQueue<>();
+      client =
+          streamingClientOpeningWith(
+              setOf("full", greetingForMembers("bonjour"), "{\"" + ACME + "\":" + membersOf("@acme.com") + "}"),
+              live);
+      client.initialize();
+
+      TestHttpServer.Session session = live.poll(5, TimeUnit.SECONDS);
+      assertThat(session).isNotNull();
+      session.send(
+          "data: " + setOf("delta", farewell, "{\"" + beta + "\":" + membersOf("@beta.com") + "}") + "\n\n");
+      Context betaMember = Context.builder().id("30").trait("email", "cat@beta.com").build();
+      await()
+          .atMost(TIMEOUT)
+          .until(() -> "ciao".equals(client.getString("farewell", "in-code-default", betaMember)));
+
+      assertThat(client.getString("greeting", "in-code-default", MEMBER)).isEqualTo("bonjour");
+    }
+
+    @Test
+    void drops_the_segments_a_full_set_no_longer_carries() throws Exception {
+      BlockingQueue<TestHttpServer.Session> live = new LinkedBlockingQueue<>();
+      client =
+          streamingClientOpeningWith(
+              setOf("full", greetingForMembers("bonjour"), "{\"" + ACME + "\":" + membersOf("@acme.com") + "}"),
+              live);
+      List<String> received = new java.util.concurrent.CopyOnWriteArrayList<>();
+      client.watchString("greeting", "in-code-default", received::add, MEMBER);
+      client.initialize();
+
+      TestHttpServer.Session session = live.poll(5, TimeUnit.SECONDS);
+      assertThat(session).isNotNull();
+      session.send("data: " + setOf("full", greetingForMembers("salut"), null) + "\n\n");
+      await().atMost(TIMEOUT).until(() -> received.size() == 2);
+
+      assertThat(received).containsExactly("bonjour", "hello");
+      assertThat(client.getString("greeting", "in-code-default", MEMBER)).isEqualTo("hello");
+    }
+  }
+
+  @Nested
   @DisplayName("reading values")
   class Reading {
 

@@ -3,9 +3,13 @@ package com.configdirector.internal.transport;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import com.configdirector.ConfigState;
 import com.configdirector.ConfigType;
 import com.configdirector.Context;
+import com.configdirector.internal.evaluation.AttributeCondition;
 import com.configdirector.internal.evaluation.Condition;
 import com.configdirector.internal.evaluation.ConditionalRule;
 import com.configdirector.internal.evaluation.Config;
@@ -15,6 +19,10 @@ import com.configdirector.internal.evaluation.EnumTypeConstraints;
 import com.configdirector.internal.evaluation.NumericTypeConstraints;
 import com.configdirector.internal.evaluation.PercentageRule;
 import com.configdirector.internal.evaluation.Rule;
+import com.configdirector.internal.evaluation.Segment;
+import com.configdirector.internal.evaluation.SegmentCondition;
+import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -196,7 +204,7 @@ class BundleParserTest {
       assertThat(conditional.value()).isEqualTo("on");
       assertThat(conditional.valueId()).isEqualTo("v1");
 
-      Condition condition = conditional.conditions().get(0);
+      AttributeCondition condition = (AttributeCondition) conditional.conditions().get(0);
       assertThat(condition.attribute()).isEqualTo("identifier");
       assertThat(condition.targetValues()).containsExactly("u1");
       assertThat(condition.trait()).isNull();
@@ -308,7 +316,8 @@ class BundleParserTest {
                    "targetValues":["text", 26, 26.5, true, null]}]}]}}}}
               """);
 
-      Condition condition = ((ConditionalRule) config.target().rules().get(0)).conditions().get(0);
+      AttributeCondition condition =
+          (AttributeCondition) ((ConditionalRule) config.target().rules().get(0)).conditions().get(0);
       assertThat(condition.targetValues()).containsExactly("text", "26", "26.5", "true", "");
     }
 
@@ -435,6 +444,136 @@ class BundleParserTest {
       ConfigState unmatched = evaluator.evaluate(config, contextFor("10", "free"));
       assertThat(unmatched.value()).isEqualTo("hello");
       assertThat(unmatched.valueId()).isEqualTo("value-id-1");
+    }
+  }
+
+  @Nested
+  @DisplayName("segments")
+  class Segments {
+
+    private static String groupCondition(String domain, String kind) {
+      String kindField = kind == null ? "" : "\"kind\":\"" + kind + "\",";
+      return "{\"id\":\"g0c0\","
+          + kindField
+          + "\"attribute\":\"traits\",\"trait\":\"/email\",\"operator\":\"ends with any of\","
+          + "\"targetType\":\"text\",\"targetValues\":[\""
+          + domain
+          + "\"]}";
+    }
+
+    private static String configWithSegmentRule(String conditionKind) {
+      return "\"configs\":{\"greeting\":{\"id\":\"c1\",\"key\":\"greeting\",\"type\":\"string\","
+          + "\"target\":{\"defaultValue\":\"hello\",\"rules\":[{\"id\":\"r1\",\"type\":\"conditional\","
+          + "\"order\":0,\"target\":\"value\",\"value\":\"members\",\"conditions\":[{\"id\":\"c-1\","
+          + "\"kind\":\""
+          + conditionKind
+          + "\",\"operator\":\"in\",\"segmentId\":\"segment-1\"}]}]}}}";
+    }
+
+    @Test
+    void reads_the_segments_section_into_groups_of_attribute_conditions() {
+      ConfigBundle bundle =
+          parse(
+              "{\"configs\":{},\"segments\":{\"segment-1\":{\"groups\":[["
+                  + groupCondition("@acme.com", "attribute")
+                  + "],["
+                  + groupCondition("@beta.com", "attribute")
+                  + "]]}}}");
+
+      assertThat(bundle.segments())
+          .containsExactly(
+              Map.entry(
+                  "segment-1",
+                  new Segment(
+                      List.of(
+                          List.of(
+                              new AttributeCondition(
+                                  "g0c0",
+                                  "traits",
+                                  "ends with any of",
+                                  "text",
+                                  List.of("@acme.com"),
+                                  "/email")),
+                          List.of(
+                              new AttributeCondition(
+                                  "g0c0",
+                                  "traits",
+                                  "ends with any of",
+                                  "text",
+                                  List.of("@beta.com"),
+                                  "/email"))))));
+    }
+
+    @Test
+    void a_payload_without_a_segments_section_carries_no_segments() {
+      assertThat(parse("{\"configs\":{}}").segments()).isEmpty();
+    }
+
+    @Test
+    void a_group_condition_without_a_kind_is_an_attribute_condition() {
+      ConfigBundle bundle =
+          parse(
+              "{\"configs\":{},\"segments\":{\"segment-1\":{\"groups\":[["
+                  + groupCondition("@acme.com", null)
+                  + "]]}}}");
+
+      assertThat(bundle.segments().get("segment-1").groups().get(0).get(0).attribute())
+          .isEqualTo("traits");
+    }
+
+    @Test
+    void reads_a_segment_condition_in_a_rule() {
+      ConfigBundle bundle = parse("{" + configWithSegmentRule("segment") + "}");
+
+      ConditionalRule rule =
+          (ConditionalRule) bundle.configs().get("greeting").target().rules().get(0);
+      assertThat(rule.conditions()).containsExactly(new SegmentCondition("c-1", "in", "segment-1"));
+    }
+
+    @Test
+    void an_unreadable_segment_is_skipped_and_logged_and_the_rest_kept() {
+      ch.qos.logback.classic.Logger logger =
+          (ch.qos.logback.classic.Logger) LoggerFactory.getLogger("bundle-parser-under-test");
+      ListAppender<ILoggingEvent> appender = new ListAppender<>();
+      appender.start();
+      logger.addAppender(appender);
+      try {
+        ConfigBundle bundle =
+            BundleParser.parse(
+                "{\"configs\":{},\"segments\":{"
+                    + "\"broken\":{\"groups\":[[{\"id\":\"g0c0\",\"kind\":\"attribute\",\"operator\":\"equals\"}]]},"
+                    + "\"segment-1\":{\"groups\":[["
+                    + groupCondition("@acme.com", "attribute")
+                    + "]]}}}",
+                logger);
+
+        assertThat(bundle.segments()).containsOnlyKeys("segment-1");
+        assertThat(appender.list)
+            .anyMatch(
+                event ->
+                    event.getLevel() == Level.WARN
+                        && event.getFormattedMessage().contains("broken"));
+      } finally {
+        logger.detachAppender(appender);
+      }
+    }
+
+    @Test
+    void a_segment_condition_inside_a_group_makes_the_segment_unreadable() {
+      ConfigBundle bundle =
+          parse(
+              "{\"configs\":{},\"segments\":{\"segment-1\":{\"groups\":[["
+                  + "{\"id\":\"g0c0\",\"kind\":\"segment\",\"operator\":\"in\",\"segmentId\":\"other\"}"
+                  + "]]}}}");
+
+      assertThat(bundle.segments()).isEmpty();
+    }
+
+    @Test
+    void a_condition_of_an_unknown_kind_makes_the_config_unreadable() {
+      ConfigBundle bundle = parse("{" + configWithSegmentRule("made-up") + "}");
+
+      assertThat(bundle.configs()).isEmpty();
     }
   }
 }

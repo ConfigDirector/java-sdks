@@ -22,13 +22,13 @@ class EvaluationTypesTest {
     @Test
     void requires_an_operator_because_every_comparison_lowercases_it() {
       assertThatNullPointerException()
-          .isThrownBy(() -> new Condition("c", "identifier", null, "text", List.of(), null))
+          .isThrownBy(() -> new AttributeCondition("c", "identifier", null, "text", List.of(), null))
           .withMessageContaining("operator");
     }
 
     @Test
     void a_null_target_list_becomes_an_empty_one() {
-      Condition condition = new Condition("c", "identifier", "=", "text", null, null);
+      AttributeCondition condition = new AttributeCondition("c", "identifier", "=", "text", null, null);
 
       assertThat(condition.targetValues()).isEmpty();
     }
@@ -36,7 +36,7 @@ class EvaluationTypesTest {
     @Test
     void the_target_list_is_copied_and_unmodifiable() {
       List<String> targets = new ArrayList<>(List.of("a"));
-      Condition condition = new Condition("c", "identifier", "=", "text", targets, null);
+      AttributeCondition condition = new AttributeCondition("c", "identifier", "=", "text", targets, null);
 
       targets.add("b");
 
@@ -100,15 +100,15 @@ class EvaluationTypesTest {
     @Test
     void a_condition_splits_its_trait_pointer_once() {
       // Derived rather than supplied: a bundle carries the pointer, not the path.
-      Condition condition =
-          new Condition("c", "traits", "equals", "text", List.of("pro"), "/billing/x~1y");
+      AttributeCondition condition =
+          new AttributeCondition("c", "traits", "equals", "text", List.of("pro"), "/billing/x~1y");
 
       assertThat(condition.traitPath()).containsExactly("billing", "x/y");
     }
 
     @Test
     void a_condition_on_something_other_than_a_trait_has_no_path() {
-      assertThat(new Condition("c", "identifier", "equals", "text", List.of("a"), null).traitPath())
+      assertThat(new AttributeCondition("c", "identifier", "equals", "text", List.of("a"), null).traitPath())
           .isNull();
     }
 
