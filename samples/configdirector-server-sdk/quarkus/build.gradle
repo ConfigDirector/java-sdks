@@ -37,10 +37,10 @@ dependencies {
     // unresolvable for everyone who is not passing -PuseLocalSdk below.
     implementation useLocalSdk
         ? project(':configdirector-server-sdk')
-        : 'com.configdirector:server-sdk:1.7.0'
+        : 'com.configdirector:server-sdk:1.8.0'
     testImplementation useLocalSdk
         ? project(':configdirector-server-sdk-testing')
-        : 'com.configdirector:server-sdk-testing:1.7.0'
+        : 'com.configdirector:server-sdk-testing:1.8.0'
 
     implementation 'io.quarkus:quarkus-arc'
     implementation 'io.quarkus:quarkus-rest-jackson'
