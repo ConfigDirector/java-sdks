@@ -1,6 +1,6 @@
 # Changelog
 
-Changes to `com.configdirector:configdirector-openfeature-server-provider`. Other artifacts
+Changes to `com.configdirector:openfeature-server-provider`. Other artifacts
 published from this repository keep changelogs of their own.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this artifact
@@ -8,12 +8,23 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.5.0] - 2026-10-04
+
 ### Added
 
 - Targeting rules can now use segments: the provider evaluates segment conditions through the
   server SDK it depends on, which reads the payload's segments. ConfigDirector only sends rules
   with segment conditions to provider versions that evaluate them, so upgrading is what makes rules
-  that use segments apply to this application.
+  that use segments apply to this application. Requires version 1.8.0 of
+  `com.configdirector:server-sdk`, which the provider's POM declares.
+
+### Changed
+
+- The artifact is now published as `com.configdirector:openfeature-server-provider` from
+  `https://maven.configdirector.com`, instead of as
+  `com.configdirector:configdirector-openfeature-server-provider` on Maven Central, where its last
+  version is 1.4.0. Upgrading means adding the repository to the build and changing the artifactId;
+  the README shows both.
 
 ## [1.4.0] - 2026-10-01
 

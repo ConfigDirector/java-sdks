@@ -66,7 +66,7 @@ tasks.named('check') {
 tasks.named('jar') {
     manifest {
         attributes(
-            'Implementation-Title': 'configdirector-server-sdk-testing',
+            'Implementation-Title': 'server-sdk-testing',
             'Implementation-Version': project.version,
             'Automatic-Module-Name': 'com.configdirector.testing'
         )
@@ -121,14 +121,12 @@ tasks.withType(Test).configureEach {
 }
 
 mavenPublishing {
-    publishToMavenCentral()
-
     if (providers.gradleProperty('signingInMemoryKey').present
             || providers.gradleProperty('signing.keyId').present) {
         signAllPublications()
     }
 
-    coordinates(group.toString(), 'configdirector-server-sdk-testing', version.toString())
+    coordinates(group.toString(), 'server-sdk-testing', version.toString())
 
     pom {
         name = 'ConfigDirector Java Server SDK Testing'
@@ -158,6 +156,15 @@ mavenPublishing {
             url = 'https://github.com/ConfigDirector/java-sdks'
             connection = 'scm:git:https://github.com/ConfigDirector/java-sdks.git'
             developerConnection = 'scm:git:ssh://git@github.com/ConfigDirector/java-sdks.git'
+        }
+    }
+}
+
+publishing {
+    repositories {
+        maven {
+            name = 'staging'
+            url = rootProject.layout.buildDirectory.dir('maven-repository').get().asFile.toURI()
         }
     }
 }

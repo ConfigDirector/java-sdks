@@ -5,11 +5,22 @@ plugins {
 
 repositories {
     mavenCentral()
+    exclusiveContent {
+        forRepository {
+            maven {
+                name = 'ConfigDirector'
+                url = 'https://maven.configdirector.com'
+            }
+        }
+        filter {
+            includeGroup 'com.configdirector'
+        }
+    }
 }
 
 // -PuseLocalSdk builds against configdirector-server-sdk/ in this repository instead of the
-// release on Central. CI sets it so that a breaking API change fails here first; locally it is
-// how you try an unreleased SDK change against a real consumer.
+// release in the ConfigDirector Maven repository. CI sets it so that a breaking API change fails
+// here first; locally it is how you try an unreleased SDK change against a real consumer.
 def useLocalSdk = providers.gradleProperty('useLocalSdk')
     .map { it.isEmpty() || Boolean.parseBoolean(it) }
     .getOrElse(false)
@@ -24,10 +35,12 @@ dependencies {
     // lags the version in configdirector-server-sdk/build.gradle between a version bump and the
     // release that publishes it -- naming an unpublished version here leaves the sample
     // unresolvable for everyone who is not passing -PuseLocalSdk below.
-    implementation 'com.configdirector:configdirector-server-sdk:1.7.0'
+    implementation useLocalSdk
+        ? project(':configdirector-server-sdk')
+        : 'com.configdirector:server-sdk:1.7.0'
     testImplementation useLocalSdk
         ? project(':configdirector-server-sdk-testing')
-        : 'com.configdirector:configdirector-server-sdk-testing:1.7.0'
+        : 'com.configdirector:server-sdk-testing:1.7.0'
 
     implementation 'io.quarkus:quarkus-arc'
     implementation 'io.quarkus:quarkus-rest-jackson'
@@ -35,15 +48,6 @@ dependencies {
     testImplementation 'io.quarkus:quarkus-junit5'
     testImplementation 'io.rest-assured:rest-assured'
     testImplementation libs.assertj.core
-}
-
-if (useLocalSdk) {
-    configurations.configureEach {
-        resolutionStrategy.dependencySubstitution {
-            substitute(module('com.configdirector:configdirector-server-sdk'))
-                .using(project(':configdirector-server-sdk'))
-        }
-    }
 }
 
 java {

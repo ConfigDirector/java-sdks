@@ -28,8 +28,8 @@ class SdkVersionCheckTest {
   void different_versions_are_refused_naming_both() {
     assertThatExceptionOfType(IllegalStateException.class)
         .isThrownBy(() -> SdkVersionCheck.verify("1.7.1", "1.7.0"))
-        .withMessageContaining("configdirector-server-sdk-testing 1.7.0")
-        .withMessageContaining("requires configdirector-server-sdk 1.7.0")
+        .withMessageContaining("com.configdirector:server-sdk-testing 1.7.0")
+        .withMessageContaining("requires com.configdirector:server-sdk 1.7.0")
         .withMessageContaining("1.7.1 is on the classpath");
   }
 }

@@ -9,7 +9,7 @@ plugins {
 }
 
 group = 'com.configdirector'
-version = '1.4.0'
+version = '1.5.0'
 
 repositories {
     mavenCentral()
@@ -61,7 +61,7 @@ tasks.named('check') {
 tasks.named('jar') {
     manifest {
         attributes(
-            'Implementation-Title': 'configdirector-openfeature-server-provider',
+            'Implementation-Title': 'openfeature-server-provider',
             'Implementation-Version': project.version,
             'Automatic-Module-Name': 'com.configdirector.openfeature'
         )
@@ -91,14 +91,12 @@ tasks.named('test') {
 }
 
 mavenPublishing {
-    publishToMavenCentral()
-
     if (providers.gradleProperty('signingInMemoryKey').present
             || providers.gradleProperty('signing.keyId').present) {
         signAllPublications()
     }
 
-    coordinates(group.toString(), 'configdirector-openfeature-server-provider', version.toString())
+    coordinates(group.toString(), 'openfeature-server-provider', version.toString())
 
     pom {
         name = 'ConfigDirector OpenFeature Java Server Provider'
@@ -127,6 +125,15 @@ mavenPublishing {
             url = 'https://github.com/ConfigDirector/java-sdks'
             connection = 'scm:git:https://github.com/ConfigDirector/java-sdks.git'
             developerConnection = 'scm:git:ssh://git@github.com/ConfigDirector/java-sdks.git'
+        }
+    }
+}
+
+publishing {
+    repositories {
+        maven {
+            name = 'staging'
+            url = rootProject.layout.buildDirectory.dir('maven-repository').get().asFile.toURI()
         }
     }
 }

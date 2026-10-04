@@ -9,7 +9,7 @@ plugins {
 }
 
 group = 'com.configdirector'
-version = '1.7.0'
+version = '1.8.0'
 
 repositories {
     mavenCentral()
@@ -83,7 +83,7 @@ tasks.named('check') {
 tasks.named('jar') {
     manifest {
         attributes(
-            'Implementation-Title': 'configdirector-server-sdk',
+            'Implementation-Title': 'server-sdk',
             'Implementation-Version': project.version,
             // Without this, a consumer on the module path gets a module name derived from the
             // file name, which changes whenever the artifact is renamed.
@@ -126,19 +126,12 @@ tasks.named('test') {
 }
 
 mavenPublishing {
-    // Uploads a signed bundle to the Central Portal and stops there: the deployment is released
-    // by hand, so a green pipeline is not by itself a published version.
-    publishToMavenCentral()
-
-    // Central requires signatures, and only the release pipeline holds the key. Publishing to the
-    // local cache to try a build against a consumer must not need one, so this is conditional
-    // rather than unconditional; an unsigned bundle is rejected by the Portal, not published.
     if (providers.gradleProperty('signingInMemoryKey').present
             || providers.gradleProperty('signing.keyId').present) {
         signAllPublications()
     }
 
-    coordinates(group.toString(), 'configdirector-server-sdk', version.toString())
+    coordinates(group.toString(), 'server-sdk', version.toString())
 
     pom {
         name = 'ConfigDirector Java Server SDK'
@@ -167,6 +160,15 @@ mavenPublishing {
             url = 'https://github.com/ConfigDirector/java-sdks'
             connection = 'scm:git:https://github.com/ConfigDirector/java-sdks.git'
             developerConnection = 'scm:git:ssh://git@github.com/ConfigDirector/java-sdks.git'
+        }
+    }
+}
+
+publishing {
+    repositories {
+        maven {
+            name = 'staging'
+            url = rootProject.layout.buildDirectory.dir('maven-repository').get().asFile.toURI()
         }
     }
 }

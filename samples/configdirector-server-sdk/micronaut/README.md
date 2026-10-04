@@ -47,7 +47,7 @@ matching `Context` fields, and anything else becomes a trait:
 ```
 
 Run the tests with `./gradlew :samples:configdirector-server-sdk:micronaut:test`. They use the SDK's
-testing artifact, `configdirector-server-sdk-testing`: a **test client**, the real client over an
+testing artifact, `com.configdirector:server-sdk-testing`: a **test client**, the real client over an
 in-memory connection the test controls, so no network is involved and no SDK key is needed.
 [`TestConfigDirectorFactory`](src/test/java/com/configdirector/samples/micronaut/TestConfigDirectorFactory.java)
 uses `@Replaces` to swap the test client's client in for the application's bean, which is therefore
@@ -58,7 +58,7 @@ never built and never connects.
 By default the sample depends on the released artifact, exactly as your own app would:
 
 ```groovy
-implementation 'com.configdirector:configdirector-server-sdk:1.7.0'
+implementation 'com.configdirector:server-sdk:1.7.0'
 ```
 
 Pass `-PuseLocalSdk` to build it against

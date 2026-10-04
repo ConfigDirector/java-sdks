@@ -1,7 +1,7 @@
 # ConfigDirector Java Server SDK Testing
 
 Testing tools for the [ConfigDirector Java server SDK](../configdirector-server-sdk/), published to
-Maven Central as `com.configdirector:configdirector-server-sdk-testing`. They let you test the code
+the ConfigDirector Maven repository as `com.configdirector:server-sdk-testing`. They let you test the code
 that reads your configs and flags without a network connection and without changing production
 code.
 
@@ -12,23 +12,79 @@ no network connection is opened and no telemetry is sent.
 
 ## Installation
 
+The artifact is published to the ConfigDirector Maven repository, `https://maven.configdirector.com`,
+like the SDK. Add the repository to your build once, next to `mavenCentral()`, then add the
+dependency in test scope. If your build declares its repositories in `settings.gradle` or
+`settings.gradle.kts` under `dependencyResolutionManagement`, the repository block goes there
+instead. The repository, the signing key and how to verify what it serves are described at
+https://docs.configdirector.com/sdks/maven-repository.
+
 The artifact is released together with the SDK and must be the same version as the
-`configdirector-server-sdk` on your test classpath; creating a test client fails with a message
+`com.configdirector:server-sdk` on your test classpath; creating a test client fails with a message
 naming both versions otherwise.
 
-Gradle:
+Gradle, Kotlin DSL:
+
+```kotlin
+repositories {
+    mavenCentral()
+    exclusiveContent {
+        forRepository {
+            maven {
+                name = "ConfigDirector"
+                url = uri("https://maven.configdirector.com")
+            }
+        }
+        filter {
+            includeGroup("com.configdirector")
+        }
+    }
+}
+
+dependencies {
+    testImplementation("com.configdirector:server-sdk-testing:1.8.0")
+}
+```
+
+Gradle, Groovy DSL:
 
 ```groovy
-testImplementation 'com.configdirector:configdirector-server-sdk-testing:1.7.0'
+repositories {
+    mavenCentral()
+    exclusiveContent {
+        forRepository {
+            maven {
+                name = 'ConfigDirector'
+                url = 'https://maven.configdirector.com'
+            }
+        }
+        filter {
+            includeGroup 'com.configdirector'
+        }
+    }
+}
+
+dependencies {
+    testImplementation 'com.configdirector:server-sdk-testing:1.8.0'
+}
 ```
 
 Maven:
 
 ```xml
+<repositories>
+  <repository>
+    <id>configdirector</id>
+    <url>https://maven.configdirector.com</url>
+    <releases><enabled>true</enabled></releases>
+    <snapshots><enabled>false</enabled></snapshots>
+  </repository>
+</repositories>
+
 <dependency>
   <groupId>com.configdirector</groupId>
-  <artifactId>configdirector-server-sdk-testing</artifactId>
-  <version>1.7.0</version>
+  <artifactId>server-sdk-testing</artifactId>
+  <version>1.8.0</version>
   <scope>test</scope>
 </dependency>
 ```

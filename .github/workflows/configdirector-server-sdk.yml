@@ -21,9 +21,10 @@ env:
   GRADLE_JDK: "25"
   SDK_TOOLCHAIN_JDK: "21"
 
-  # Points the sample at configdirector-server-sdk/ in this checkout rather than at its release on
-  # Central, so a breaking API change fails here rather than after it ships. Set as a Gradle
-  # project property through the environment, which every ./gradlew below picks up.
+  # Points the sample at configdirector-server-sdk/ in this checkout rather than at its release in
+  # the ConfigDirector Maven repository, so a breaking API change fails here rather than after it
+  # ships. Set as a Gradle project property through the environment, which every ./gradlew below
+  # picks up.
   ORG_GRADLE_PROJECT_useLocalSdk: "true"
 
 jobs:
@@ -57,6 +58,9 @@ jobs:
       - run: >
           ./gradlew build
           -Porg.gradle.java.installations.paths=${{ steps.gradle-jdk.outputs.path }},${{ steps.sdk-toolchain-jdk.outputs.path }}
+
+      - name: Test the Maven repository upload script
+        run: .github/scripts/upload-to-maven-repository.test.sh
 
       - uses: actions/upload-artifact@v4
         with:

@@ -47,7 +47,7 @@ matching `Context` fields, and anything else becomes a trait:
 ```
 
 Run the tests with `./gradlew :samples:configdirector-server-sdk:quarkus:test`. They use the SDK's
-testing artifact, `configdirector-server-sdk-testing`: a **test client**, the real client over an
+testing artifact, `com.configdirector:server-sdk-testing`: a **test client**, the real client over an
 in-memory connection the test controls, so no network is involved and no SDK key is needed.
 [`TestConfigDirectorProducer`](src/test/java/com/configdirector/samples/quarkus/TestConfigDirectorProducer.java)
 is a `@Mock` producer for the test client's client, and
@@ -72,7 +72,7 @@ a development convenience, not a reason to build clients per request — see bel
 By default the sample depends on the released artifact, exactly as your own app would:
 
 ```groovy
-implementation 'com.configdirector:configdirector-server-sdk:1.7.0'
+implementation 'com.configdirector:server-sdk:1.7.0'
 ```
 
 Pass `-PuseLocalSdk` to build it against

@@ -17,19 +17,36 @@ JVM.
 import, a raw type, or an unsuppressed call to a deprecated method fails the build rather than the
 review. `javadoc` runs with `-Xwerror` under `check`, so a missing `@param` fails there too.
 
-The samples resolve the SDK from Maven Central. Build them against the working tree instead with:
+The samples resolve the SDK from the ConfigDirector Maven repository. Build them against the
+working tree instead with:
 
 ```bash
 ./gradlew build -PuseLocalSdk
 ```
 
+The release workflows upload with
+[`.github/scripts/upload-to-maven-repository.sh`](.github/scripts/upload-to-maven-repository.sh).
+Its tests run in CI and locally with:
+
+```bash
+.github/scripts/upload-to-maven-repository.test.sh
+```
+
 ## Releasing
+
+Releases go to the ConfigDirector Maven repository, `https://maven.configdirector.com`. The
+repository is a Cloudflare R2 bucket; its setup, and a dev twin at
+`https://maven.configdirector-dev.com`, are documented in the `config-director` repository under
+`infrastructure/cloudflare/maven-repository/`. Each release workflow takes a `repository` input,
+`dev` or `prod`, and runs in the matching GitHub environment, `maven-dev` or `maven-prod`, which
+holds the bucket's credentials. `maven-prod` requires the product owner's approval before the job
+starts, which is the last check before a version becomes permanent.
 
 The version lives in exactly one place: `version` in
 [configdirector-server-sdk/build.gradle](configdirector-server-sdk/build.gradle). There is no
 constant to keep in step with it — the version reported in telemetry is read from the jar manifest.
-`configdirector-server-sdk-testing` takes that same version and is released together with the SDK:
-it relies on the SDK's internals, so a consumer's SDK must be the very same version, which the
+`com.configdirector:server-sdk-testing` takes that same version and is released together with the
+SDK: it relies on the SDK's internals, so a consumer's SDK must be the very same version, which the
 artifact checks from both jar manifests when a test client is created.
 
 1. In [configdirector-server-sdk/CHANGELOG.md](configdirector-server-sdk/CHANGELOG.md) and
@@ -37,34 +54,44 @@ artifact checks from both jar manifests when a test client is created.
    rename `## [Unreleased]` to `## [X.Y.Z] - YYYY-MM-DD` and open a fresh, empty `## [Unreleased]`
    above it. The testing changelog gets the entry even when nothing in it changed, since a version
    of it is published either way.
-2. Bump `version` in `configdirector-server-sdk/build.gradle` to match.
-3. Merge both to `main`.
+2. Bump `version` in `configdirector-server-sdk/build.gradle` to match, and the versions in the
+   README install snippets.
+3. Merge to `main`.
 4. Run the [Release configdirector-server-sdk](.github/workflows/release-configdirector-server-sdk.yml)
-   workflow against `main`. It is manual (`workflow_dispatch`) by design, and releases whatever
-   version `main` currently declares, for the SDK and the testing artifact together.
-5. **Release both deployments by hand in the [Central Portal](https://central.sonatype.com).** The
-   workflow uploads one signed bundle per artifact and stops there, so a green run is not a
-   published version — this is the last chance to look at what is about to become permanent, or to
-   drop it. Release the two together: the testing artifact refuses to run against any other SDK
-   version, so one without the other leaves consumers stuck.
-6. Once the version resolves on Central, bump the three samples to it, including their
-   `testImplementation` of the testing artifact. They deliberately lag the SDK:
+   workflow against `main` with `repository` set to `dev`, and check the result against
+   `https://maven.configdirector-dev.com`. The workflow is manual (`workflow_dispatch`) by design,
+   and releases whatever version `main` currently declares, for the SDK and the testing artifact
+   together. It first checks that the version is not in the bucket yet, then builds and tests,
+   publishes the signed artifacts into a staging repository under `build/maven-repository`, attests
+   every jar and POM, uploads them, and in `prod` tags the commit last.
+5. Run it again with `repository` set to `prod`, and approve the `maven-prod` environment when
+   GitHub asks.
+6. Once the version resolves from `https://maven.configdirector.com`, bump the three samples to
+   it, including their `testImplementation` of the testing artifact. They deliberately lag the SDK:
    naming a version that is not published yet leaves them unresolvable for anyone who is not
    passing `-PuseLocalSdk`.
 
+The upload writes each version's files first, then its POM, then the artifact's
+`maven-metadata.xml`, so a version is only advertised once all of its files are there. A version
+whose POM is already in the bucket is refused before anything is uploaded: a released version is
+never replaced, so a change after a release needs a new version. A run that failed before the POM
+went up can simply be run again.
+
 ### The OpenFeature provider
 
-`configdirector-openfeature-server-provider` is released the same way, with its own `version` in
+`com.configdirector:openfeature-server-provider` is released the same way, with its own `version`
+in
 [configdirector-openfeature-server-provider/build.gradle](configdirector-openfeature-server-provider/build.gradle),
 its own [changelog](configdirector-openfeature-server-provider/CHANGELOG.md), and the
 [Release configdirector-openfeature-server-provider](.github/workflows/release-configdirector-openfeature-server-provider.yml)
 workflow. Its published POM depends on whatever version `configdirector-server-sdk/build.gradle`
-declares at that commit, so that SDK version must already resolve on Central before the provider
-is released.
+declares at that commit, so that SDK version must already be in the repository the provider is
+released to.
 
-Once the provider resolves on Central, bump the three samples under
+Once the provider resolves from `https://maven.configdirector.com`, bump the three samples under
 `samples/configdirector-openfeature-server-provider/` to it.
 
-Each workflow refuses to run when its tag, such as `configdirector-server-sdk-vX.Y.Z`, already exists, and
-tags the commit only after the upload succeeds. If a deployment was dropped in the Portal rather
-than published, delete that tag before running it again.
+### Signing
+
+Every published file is signed with the key in [KEYS.md](KEYS.md). The release workflows read it
+from the `SIGNING_KEY` and `SIGNING_KEY_PASSWORD` repository secrets.

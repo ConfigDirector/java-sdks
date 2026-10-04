@@ -1,28 +1,84 @@
 # ConfigDirector Java Server SDK
 
-[![Actions Status][ci-badge]][ci] [![Maven Central][maven-badge]][maven]
+[![Actions Status][ci-badge]][ci] [![Latest version][version-badge]][maven-repository]
 
-The Java server SDK for [ConfigDirector](https://www.configdirector.com), published to Maven
-Central as `com.configdirector:configdirector-server-sdk`. It requires Java 17 or newer.
+The Java server SDK for [ConfigDirector](https://www.configdirector.com), published to the
+ConfigDirector Maven repository as `com.configdirector:server-sdk`. It requires Java 17 or newer.
 
 This is one of several ConfigDirector artifacts for the JVM published from
 [this repository](https://github.com/ConfigDirector/java-sdks), each in a directory of its own.
 
 ## Installation
 
-Gradle:
+The SDK is published to the ConfigDirector Maven repository, `https://maven.configdirector.com`.
+Add the repository to your build once, next to `mavenCentral()`, then add the dependency. If your
+build declares its repositories in `settings.gradle` or `settings.gradle.kts` under
+`dependencyResolutionManagement`, the repository block goes there instead. The repository, the
+signing key and how to verify what it serves are described at
+https://docs.configdirector.com/sdks/maven-repository.
+
+Gradle, Kotlin DSL:
+
+```kotlin
+repositories {
+    mavenCentral()
+    exclusiveContent {
+        forRepository {
+            maven {
+                name = "ConfigDirector"
+                url = uri("https://maven.configdirector.com")
+            }
+        }
+        filter {
+            includeGroup("com.configdirector")
+        }
+    }
+}
+
+dependencies {
+    implementation("com.configdirector:server-sdk:1.8.0")
+}
+```
+
+Gradle, Groovy DSL:
 
 ```groovy
-implementation 'com.configdirector:configdirector-server-sdk:1.7.0'
+repositories {
+    mavenCentral()
+    exclusiveContent {
+        forRepository {
+            maven {
+                name = 'ConfigDirector'
+                url = 'https://maven.configdirector.com'
+            }
+        }
+        filter {
+            includeGroup 'com.configdirector'
+        }
+    }
+}
+
+dependencies {
+    implementation 'com.configdirector:server-sdk:1.8.0'
+}
 ```
 
 Maven:
 
 ```xml
+<repositories>
+  <repository>
+    <id>configdirector</id>
+    <url>https://maven.configdirector.com</url>
+    <releases><enabled>true</enabled></releases>
+    <snapshots><enabled>false</enabled></snapshots>
+  </repository>
+</repositories>
+
 <dependency>
   <groupId>com.configdirector</groupId>
-  <artifactId>configdirector-server-sdk</artifactId>
-  <version>1.7.0</version>
+  <artifactId>server-sdk</artifactId>
+  <version>1.8.0</version>
 </dependency>
 ```
 
@@ -43,13 +99,14 @@ Full details are in the [official documentation](https://docs.configdirector.com
 
 ## Test your code
 
-[`configdirector-server-sdk-testing`](../configdirector-server-sdk-testing/) creates a real client
+[`server-sdk-testing`](../configdirector-server-sdk-testing/) creates a real client
 connected to an in-memory server that your test controls, so the code that reads your configs and
 flags is tested without a network connection and without changing production code. It also ships a
-JUnit Jupiter extension. Add it in test scope, at the same version as the SDK:
+JUnit Jupiter extension. It comes from the same repository as the SDK. Add it in test scope, at
+the same version as the SDK:
 
 ```groovy
-testImplementation 'com.configdirector:configdirector-server-sdk-testing:1.7.0'
+testImplementation 'com.configdirector:server-sdk-testing:1.8.0'
 ```
 
 ```java
@@ -87,5 +144,5 @@ Reach out to us via https://www.configdirector.com/support
 [//]: # "links"
 [ci-badge]: https://github.com/ConfigDirector/java-sdks/actions/workflows/configdirector-server-sdk.yml/badge.svg
 [ci]: https://github.com/ConfigDirector/java-sdks/actions/workflows/configdirector-server-sdk.yml
-[maven-badge]: https://img.shields.io/maven-central/v/com.configdirector/configdirector-server-sdk
-[maven]: https://central.sonatype.com/artifact/com.configdirector/configdirector-server-sdk
+[version-badge]: https://img.shields.io/maven-metadata/v?metadataUrl=https%3A%2F%2Fmaven.configdirector.com%2Fcom%2Fconfigdirector%2Fserver-sdk%2Fmaven-metadata.xml&label=maven
+[maven-repository]: https://docs.configdirector.com/sdks/maven-repository

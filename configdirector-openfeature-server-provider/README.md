@@ -1,27 +1,83 @@
 # ConfigDirector OpenFeature Java Server Provider
 
-[![Actions Status][ci-badge]][ci] [![Maven Central][maven-badge]][maven]
+[![Actions Status][ci-badge]][ci] [![Latest version][version-badge]][maven-repository]
 
 [OpenFeature](https://openfeature.dev) Java server provider for
-[ConfigDirector](https://www.configdirector.com), published to Maven Central as
-`com.configdirector:configdirector-openfeature-server-provider`. It wraps the
+[ConfigDirector](https://www.configdirector.com), published to the ConfigDirector Maven repository
+as `com.configdirector:openfeature-server-provider`. It wraps the
 [ConfigDirector Java server SDK](../configdirector-server-sdk/) and requires Java 17 or newer.
 
 ## Installation
 
-Gradle:
+The provider is published to the ConfigDirector Maven repository, `https://maven.configdirector.com`.
+Add the repository to your build once, next to `mavenCentral()`, then add the dependency. If your
+build declares its repositories in `settings.gradle` or `settings.gradle.kts` under
+`dependencyResolutionManagement`, the repository block goes there instead. The repository, the
+signing key and how to verify what it serves are described at
+https://docs.configdirector.com/sdks/maven-repository.
+
+Gradle, Kotlin DSL:
+
+```kotlin
+repositories {
+    mavenCentral()
+    exclusiveContent {
+        forRepository {
+            maven {
+                name = "ConfigDirector"
+                url = uri("https://maven.configdirector.com")
+            }
+        }
+        filter {
+            includeGroup("com.configdirector")
+        }
+    }
+}
+
+dependencies {
+    implementation("com.configdirector:openfeature-server-provider:1.5.0")
+}
+```
+
+Gradle, Groovy DSL:
 
 ```groovy
-implementation 'com.configdirector:configdirector-openfeature-server-provider:1.4.0'
+repositories {
+    mavenCentral()
+    exclusiveContent {
+        forRepository {
+            maven {
+                name = 'ConfigDirector'
+                url = 'https://maven.configdirector.com'
+            }
+        }
+        filter {
+            includeGroup 'com.configdirector'
+        }
+    }
+}
+
+dependencies {
+    implementation 'com.configdirector:openfeature-server-provider:1.5.0'
+}
 ```
 
 Maven:
 
 ```xml
+<repositories>
+  <repository>
+    <id>configdirector</id>
+    <url>https://maven.configdirector.com</url>
+    <releases><enabled>true</enabled></releases>
+    <snapshots><enabled>false</enabled></snapshots>
+  </repository>
+</repositories>
+
 <dependency>
   <groupId>com.configdirector</groupId>
-  <artifactId>configdirector-openfeature-server-provider</artifactId>
-  <version>1.4.0</version>
+  <artifactId>openfeature-server-provider</artifactId>
+  <version>1.5.0</version>
 </dependency>
 ```
 
@@ -95,5 +151,5 @@ Quarkus. Start with
 [//]: # "links"
 [ci-badge]: https://github.com/ConfigDirector/java-sdks/actions/workflows/configdirector-server-sdk.yml/badge.svg
 [ci]: https://github.com/ConfigDirector/java-sdks/actions/workflows/configdirector-server-sdk.yml
-[maven-badge]: https://img.shields.io/maven-central/v/com.configdirector/configdirector-openfeature-server-provider
-[maven]: https://central.sonatype.com/artifact/com.configdirector/configdirector-openfeature-server-provider
+[version-badge]: https://img.shields.io/maven-metadata/v?metadataUrl=https%3A%2F%2Fmaven.configdirector.com%2Fcom%2Fconfigdirector%2Fopenfeature-server-provider%2Fmaven-metadata.xml&label=maven
+[maven-repository]: https://docs.configdirector.com/sdks/maven-repository

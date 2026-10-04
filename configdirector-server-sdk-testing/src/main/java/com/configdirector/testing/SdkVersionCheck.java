@@ -15,9 +15,9 @@ final class SdkVersionCheck {
       return;
     }
     throw new IllegalStateException(
-        "configdirector-server-sdk-testing "
+        "com.configdirector:server-sdk-testing "
             + testingVersion
-            + " requires configdirector-server-sdk "
+            + " requires com.configdirector:server-sdk "
             + testingVersion
             + ", but "
             + sdkVersion

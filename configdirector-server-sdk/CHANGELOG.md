@@ -1,12 +1,14 @@
 # Changelog
 
-Changes to `com.configdirector:configdirector-server-sdk`. Other artifacts published from this
+Changes to `com.configdirector:server-sdk`. Other artifacts published from this
 repository keep changelogs of their own.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this artifact
 follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+
+## [1.8.0] - 2026-10-04
 
 ### Added
 
@@ -16,6 +18,13 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   replace the ones held, and a delta adds to them. ConfigDirector only sends rules with segment
   conditions to SDK versions that evaluate them, so upgrading is what makes rules that use segments
   apply to this application.
+
+### Changed
+
+- The artifact is now published as `com.configdirector:server-sdk` from
+  `https://maven.configdirector.com`, instead of as `com.configdirector:configdirector-server-sdk`
+  on Maven Central, where its last version is 1.7.0. Upgrading means adding the repository to the
+  build and changing the artifactId; the README shows both.
 
 ## [1.7.0] - 2026-10-01
 

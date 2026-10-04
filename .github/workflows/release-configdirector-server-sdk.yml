@@ -1,14 +1,23 @@
 name: Release configdirector-server-sdk
 
-# Deliberately manual. The version is whatever configdirector-server-sdk/build.gradle says, so a
-# release is two steps: merge the version bump, then run this against main. It publishes the SDK and
-# configdirector-server-sdk-testing together, at that one version: the testing artifact relies on
-# the SDK's internals and refuses to run against any other SDK version.
 on:
   workflow_dispatch:
+    inputs:
+      repository:
+        description: Maven repository to publish to
+        type: choice
+        options:
+          - dev
+          - prod
+        default: dev
+        required: true
 
 permissions:
   contents: read
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
 
 defaults:
   run:
@@ -17,20 +26,24 @@ defaults:
 env:
   GRADLE_JDK: "25"
   SDK_TOOLCHAIN_JDK: "21"
-  ARTIFACT: configdirector-server-sdk
-  TESTING_ARTIFACT: configdirector-server-sdk-testing
-
-  # The build below must exercise the sample against the SDK being released, not against whatever
-  # version is already on Central.
+  MODULE: configdirector-server-sdk
+  TESTING_MODULE: configdirector-server-sdk-testing
+  GROUP: com.configdirector
+  ARTIFACT_ID: server-sdk
+  TESTING_ARTIFACT_ID: server-sdk-testing
+  STAGING_DIRECTORY: build/maven-repository
   ORG_GRADLE_PROJECT_useLocalSdk: "true"
 
 jobs:
   publish:
-    name: Publish to Maven Central
+    name: Publish to the ${{ inputs.repository }} Maven repository
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    environment: maven-${{ inputs.repository }}
     permissions:
       contents: write
+      id-token: write
+      attestations: write
     steps:
       - uses: actions/checkout@v5
 
@@ -52,69 +65,74 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v4
 
-      # build.gradle is the only place the version lives, so ask Gradle for it rather than
-      # parsing the file and having the two drift.
       - name: Resolve the version
         id: version
         run: |
-          version=$(./gradlew -q :"$ARTIFACT":properties --property version | awk '/^version:/ {print $2}')
+          version=$(./gradlew -q :"$MODULE":properties --property version | awk '/^version:/ {print $2}')
           if [[ -z $version ]]; then
-            echo "::error::could not read the version of :$ARTIFACT"
+            echo "::error::could not read the version of :$MODULE"
             exit 1
           fi
           echo "version=$version" >> "$GITHUB_OUTPUT"
-          echo "tag=$ARTIFACT-v$version" >> "$GITHUB_OUTPUT"
-          echo "Releasing $ARTIFACT $version"
+          echo "tag=$MODULE-v$version" >> "$GITHUB_OUTPUT"
+          echo "Releasing $GROUP:$ARTIFACT_ID and $GROUP:$TESTING_ARTIFACT_ID $version to the ${{ inputs.repository }} repository"
 
-      - name: Refuse to re-release an existing version
+      - name: Refuse a version that is already in the Maven repository
         env:
-          TAG: ${{ steps.version.outputs.tag }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.MAVEN_REPOSITORY_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.MAVEN_REPOSITORY_SECRET_ACCESS_KEY }}
+          BUCKET: ${{ vars.MAVEN_REPOSITORY_BUCKET }}
+          ENDPOINT: ${{ vars.MAVEN_REPOSITORY_ENDPOINT }}
           VERSION: ${{ steps.version.outputs.version }}
-        run: |
-          if [[ -n $(git ls-remote --tags origin "refs/tags/$TAG") ]]; then
-            echo "::error::$TAG already exists, so $VERSION has been released from this workflow" \
-                 "before. If that deployment was dropped in the Portal rather than published," \
-                 "delete the tag and run this again; otherwise bump the version in" \
-                 "$ARTIFACT/build.gradle."
-            exit 1
-          fi
+        run: >
+          .github/scripts/upload-to-maven-repository.sh check "$BUCKET" "$ENDPOINT"
+          "$GROUP:$ARTIFACT_ID:$VERSION" "$GROUP:$TESTING_ARTIFACT_ID:$VERSION"
 
-      # The same checks CI runs. A version nobody can build is not worth uploading.
-      - run: >
+      - name: Build and test
+        run: >
           ./gradlew build
           -Porg.gradle.java.installations.paths=${{ steps.gradle-jdk.outputs.path }},${{ steps.sdk-toolchain-jdk.outputs.path }}
 
-      # Uploads one signed bundle per artifact to the Central Portal and stops. Both deployments are
-      # released from the Portal by hand, which is the last chance to look at what is about to
-      # become permanent; release them together, since neither is useful without the other.
-      - name: Publish to the Central Portal
+      - name: Publish the signed release into the staging repository
         run: >
-          ./gradlew :"$ARTIFACT":publishToMavenCentral :"$TESTING_ARTIFACT":publishToMavenCentral
+          ./gradlew :"$MODULE":publishAllPublicationsToStagingRepository
+          :"$TESTING_MODULE":publishAllPublicationsToStagingRepository
           --no-configuration-cache
           -Porg.gradle.java.installations.paths=${{ steps.gradle-jdk.outputs.path }},${{ steps.sdk-toolchain-jdk.outputs.path }}
         env:
-          ORG_GRADLE_PROJECT_mavenCentralUsername: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
-          ORG_GRADLE_PROJECT_mavenCentralPassword: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
           ORG_GRADLE_PROJECT_signingInMemoryKey: ${{ secrets.SIGNING_KEY }}
           ORG_GRADLE_PROJECT_signingInMemoryKeyPassword: ${{ secrets.SIGNING_KEY_PASSWORD }}
 
+      - name: Attest the jars and POMs
+        uses: actions/attest-build-provenance@v4
+        with:
+          subject-path: |
+            ${{ env.STAGING_DIRECTORY }}/**/*.jar
+            ${{ env.STAGING_DIRECTORY }}/**/*.pom
+
+      - name: Upload to the Maven repository
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.MAVEN_REPOSITORY_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.MAVEN_REPOSITORY_SECRET_ACCESS_KEY }}
+          BUCKET: ${{ vars.MAVEN_REPOSITORY_BUCKET }}
+          ENDPOINT: ${{ vars.MAVEN_REPOSITORY_ENDPOINT }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: >
+          .github/scripts/upload-to-maven-repository.sh upload "$STAGING_DIRECTORY" "$BUCKET" "$ENDPOINT"
+          "$GROUP:$ARTIFACT_ID:$VERSION" "$GROUP:$TESTING_ARTIFACT_ID:$VERSION"
+
       - uses: actions/upload-artifact@v4
         with:
-          name: jar
-          path: |
-            ${{ env.ARTIFACT }}/build/libs/*.jar
-            ${{ env.TESTING_ARTIFACT }}/build/libs/*.jar
+          name: maven-repository
+          path: ${{ env.STAGING_DIRECTORY }}
 
-      # Last, so that a bundle the Portal rejected does not leave a tag behind claiming it was
-      # released. This marks the commit that was uploaded; whether it then became a permanent
-      # version on Central is still a manual decision in the Portal. Tags are named per artifact
-      # because this repository will publish more than one.
       - name: Tag the released commit
+        if: inputs.repository == 'prod'
         env:
           TAG: ${{ steps.version.outputs.tag }}
           VERSION: ${{ steps.version.outputs.version }}
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git tag -a "$TAG" -m "$ARTIFACT $VERSION"
+          git tag -a "$TAG" -m "$MODULE $VERSION"
           git push origin "$TAG"

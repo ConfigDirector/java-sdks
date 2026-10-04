@@ -48,7 +48,7 @@ therefore never built and never registers the ConfigDirector provider.
 By default the sample depends on the released artifact, exactly as your own app would:
 
 ```groovy
-implementation 'com.configdirector:configdirector-openfeature-server-provider:1.4.0'
+implementation 'com.configdirector:openfeature-server-provider:1.4.0'
 ```
 
 The OpenFeature Java SDK and the ConfigDirector Java server SDK come with it as transitive

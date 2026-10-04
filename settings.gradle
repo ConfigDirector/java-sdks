@@ -10,10 +10,10 @@ include('configdirector-server-sdk')
 include('configdirector-server-sdk-testing')
 include('configdirector-openfeature-server-provider')
 
-// Not published. It depends on the SDK release on Maven Central, the way a real consumer does;
-// -PuseLocalSdk swaps in the module above instead, which is how CI makes a breaking API change
-// fail here first. Samples are grouped by the artifact they demonstrate, since this repository
-// will hold more than one.
+// Not published. It depends on the SDK release in the ConfigDirector Maven repository, the way a
+// real consumer does; -PuseLocalSdk swaps in the module above instead, which is how CI makes a
+// breaking API change fail here first. Samples are grouped by the artifact they demonstrate, since
+// this repository will hold more than one.
 include('samples:configdirector-server-sdk:spring-boot')
 include('samples:configdirector-server-sdk:micronaut')
 include('samples:configdirector-server-sdk:quarkus')

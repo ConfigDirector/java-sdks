@@ -5,6 +5,17 @@ plugins {
 
 repositories {
     mavenCentral()
+    exclusiveContent {
+        forRepository {
+            maven {
+                name = 'ConfigDirector'
+                url = 'https://maven.configdirector.com'
+            }
+        }
+        filter {
+            includeGroup 'com.configdirector'
+        }
+    }
 }
 
 def useLocalSdk = providers.gradleProperty('useLocalSdk')
@@ -16,7 +27,7 @@ dependencies {
 
     implementation useLocalSdk
         ? project(':configdirector-openfeature-server-provider')
-        : 'com.configdirector:configdirector-openfeature-server-provider:1.4.0'
+        : 'com.configdirector:openfeature-server-provider:1.4.0'
 
     implementation 'io.quarkus:quarkus-arc'
     implementation 'io.quarkus:quarkus-rest-jackson'

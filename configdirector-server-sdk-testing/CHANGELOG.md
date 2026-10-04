@@ -1,14 +1,24 @@
 # Changelog
 
-Changes to `com.configdirector:configdirector-server-sdk-testing`. Other artifacts published from
+Changes to `com.configdirector:server-sdk-testing`. Other artifacts published from
 this repository keep changelogs of their own.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). This artifact is
-released together with `configdirector-server-sdk` and always carries the SDK's version, because it
+released together with `com.configdirector:server-sdk` and always carries the SDK's version, because it
 relies on the SDK's internals: a consumer's SDK must be the very same version, which the artifact
 checks when a test client is created.
 
 ## [Unreleased]
+
+## [1.8.0] - 2026-10-04
+
+### Changed
+
+- The artifact is now published as `com.configdirector:server-sdk-testing` from
+  `https://maven.configdirector.com`, instead of as
+  `com.configdirector:configdirector-server-sdk-testing` on Maven Central, where its last version is
+  1.7.0. Upgrading means adding the repository to the build and changing the artifactId; the README
+  shows both.
 
 ## [1.7.0] - 2026-10-01
 
