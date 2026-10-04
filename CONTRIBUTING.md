@@ -24,14 +24,6 @@ working tree instead with:
 ./gradlew build -PuseLocalSdk
 ```
 
-The release workflows upload with
-[`.github/scripts/upload-to-maven-repository.sh`](.github/scripts/upload-to-maven-repository.sh).
-Its tests run in CI and locally with:
-
-```bash
-.github/scripts/upload-to-maven-repository.test.sh
-```
-
 ## Releasing
 
 Releases go to the ConfigDirector Maven repository, `https://maven.configdirector.com`. The
@@ -63,7 +55,9 @@ artifact checks from both jar manifests when a test client is created.
    and releases whatever version `main` currently declares, for the SDK and the testing artifact
    together. It first checks that the version is not in the bucket yet, then builds and tests,
    publishes the signed artifacts into a staging repository under `build/maven-repository`, attests
-   every jar and POM, uploads them, and in `prod` tags the commit last.
+   every jar and POM, uploads them, and in `prod` tags the commit last. The check and the upload are
+   the actions in [maven-repository-actions](https://github.com/ConfigDirector/maven-repository-actions),
+   which also documents what the upload guarantees.
 5. Run it again with `repository` set to `prod`, and approve the `maven-prod` environment when
    GitHub asks.
 6. Once the version resolves from `https://maven.configdirector.com`, bump the three samples to
@@ -71,11 +65,9 @@ artifact checks from both jar manifests when a test client is created.
    naming a version that is not published yet leaves them unresolvable for anyone who is not
    passing `-PuseLocalSdk`.
 
-The upload writes each version's files first, then its POM, then the artifact's
-`maven-metadata.xml`, so a version is only advertised once all of its files are there. A version
-whose POM is already in the bucket is refused before anything is uploaded: a released version is
-never replaced, so a change after a release needs a new version. A run that failed before the POM
-went up can simply be run again.
+A version whose POM is already in the bucket is refused before anything is built or uploaded: a
+released version is never replaced, so a change after a release needs a new version. A run that
+failed before the POM went up can simply be run again.
 
 ### The OpenFeature provider
 

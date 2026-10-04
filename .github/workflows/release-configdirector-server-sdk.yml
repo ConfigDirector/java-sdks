@@ -78,15 +78,15 @@ jobs:
           echo "Releasing $GROUP:$ARTIFACT_ID and $GROUP:$TESTING_ARTIFACT_ID $version to the ${{ inputs.repository }} repository"
 
       - name: Refuse a version that is already in the Maven repository
-        env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.MAVEN_REPOSITORY_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.MAVEN_REPOSITORY_SECRET_ACCESS_KEY }}
-          BUCKET: ${{ vars.MAVEN_REPOSITORY_BUCKET }}
-          ENDPOINT: ${{ vars.MAVEN_REPOSITORY_ENDPOINT }}
-          VERSION: ${{ steps.version.outputs.version }}
-        run: >
-          .github/scripts/upload-to-maven-repository.sh check "$BUCKET" "$ENDPOINT"
-          "$GROUP:$ARTIFACT_ID:$VERSION" "$GROUP:$TESTING_ARTIFACT_ID:$VERSION"
+        uses: ConfigDirector/maven-repository-actions/check@v1
+        with:
+          bucket: ${{ vars.MAVEN_REPOSITORY_BUCKET }}
+          endpoint: ${{ vars.MAVEN_REPOSITORY_ENDPOINT }}
+          access-key-id: ${{ secrets.MAVEN_REPOSITORY_ACCESS_KEY_ID }}
+          secret-access-key: ${{ secrets.MAVEN_REPOSITORY_SECRET_ACCESS_KEY }}
+          artifacts: |
+            ${{ env.GROUP }}:${{ env.ARTIFACT_ID }}:${{ steps.version.outputs.version }}
+            ${{ env.GROUP }}:${{ env.TESTING_ARTIFACT_ID }}:${{ steps.version.outputs.version }}
 
       - name: Build and test
         run: >
@@ -103,23 +103,17 @@ jobs:
           ORG_GRADLE_PROJECT_signingInMemoryKey: ${{ secrets.SIGNING_KEY }}
           ORG_GRADLE_PROJECT_signingInMemoryKeyPassword: ${{ secrets.SIGNING_KEY_PASSWORD }}
 
-      - name: Attest the jars and POMs
-        uses: actions/attest-build-provenance@v4
+      - name: Attest and upload to the Maven repository
+        uses: ConfigDirector/maven-repository-actions/upload@v1
         with:
-          subject-path: |
-            ${{ env.STAGING_DIRECTORY }}/**/*.jar
-            ${{ env.STAGING_DIRECTORY }}/**/*.pom
-
-      - name: Upload to the Maven repository
-        env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.MAVEN_REPOSITORY_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.MAVEN_REPOSITORY_SECRET_ACCESS_KEY }}
-          BUCKET: ${{ vars.MAVEN_REPOSITORY_BUCKET }}
-          ENDPOINT: ${{ vars.MAVEN_REPOSITORY_ENDPOINT }}
-          VERSION: ${{ steps.version.outputs.version }}
-        run: >
-          .github/scripts/upload-to-maven-repository.sh upload "$STAGING_DIRECTORY" "$BUCKET" "$ENDPOINT"
-          "$GROUP:$ARTIFACT_ID:$VERSION" "$GROUP:$TESTING_ARTIFACT_ID:$VERSION"
+          staging-directory: ${{ env.STAGING_DIRECTORY }}
+          bucket: ${{ vars.MAVEN_REPOSITORY_BUCKET }}
+          endpoint: ${{ vars.MAVEN_REPOSITORY_ENDPOINT }}
+          access-key-id: ${{ secrets.MAVEN_REPOSITORY_ACCESS_KEY_ID }}
+          secret-access-key: ${{ secrets.MAVEN_REPOSITORY_SECRET_ACCESS_KEY }}
+          artifacts: |
+            ${{ env.GROUP }}:${{ env.ARTIFACT_ID }}:${{ steps.version.outputs.version }}
+            ${{ env.GROUP }}:${{ env.TESTING_ARTIFACT_ID }}:${{ steps.version.outputs.version }}
 
       - uses: actions/upload-artifact@v4
         with:
