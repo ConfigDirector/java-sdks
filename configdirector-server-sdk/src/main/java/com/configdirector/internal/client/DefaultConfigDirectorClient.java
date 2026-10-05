@@ -17,10 +17,12 @@ import com.configdirector.Subscription;
 import com.configdirector.TelemetryOptions;
 import com.configdirector.internal.PollingIntervals;
 import com.configdirector.internal.SdkIdentity;
+import com.configdirector.internal.evaluation.ConditionalRule;
 import com.configdirector.internal.evaluation.Config;
 import com.configdirector.internal.evaluation.ConfigEvaluator;
 import com.configdirector.internal.evaluation.EvaluationContext;
 import com.configdirector.internal.evaluation.Segment;
+import com.configdirector.internal.evaluation.SegmentCondition;
 import com.configdirector.internal.telemetry.ScheduledTelemetryCollector;
 import com.configdirector.internal.telemetry.TelemetryCollector;
 import com.configdirector.internal.telemetry.TelemetryCollectorFactory;
@@ -286,7 +288,7 @@ public final class DefaultConfigDirectorClient implements ConfigDirectorClient {
     boolean firstBundle;
     List<String> removedKeys = List.of();
     Map<String, List<Watcher>> affected = new LinkedHashMap<>();
-    Map<String, Segment> servedSegments;
+    ServedDefinitions published;
     synchronized (lock) {
       if (closed) {
         return;
@@ -311,15 +313,16 @@ public final class DefaultConfigDirectorClient implements ConfigDirectorClient {
         firstBundle = false;
       }
       served = new ServedDefinitions(Collections.unmodifiableMap(merged), Collections.unmodifiableMap(segments));
-      servedSegments = served.segments();
+      published = served;
     }
+
+    List<String> keys = keysUpdatedBy(bundle, published.configs());
 
     // Snapshotted outside the lock, so a user callback cannot observe the list being edited from
     // under it.
-    collectWatchers(bundle.configs().keySet(), affected);
+    collectWatchers(keys, affected);
     collectWatchers(removedKeys, affected);
 
-    List<String> keys = new ArrayList<>(new TreeMap<>(bundle.configs()).keySet());
     logger.debug(
         "[ConfigDirectorClient] Config state updated with {} key(s): {}, {} removed: {}",
         keys.size(),
@@ -327,7 +330,7 @@ public final class DefaultConfigDirectorClient implements ConfigDirectorClient {
         removedKeys.size(),
         removedKeys);
     emit(updateHandlers, new ConfigsUpdatedEvent(keys, removedKeys), "configsUpdated");
-    notifyWatchers(affected, bundle.configs(), servedSegments);
+    notifyWatchers(affected, published);
 
     if (firstBundle) {
       ready.countDown();
@@ -349,6 +352,27 @@ public final class DefaultConfigDirectorClient implements ConfigDirectorClient {
     return absent;
   }
 
+  private static List<String> keysUpdatedBy(ConfigBundle bundle, Map<String, Config> served) {
+    List<String> updated = new ArrayList<>();
+    for (Map.Entry<String, Config> entry : new TreeMap<>(served).entrySet()) {
+      if (bundle.configs().containsKey(entry.getKey())
+          || usesAnySegment(entry.getValue(), bundle.segments())) {
+        updated.add(entry.getKey());
+      }
+    }
+    return updated;
+  }
+
+  private static boolean usesAnySegment(Config definition, Map<String, Segment> segments) {
+    return definition.target().rules().stream()
+        .filter(ConditionalRule.class::isInstance)
+        .map(ConditionalRule.class::cast)
+        .flatMap(rule -> rule.conditions().stream())
+        .filter(SegmentCondition.class::isInstance)
+        .map(SegmentCondition.class::cast)
+        .anyMatch(condition -> segments.containsKey(condition.segmentId()));
+  }
+
   private void collectWatchers(Collection<String> keys, Map<String, List<Watcher>> into) {
     for (String key : keys) {
       List<Watcher> entries = watchers.get(key);
@@ -358,19 +382,19 @@ public final class DefaultConfigDirectorClient implements ConfigDirectorClient {
     }
   }
 
-  // Evaluated against the bundle rather than the merged state: for a key the update carried the
-  // two hold the same definition, and a removed key has none, so its watcher gets the default.
-  private void notifyWatchers(
-      Map<String, List<Watcher>> affected,
-      Map<String, Config> updated,
-      Map<String, Segment> segments) {
+  private void notifyWatchers(Map<String, List<Watcher>> affected, ServedDefinitions published) {
     affected.forEach(
         (key, entries) -> {
-          Config definition = updated.get(key);
+          Config definition = published.configs().get(key);
           for (Watcher watcher : entries) {
             try {
               watcher.notify(
-                  evaluate(key, definition, watcher.defaultValue(), watcher.context(), segments));
+                  evaluate(
+                      key,
+                      definition,
+                      watcher.defaultValue(),
+                      watcher.context(),
+                      published.segments()));
             } catch (RuntimeException error) {
               // One faulty watcher must not cost the others their update, and must not take down
               // the transport thread this runs on.

@@ -8,6 +8,14 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- A segment change now emits `PROVIDER_CONFIGURATION_CHANGED` with the affected flags in
+  `flagsChanged`: every flag whose targeting rules use the changed segment. Before, editing a
+  segment or one of its environment overrides emitted the event with an empty `flagsChanged`.
+  Requires the `com.configdirector:server-sdk` release that reports those flags in
+  `ConfigsUpdatedEvent.keys()`.
+
 ## [1.5.0] - 2026-10-04
 
 ### Added

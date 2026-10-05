@@ -8,6 +8,14 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- A segment change now reaches watchers. When an update from the server carries a segment, the
+  watchers of every config whose targeting rules use that segment are called with the newly
+  evaluated value, and `ConfigsUpdatedEvent.keys()` lists those configs beside the configs the
+  update carried. Before, editing a segment or one of its environment overrides changed the values
+  served without calling any watcher, and `onConfigsUpdated` handlers received no keys.
+
 ## [1.8.0] - 2026-10-04
 
 ### Added

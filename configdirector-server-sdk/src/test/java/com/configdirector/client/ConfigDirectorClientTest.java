@@ -149,6 +149,7 @@ class ConfigDirectorClientTest {
   class Segments {
 
     private static final String ACME = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+    private static final String BETA = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
 
     private static String membersOf(String domain) {
       return "{\"groups\":[[{\"id\":\"g0c0\",\"kind\":\"attribute\",\"attribute\":\"traits\","
@@ -166,6 +167,15 @@ class ConfigDirectorClientTest {
           + "\",\"valueId\":\"rv-greeting\",\"conditions\":[{\"id\":\"c-greeting\",\"kind\":\"segment\","
           + "\"operator\":\"in\",\"segmentId\":\""
           + ACME
+          + "\"}]}]}}";
+    }
+
+    private static String farewellForMembersOf(String segmentId) {
+      return "\"farewell\":{\"id\":\"id-farewell\",\"key\":\"farewell\",\"type\":\"string\","
+          + "\"target\":{\"defaultValue\":\"bye\",\"rules\":[{\"id\":\"r-farewell\",\"type\":\"conditional\","
+          + "\"order\":1,\"target\":\"value\",\"value\":\"ciao\",\"conditions\":[{\"id\":\"c-farewell\","
+          + "\"kind\":\"segment\",\"operator\":\"in\",\"segmentId\":\""
+          + segmentId
           + "\"}]}]}}";
     }
 
@@ -228,14 +238,6 @@ class ConfigDirectorClientTest {
 
     @Test
     void adds_the_segments_a_delta_carries_to_the_ones_it_holds() throws Exception {
-      String beta = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
-      String farewell =
-          "\"farewell\":{\"id\":\"id-farewell\",\"key\":\"farewell\",\"type\":\"string\","
-              + "\"target\":{\"defaultValue\":\"bye\",\"rules\":[{\"id\":\"r-farewell\",\"type\":\"conditional\","
-              + "\"order\":1,\"target\":\"value\",\"value\":\"ciao\",\"conditions\":[{\"id\":\"c-farewell\","
-              + "\"kind\":\"segment\",\"operator\":\"in\",\"segmentId\":\""
-              + beta
-              + "\"}]}]}}";
       BlockingQueue<TestHttpServer.Session> live = new LinkedBlockingQueue<>();
       client =
           streamingClientOpeningWith(
@@ -246,7 +248,9 @@ class ConfigDirectorClientTest {
       TestHttpServer.Session session = live.poll(5, TimeUnit.SECONDS);
       assertThat(session).isNotNull();
       session.send(
-          "data: " + setOf("delta", farewell, "{\"" + beta + "\":" + membersOf("@beta.com") + "}") + "\n\n");
+          "data: "
+              + setOf("delta", farewellForMembersOf(BETA), "{\"" + BETA + "\":" + membersOf("@beta.com") + "}")
+              + "\n\n");
       Context betaMember = Context.builder().id("30").trait("email", "cat@beta.com").build();
       await()
           .atMost(TIMEOUT)
@@ -273,6 +277,60 @@ class ConfigDirectorClientTest {
 
       assertThat(received).containsExactly("bonjour", "hello");
       assertThat(client.getString("greeting", "in-code-default", MEMBER)).isEqualTo("hello");
+    }
+
+    @Test
+    void calls_the_watchers_of_the_configs_whose_rules_use_a_segment_a_delta_carries_without_them()
+        throws Exception {
+      BlockingQueue<TestHttpServer.Session> live = new LinkedBlockingQueue<>();
+      client =
+          streamingClientOpeningWith(
+              setOf(
+                  "full",
+                  greetingForMembers("bonjour") + "," + farewellForMembersOf(BETA),
+                  "{\"" + ACME + "\":" + membersOf("@acme.com") + "}"),
+              live);
+      List<ConfigsUpdatedEvent> updates = new java.util.concurrent.CopyOnWriteArrayList<>();
+      List<String> greetings = new java.util.concurrent.CopyOnWriteArrayList<>();
+      List<String> farewells = new java.util.concurrent.CopyOnWriteArrayList<>();
+      client.onConfigsUpdated(updates::add);
+      client.watchString("greeting", "in-code-default", greetings::add, MEMBER);
+      client.watchString("farewell", "in-code-default", farewells::add, MEMBER);
+      client.initialize();
+
+      TestHttpServer.Session session = live.poll(5, TimeUnit.SECONDS);
+      assertThat(session).isNotNull();
+      session.send("data: " + setOf("delta", "", "{\"" + ACME + "\":" + membersOf("@other.com") + "}") + "\n\n");
+      await().atMost(TIMEOUT).until(() -> updates.size() == 2);
+
+      assertThat(updates.get(1)).isEqualTo(new ConfigsUpdatedEvent(List.of("greeting"), List.of()));
+      assertThat(greetings).containsExactly("bonjour", "hello");
+      assertThat(farewells).containsExactly("bye");
+    }
+
+    @Test
+    void lists_a_config_once_when_a_delta_carries_it_with_a_segment_its_rules_use() throws Exception {
+      BlockingQueue<TestHttpServer.Session> live = new LinkedBlockingQueue<>();
+      client =
+          streamingClientOpeningWith(
+              setOf("full", greetingForMembers("bonjour"), "{\"" + ACME + "\":" + membersOf("@acme.com") + "}"),
+              live);
+      List<ConfigsUpdatedEvent> updates = new java.util.concurrent.CopyOnWriteArrayList<>();
+      List<String> greetings = new java.util.concurrent.CopyOnWriteArrayList<>();
+      client.onConfigsUpdated(updates::add);
+      client.watchString("greeting", "in-code-default", greetings::add, MEMBER);
+      client.initialize();
+
+      TestHttpServer.Session session = live.poll(5, TimeUnit.SECONDS);
+      assertThat(session).isNotNull();
+      session.send(
+          "data: "
+              + setOf("delta", greetingForMembers("salut"), "{\"" + ACME + "\":" + membersOf("@acme.com") + "}")
+              + "\n\n");
+      await().atMost(TIMEOUT).until(() -> updates.size() == 2);
+
+      assertThat(updates.get(1)).isEqualTo(new ConfigsUpdatedEvent(List.of("greeting"), List.of()));
+      assertThat(greetings).containsExactly("bonjour", "salut");
     }
   }
 

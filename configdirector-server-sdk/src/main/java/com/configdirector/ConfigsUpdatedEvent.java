@@ -5,7 +5,8 @@ import java.util.List;
 /**
  * Emitted when new config state arrives from the server.
  *
- * @param keys the keys the update carried, sorted. Never null; an unmodifiable copy
+ * @param keys the keys the update carried, and the keys of every config whose targeting rules use a
+ *     segment the update carried, sorted. Never null; an unmodifiable copy
  * @param removedKeys the keys a full update no longer carried, so the client stopped serving them,
  *     sorted. Empty when nothing was removed, and always empty for a delta update. Never null; an
  *     unmodifiable copy
@@ -21,7 +22,8 @@ public record ConfigsUpdatedEvent(List<String> keys, List<String> removedKeys) {
   /**
    * An update that removed nothing.
    *
-   * @param keys the keys the update carried
+   * @param keys the keys the update carried, and the keys of every config whose targeting rules use
+   *     a segment the update carried
    */
   public ConfigsUpdatedEvent(List<String> keys) {
     this(keys, List.of());
