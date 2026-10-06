@@ -18,7 +18,7 @@ verification asks by default, and it is reproduced in full at the end of this pa
 
 ```bash
 gpg --keyserver hkps://keys.openpgp.org --recv-keys 779ADCFB334DA3FD2E005AB43CD40757E05C6B4C
-gpg --verify server-sdk-1.8.0.jar.asc server-sdk-1.8.0.jar
+gpg --verify server-sdk-1.8.1.jar.asc server-sdk-1.8.1.jar
 ```
 
 The output must say the signature is good and name the fingerprint above.

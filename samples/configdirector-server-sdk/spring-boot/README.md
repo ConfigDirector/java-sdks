@@ -53,7 +53,7 @@ built and never connects; see [`ConfigsControllerTest`](src/test/java/com/config
 By default the sample depends on the released artifact, exactly as your own app would:
 
 ```groovy
-implementation 'com.configdirector:server-sdk:1.8.0'
+implementation 'com.configdirector:server-sdk:1.8.1'
 ```
 
 Pass `-PuseLocalSdk` to build it against

@@ -26,7 +26,7 @@ def useLocalSdk = providers.gradleProperty('useLocalSdk')
 dependencies {
     implementation useLocalSdk
         ? project(':configdirector-openfeature-server-provider')
-        : 'com.configdirector:openfeature-server-provider:1.5.0'
+        : 'com.configdirector:openfeature-server-provider:1.5.1'
     implementation 'org.springframework.boot:spring-boot-starter-web'
 
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
