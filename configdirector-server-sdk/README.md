@@ -36,7 +36,7 @@ repositories {
 }
 
 dependencies {
-    implementation("com.configdirector:server-sdk:1.8.0")
+    implementation("com.configdirector:server-sdk:1.8.1")
 }
 ```
 
@@ -59,7 +59,7 @@ repositories {
 }
 
 dependencies {
-    implementation 'com.configdirector:server-sdk:1.8.0'
+    implementation 'com.configdirector:server-sdk:1.8.1'
 }
 ```
 
@@ -78,7 +78,7 @@ Maven:
 <dependency>
   <groupId>com.configdirector</groupId>
   <artifactId>server-sdk</artifactId>
-  <version>1.8.0</version>
+  <version>1.8.1</version>
 </dependency>
 ```
 
@@ -106,7 +106,7 @@ JUnit Jupiter extension. It comes from the same repository as the SDK. Add it in
 the same version as the SDK:
 
 ```groovy
-testImplementation 'com.configdirector:server-sdk-testing:1.8.0'
+testImplementation 'com.configdirector:server-sdk-testing:1.8.1'
 ```
 
 ```java

@@ -10,6 +10,13 @@ checks when a test client is created.
 
 ## [Unreleased]
 
+## [1.8.1] - 2026-10-05
+
+### Changed
+
+- Released with `com.configdirector:server-sdk` 1.8.1, in which a segment change reaches watchers.
+  The testing API is unchanged.
+
 ## [1.8.0] - 2026-10-04
 
 ### Changed
