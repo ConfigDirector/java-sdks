@@ -371,6 +371,78 @@ class ScheduledTelemetryCollectorTest {
   }
 
   @Nested
+  @DisplayName("invalid contexts")
+  class InvalidContexts {
+
+    @Test
+    void recognises_a_kind_already_seen_until_the_next_flush() {
+      ScheduledTelemetryCollector collector = collector();
+
+      assertThat(collector.recordInvalidContext("Tenant"))
+          .isEqualTo(InvalidContextRecording.NEW_KIND_SAMPLE);
+      assertThat(collector.recordInvalidContext("Tenant"))
+          .isEqualTo(InvalidContextRecording.KNOWN_KIND_SAMPLE);
+      collector.flush();
+
+      assertThat(collector.recordInvalidContext("Tenant"))
+          .isEqualTo(InvalidContextRecording.NEW_KIND_SAMPLE);
+      assertThat(reporter.lastReport().invalidContexts())
+          .singleElement()
+          .satisfies(
+              entry -> {
+                assertThat(entry.kindSample()).isEqualTo("Tenant");
+                assertThat(entry.count()).isEqualTo(2);
+              });
+    }
+
+    @Test
+    void marks_the_first_kind_beyond_twenty_samples_and_none_after_it() {
+      ScheduledTelemetryCollector collector = collector();
+      for (int i = 0; i < 20; i++) {
+        assertThat(collector.recordInvalidContext("Kind" + i))
+            .isEqualTo(InvalidContextRecording.NEW_KIND_SAMPLE);
+      }
+
+      assertThat(collector.recordInvalidContext("Kind20"))
+          .isEqualTo(InvalidContextRecording.FIRST_BEYOND_SAMPLE_LIMIT);
+      assertThat(collector.recordInvalidContext("Kind21"))
+          .isEqualTo(InvalidContextRecording.BEYOND_SAMPLE_LIMIT);
+      assertThat(collector.recordInvalidContext("Kind0"))
+          .isEqualTo(InvalidContextRecording.KNOWN_KIND_SAMPLE);
+    }
+
+    @Test
+    void after_a_fatal_response_a_kind_is_never_forgotten_or_reported() {
+      ScheduledTelemetryCollector collector = collector();
+      reporter.respondWith(ReporterResponse.FATAL);
+      record(collector, "a");
+      collector.flush();
+
+      assertThat(collector.recordInvalidContext("Tenant"))
+          .isEqualTo(InvalidContextRecording.NEW_KIND_SAMPLE);
+      collector.flush();
+
+      assertThat(collector.recordInvalidContext("Tenant"))
+          .isEqualTo(InvalidContextRecording.KNOWN_KIND_SAMPLE);
+      assertThat(reporter.reportCount()).isEqualTo(1);
+    }
+
+    @Test
+    void after_closing_a_kind_is_never_forgotten_or_reported() {
+      ScheduledTelemetryCollector collector = collector();
+      collector.close();
+
+      assertThat(collector.recordInvalidContext("Tenant"))
+          .isEqualTo(InvalidContextRecording.NEW_KIND_SAMPLE);
+      collector.flush();
+
+      assertThat(collector.recordInvalidContext("Tenant"))
+          .isEqualTo(InvalidContextRecording.KNOWN_KIND_SAMPLE);
+      assertThat(reporter.reportCount()).isZero();
+    }
+  }
+
+  @Nested
   @DisplayName("closing")
   class Closing {
 

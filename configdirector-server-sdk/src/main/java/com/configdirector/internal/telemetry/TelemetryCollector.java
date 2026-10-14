@@ -8,6 +8,8 @@ public interface TelemetryCollector extends AutoCloseable {
 
   void recordEvaluation(ConfigEvaluation evaluation, Object defaultValue, ConfigType type);
 
+  InvalidContextRecording recordInvalidContext(String kindSample);
+
   void close(Duration timeout);
 
   @Override

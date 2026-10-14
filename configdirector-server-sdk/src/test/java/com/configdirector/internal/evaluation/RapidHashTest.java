@@ -69,18 +69,30 @@ class RapidHashTest {
     "c, u, 40.0",
   })
   void assigns_the_same_bucket_as_the_other_sdks(String configId, String identifier, double expected) {
-    assertThat(PercentHashing.assignPercentage(configId, identifier)).isEqualTo(expected);
+    assertThat(PercentHashing.assignPercentage(configId, identifier, "user")).isEqualTo(expected);
+  }
+
+  @ParameterizedTest(name = "[{index}] {1}:{2}")
+  @CsvSource({
+    "11111111-1111-4111-8111-111111111111, user-1, user, 7.8",
+    "11111111-1111-4111-8111-111111111111, user-1, device, 59.0",
+    "11111111-1111-4111-8111-111111111111, user-1, tenant, 8.5",
+    "11111111-1111-4111-8111-111111111111, abc, device, 75.0",
+  })
+  void assigns_a_kind_its_own_bucket_while_a_user_keeps_its_input(
+      String configId, String identifier, String kind, double expected) {
+    assertThat(PercentHashing.assignPercentage(configId, identifier, kind)).isEqualTo(expected);
   }
 
   @Test
   void assigns_a_bucket_for_empty_operands() {
-    assertThat(PercentHashing.assignPercentage("", "")).isEqualTo(20.9);
+    assertThat(PercentHashing.assignPercentage("", "", "user")).isEqualTo(20.9);
   }
 
   @Test
   void assigns_a_percentage_inside_the_bucket_range() {
     for (int i = 0; i < 1_000; i++) {
-      double assigned = PercentHashing.assignPercentage("config-" + i, "user-" + i);
+      double assigned = PercentHashing.assignPercentage("config-" + i, "user-" + i, "user");
 
       assertThat(assigned).isGreaterThanOrEqualTo(0.0).isLessThanOrEqualTo(99.9);
     }
@@ -88,8 +100,8 @@ class RapidHashTest {
 
   @Test
   void assigns_the_same_bucket_for_the_same_pair() {
-    double first = PercentHashing.assignPercentage("config-a", "user-1");
-    double again = PercentHashing.assignPercentage("config-a", "user-1");
+    double first = PercentHashing.assignPercentage("config-a", "user-1", "user");
+    double again = PercentHashing.assignPercentage("config-a", "user-1", "user");
 
     assertThat(first).isEqualTo(again);
   }
@@ -98,7 +110,7 @@ class RapidHashTest {
   void spreads_identifiers_across_the_range() {
     List<Double> assigned =
         java.util.stream.IntStream.range(0, 2_000)
-            .mapToObj(i -> PercentHashing.assignPercentage("config-a", "user-" + i))
+            .mapToObj(i -> PercentHashing.assignPercentage("config-a", "user-" + i, "user"))
             .toList();
 
     // A hash that collapsed to a constant would still pass the range check above.

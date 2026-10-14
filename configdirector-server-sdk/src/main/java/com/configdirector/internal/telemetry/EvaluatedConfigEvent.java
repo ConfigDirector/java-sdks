@@ -11,6 +11,7 @@ import java.util.Map;
 // equal and collapse into one aggregated entry with a count.
 public record EvaluatedConfigEvent(
     String contextId,
+    String contextKind,
     String key,
     ConfigType type,
     TelemetryValue defaultValue,
@@ -21,9 +22,14 @@ public record EvaluatedConfigEvent(
     EvaluationReason reason) {
 
   public static EvaluatedConfigEvent of(
-      ConfigEvaluation evaluation, Object defaultValue, ConfigType type, String contextId) {
+      ConfigEvaluation evaluation,
+      Object defaultValue,
+      ConfigType type,
+      String contextId,
+      String contextKind) {
     return new EvaluatedConfigEvent(
         contextId,
+        contextKind,
         evaluation.key(),
         type,
         TelemetryValue.of(defaultValue, null, type),
@@ -37,6 +43,7 @@ public record EvaluatedConfigEvent(
   public EvaluatedConfigEvent compacted() {
     return new EvaluatedConfigEvent(
         contextId,
+        contextKind,
         key,
         type,
         defaultValue.compacted(),
@@ -51,6 +58,9 @@ public record EvaluatedConfigEvent(
     Map<String, Object> wire = new LinkedHashMap<>();
     if (contextId != null) {
       wire.put("contextId", contextId);
+    }
+    if (contextKind != null) {
+      wire.put("contextKind", contextKind);
     }
     wire.put("key", key);
     if (type != null) {

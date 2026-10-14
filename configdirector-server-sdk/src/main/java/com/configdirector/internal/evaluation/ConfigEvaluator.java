@@ -101,12 +101,13 @@ public final class ConfigEvaluator {
 
   private Selection evaluatePercentage(
       List<Percentage> percentages, Config config, EvaluationContext context) {
-    String identifier = context == null ? null : context.contextOrEmpty().id();
+    EvaluationContext resolved = context == null ? EvaluationContext.empty() : context;
+    String identifier = resolved.contextOrEmpty().id();
 
     double assigned =
         identifier == null
             ? PercentHashing.PERCENTAGE_WITHOUT_IDENTIFIER
-            : PercentHashing.assignPercentage(config.id(), identifier);
+            : PercentHashing.assignPercentage(config.id(), identifier, resolved.effectiveKind());
 
     // A bucket spans [total, total + percentage). Strict, so a context landing exactly on a
     // boundary belongs to the bucket that starts there -- which is what keeps a 0% bucket

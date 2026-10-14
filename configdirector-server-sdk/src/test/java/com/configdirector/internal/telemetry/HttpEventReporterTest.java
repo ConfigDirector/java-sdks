@@ -88,7 +88,7 @@ class HttpEventReporterTest {
         new ConfigEvaluation(key, "hello", false, EvaluationReason.FOUND_MATCH, "server-id", context),
         "fallback",
         ConfigType.STRING,
-        context == null ? null : context.id());
+        context == null ? null : context.id(), context == null ? null : "user");
   }
 
   private static EventReport reportOf(EvaluatedConfigEvent... events) {
@@ -96,7 +96,8 @@ class HttpEventReporterTest {
         AggregatedEvent.aggregate(new EventQueue.Snapshot(START, END, List.of(events), 0)),
         0,
         List.of(),
-        0);
+        0,
+        List.of());
   }
 
   private JsonObject sentPayload() {
@@ -216,7 +217,7 @@ class HttpEventReporterTest {
     void sends_the_captured_contexts() {
       Context user =
           Context.builder().id("user-1").name("Ada").trait("plan", "pro").trait("seats", 3).build();
-      EventReport report = new EventReport(List.of(), 0, List.of(user), 0);
+      EventReport report = new EventReport(List.of(), 0, List.of(user), 0, List.of());
 
       reporterAgainst(200).report(report);
 
@@ -235,7 +236,8 @@ class HttpEventReporterTest {
     @Test
     void omits_context_fields_that_were_not_supplied() {
       EventReport report =
-          new EventReport(List.of(), 0, List.of(Context.builder().id("user-1").build()), 0);
+          new EventReport(
+              List.of(), 0, List.of(Context.builder().id("user-1").build()), 0, List.of());
 
       reporterAgainst(200).report(report);
 
@@ -245,7 +247,8 @@ class HttpEventReporterTest {
               .getAsJsonArray("capturedContexts")
               .get(0)
               .getAsJsonObject();
-      assertThat(captured.keySet()).containsExactly("id");
+      assertThat(captured.keySet()).containsExactly("id", "kind");
+      assertThat(captured.get("kind").getAsString()).isEqualTo("user");
     }
 
     @Test
@@ -259,7 +262,7 @@ class HttpEventReporterTest {
 
     @Test
     void reports_what_was_dropped() {
-      reporterAgainst(200).report(new EventReport(List.of(), 7, List.of(), 3));
+      reporterAgainst(200).report(new EventReport(List.of(), 7, List.of(), 3, List.of()));
 
       JsonObject dropped = sentPayload().getAsJsonObject("droppedEvents");
       assertThat(dropped.get("evaluatedConfig").getAsInt()).isEqualTo(7);
@@ -275,7 +278,8 @@ class HttpEventReporterTest {
     void is_not_worth_a_request() {
       HttpEventReporter reporter = reporterAgainst(200);
 
-      ReporterResponse response = reporter.report(new EventReport(List.of(), 0, List.of(), 0));
+      ReporterResponse response =
+          reporter.report(new EventReport(List.of(), 0, List.of(), 0, List.of()));
 
       assertThat(response.success()).isTrue();
       assertThat(server.connectionCount()).isZero();
@@ -283,7 +287,7 @@ class HttpEventReporterTest {
 
     @Test
     void a_report_holding_only_dropped_counts_is_still_sent() {
-      reporterAgainst(200).report(new EventReport(List.of(), 5, List.of(), 0));
+      reporterAgainst(200).report(new EventReport(List.of(), 5, List.of(), 0, List.of()));
 
       assertThat(snapshot(bodies)).hasSize(1);
     }
@@ -371,7 +375,7 @@ class HttpEventReporterTest {
                       "a", Map.of("on", true), false, EvaluationReason.FOUND_MATCH, null, null),
                   Map.of("on", false),
                   ConfigType.JSON,
-                  null)
+                  null, null)
               .compacted();
 
       reporterAgainst(200).report(reportOf(json));

@@ -3,6 +3,7 @@ package com.configdirector.internal.telemetry;
 import com.configdirector.ConfigEvaluation;
 import com.configdirector.ConfigType;
 import com.configdirector.Context;
+import com.configdirector.internal.ContextKinds;
 import java.time.Duration;
 import java.util.concurrent.Executors;
 import java.util.concurrent.RejectedExecutionException;
@@ -29,6 +30,9 @@ public final class ScheduledTelemetryCollector implements TelemetryCollector {
   private final EventReporter reporter;
   private final EventQueue events;
   private final ContextRegistry contexts;
+  private final InvalidContextSubmissions invalidContexts = new InvalidContextSubmissions();
+  private final InvalidContextSubmissions invalidContextsAfterStopping =
+      new InvalidContextSubmissions();
   private final Duration flushInterval;
   private final ScheduledExecutorService scheduler;
 
@@ -83,12 +87,19 @@ public final class ScheduledTelemetryCollector implements TelemetryCollector {
     // identifiable in what is reported.
     Context context = evaluation.context();
     String contextId = null;
+    String contextKind = null;
     if (context != null && context.id() != null && !context.id().isBlank() && !context.anonymous()) {
       contextId = context.id();
-      contexts.add(contextId, context);
+      contextKind = ContextKinds.effectiveKindOf(context);
+      contexts.add(contextKind, contextId, context);
     }
 
-    events.push(EvaluatedConfigEvent.of(evaluation, defaultValue, type, contextId));
+    events.push(EvaluatedConfigEvent.of(evaluation, defaultValue, type, contextId, contextKind));
+  }
+
+  @Override
+  public InvalidContextRecording recordInvalidContext(String kindSample) {
+    return (collecting.get() ? invalidContexts : invalidContextsAfterStopping).record(kindSample);
   }
 
   // Reports everything collected so far without waiting for the next interval, blocking until the
@@ -103,7 +114,8 @@ public final class ScheduledTelemetryCollector implements TelemetryCollector {
               AggregatedEvent.aggregate(compacted(evaluations)),
               evaluations.droppedCount(),
               captured.contexts(),
-              captured.droppedCount());
+              captured.droppedCount(),
+              invalidContexts.takeSnapshot());
       if (report.isEmpty()) {
         return;
       }
@@ -157,6 +169,7 @@ public final class ScheduledTelemetryCollector implements TelemetryCollector {
     }
     events.clear();
     contexts.clear();
+    invalidContexts.clear();
   }
 
   private void submitFinalReport() {
@@ -202,6 +215,7 @@ public final class ScheduledTelemetryCollector implements TelemetryCollector {
     }
     events.clear();
     contexts.clear();
+    invalidContexts.clear();
     logger.warn(
         "[TelemetryCollector] Received a fatal error while reporting telemetry. No longer "
             + "collecting events.");

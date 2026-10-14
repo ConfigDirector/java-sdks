@@ -19,7 +19,7 @@ class EventQueueTest {
         new ConfigEvaluation(key, "hello", false, EvaluationReason.FOUND_MATCH, null, null),
         "fallback",
         null,
-        null);
+        null, null);
   }
 
   private static List<String> keysOf(EventQueue.Snapshot snapshot) {

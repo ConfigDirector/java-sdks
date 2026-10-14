@@ -7,6 +7,7 @@ import dev.openfeature.sdk.Value;
 final class ContextMapper {
 
   private static final String ID = "id";
+  private static final String KIND = "kind";
   private static final String NAME = "name";
   private static final String TRAITS = "traits";
   private static final String ANONYMOUS = "anonymous";
@@ -21,6 +22,7 @@ final class ContextMapper {
     Context.Builder builder =
         Context.builder()
             .id(identifier(evaluationContext))
+            .kind(kind(evaluationContext.getValue(KIND)))
             .name(text(evaluationContext.getValue(NAME)));
 
     Value traits = evaluationContext.getValue(TRAITS);
@@ -39,6 +41,35 @@ final class ContextMapper {
   private static String identifier(EvaluationContext evaluationContext) {
     String targetingKey = evaluationContext.getTargetingKey();
     return targetingKey != null ? targetingKey : text(evaluationContext.getValue(ID));
+  }
+
+  private static String kind(Value value) {
+    if (value == null || value.isNull()) {
+      return null;
+    }
+    if (value.isString()) {
+      return value.asString();
+    }
+    return typeOf(value) + ":" + ValueMapper.toJava(value);
+  }
+
+  private static String typeOf(Value value) {
+    if (value.isBoolean()) {
+      return "boolean";
+    }
+    if (value.isNumber()) {
+      return "number";
+    }
+    if (value.isStructure()) {
+      return "structure";
+    }
+    if (value.isList()) {
+      return "list";
+    }
+    if (value.isInstant()) {
+      return "instant";
+    }
+    return "value";
   }
 
   private static String text(Value value) {

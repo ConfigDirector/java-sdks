@@ -1,6 +1,7 @@
 package com.configdirector.internal.telemetry;
 
 import com.configdirector.Context;
+import com.configdirector.internal.ContextKinds;
 import com.configdirector.internal.SdkIdentity;
 import com.configdirector.internal.transport.ConfigDirectorConnectionException;
 import com.configdirector.internal.transport.HttpClient;
@@ -83,6 +84,13 @@ public final class HttpEventReporter implements EventReporter {
     List<Object> contexts = new ArrayList<>(report.contexts().size());
     report.contexts().forEach(context -> contexts.add(contextToWire(context)));
 
+    List<Object> invalidContexts = new ArrayList<>(report.invalidContexts().size());
+    report.invalidContexts().forEach(entry -> invalidContexts.add(entry.toWire()));
+
+    Map<String, Object> aggregatedEvents = new LinkedHashMap<>();
+    aggregatedEvents.put("evaluatedConfig", evaluations);
+    aggregatedEvents.put("invalidContext", invalidContexts);
+
     Map<String, Object> droppedEvents = new LinkedHashMap<>();
     droppedEvents.put("evaluatedConfig", report.droppedEvaluations());
     droppedEvents.put("capturedContexts", report.droppedContexts());
@@ -91,7 +99,7 @@ public final class HttpEventReporter implements EventReporter {
     payload.put("serverSdkKey", serverSdkKey);
     payload.put("metaContext", metaContext);
     payload.put("discreteEvents", Map.of("capturedContexts", contexts));
-    payload.put("aggregatedEvents", Map.of("evaluatedConfig", evaluations));
+    payload.put("aggregatedEvents", aggregatedEvents);
     payload.put("droppedEvents", droppedEvents);
     return payload;
   }
@@ -101,6 +109,7 @@ public final class HttpEventReporter implements EventReporter {
   private static Map<String, Object> contextToWire(Context context) {
     Map<String, Object> wire = new LinkedHashMap<>();
     wire.put("id", context.id());
+    wire.put("kind", ContextKinds.effectiveKindOf(context));
     if (context.name() != null) {
       wire.put("name", context.name());
     }

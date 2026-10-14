@@ -294,7 +294,7 @@ class ConfigEvaluatorTest {
       // Only 1000 values are reachable, so an identifier landing exactly on 50.0 exists.
       String onBoundary = null;
       for (int i = 0; i < 100_000 && onBoundary == null; i++) {
-        if (PercentHashing.assignPercentage(CONFIG_ID, "u" + i) == 50.0) {
+        if (PercentHashing.assignPercentage(CONFIG_ID, "u" + i, "user") == 50.0) {
           onBoundary = "u" + i;
         }
       }
@@ -332,7 +332,7 @@ class ConfigEvaluatorTest {
     @Test
     void buckets_that_do_not_cover_the_range_fall_through_to_the_default() {
       // The assigned percentage is above the only bucket for this identifier, so nothing matches.
-      double assigned = PercentHashing.assignPercentage(CONFIG_ID, "user-1");
+      double assigned = PercentHashing.assignPercentage(CONFIG_ID, "user-1", "user");
       double belowAssigned = Math.max(0.0, assigned - 0.1);
       TargetingRules target =
           new TargetingRules(
@@ -431,6 +431,49 @@ class ConfigEvaluatorTest {
                     .value())
             .isEqualTo("first");
       }
+    }
+  }
+
+  @Nested
+  @DisplayName("percentage rollouts by kind")
+  class PercentagesByKind {
+
+    private static final String KIND_CONFIG_ID = "11111111-1111-4111-8111-111111111111";
+
+    private final TargetingRules splitAtFiftyNine =
+        new TargetingRules(
+            "fallback",
+            null,
+            List.of(
+                new PercentageRule(
+                    "p",
+                    1,
+                    List.of(
+                        new Percentage("low", 59.0, "low", null),
+                        new Percentage("high", 41.0, "high", null)))));
+
+    private ConfigState evaluateFor(Context context) {
+      return evaluator.evaluate(
+          new Config(KIND_CONFIG_ID, "flag", ConfigType.STRING, splitAtFiftyNine, List.of(), null),
+          new EvaluationContext(context, null));
+    }
+
+    @Test
+    void a_user_keeps_the_bucket_it_had_before_kinds_existed() {
+      assertThat(evaluateFor(Context.builder().id("user-1").build()).value()).isEqualTo("low");
+      assertThat(evaluateFor(Context.builder().id("user-1").kind("user").build()).value())
+          .isEqualTo("low");
+    }
+
+    @Test
+    void another_kind_with_the_same_identifier_is_assigned_its_own_bucket() {
+      assertThat(evaluateFor(Context.builder().id("user-1").kind("device").build()).value())
+          .isEqualTo("high");
+    }
+
+    @Test
+    void a_context_of_any_kind_without_an_identifier_lands_in_the_first_bucket() {
+      assertThat(evaluateFor(Context.builder().kind("device").build()).value()).isEqualTo("low");
     }
   }
 

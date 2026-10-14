@@ -14,6 +14,11 @@ public final class DiscardingTelemetryCollector implements TelemetryCollector {
   public void recordEvaluation(ConfigEvaluation evaluation, Object defaultValue, ConfigType type) {}
 
   @Override
+  public InvalidContextRecording recordInvalidContext(String kindSample) {
+    return InvalidContextRecording.NEW_KIND_SAMPLE;
+  }
+
+  @Override
   public void close(Duration timeout) {}
 
   @Override

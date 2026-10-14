@@ -1,5 +1,6 @@
 package com.configdirector.internal.evaluation;
 
+import com.configdirector.internal.ContextKinds;
 import java.nio.charset.StandardCharsets;
 
 final class PercentHashing {
@@ -13,8 +14,13 @@ final class PercentHashing {
 
   private PercentHashing() {}
 
-  static double assignPercentage(String configId, String contextIdentifier) {
-    byte[] value = (contextIdentifier + "-" + configId).getBytes(StandardCharsets.UTF_8);
+  static double assignPercentage(String configId, String contextIdentifier, String contextKind) {
+    byte[] value = hashInput(configId, contextIdentifier, contextKind).getBytes(StandardCharsets.UTF_8);
     return Long.remainderUnsigned(RapidHash.hash(value, SEED), BUCKETS) / 10.0;
+  }
+
+  private static String hashInput(String configId, String contextIdentifier, String contextKind) {
+    String userInput = contextIdentifier + "-" + configId;
+    return ContextKinds.DEFAULT_KIND.equals(contextKind) ? userInput : userInput + ":" + contextKind;
   }
 }

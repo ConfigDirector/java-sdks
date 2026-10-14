@@ -9,9 +9,14 @@ public record EventReport(
     List<AggregatedEvent> evaluations,
     int droppedEvaluations,
     List<Context> contexts,
-    int droppedContexts) {
+    int droppedContexts,
+    List<InvalidContextEntry> invalidContexts) {
 
   public boolean isEmpty() {
-    return evaluations.isEmpty() && contexts.isEmpty() && droppedEvaluations == 0 && droppedContexts == 0;
+    return evaluations.isEmpty()
+        && contexts.isEmpty()
+        && droppedEvaluations == 0
+        && droppedContexts == 0
+        && invalidContexts.isEmpty();
   }
 }

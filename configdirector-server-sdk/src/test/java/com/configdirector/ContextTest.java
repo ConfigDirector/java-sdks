@@ -18,9 +18,16 @@ class ContextTest {
     @Test
     void carries_every_field() {
       Context context =
-          Context.builder().id("u1").name("Ada").trait("plan", "pro").anonymous(true).build();
+          Context.builder()
+              .id("u1")
+              .kind("device")
+              .name("Ada")
+              .trait("plan", "pro")
+              .anonymous(true)
+              .build();
 
       assertThat(context.id()).isEqualTo("u1");
+      assertThat(context.kind()).isEqualTo("device");
       assertThat(context.name()).isEqualTo("Ada");
       assertThat(context.traits()).containsExactly(Map.entry("plan", "pro"));
       assertThat(context.anonymous()).isTrue();
@@ -31,14 +38,33 @@ class ContextTest {
       Context context = Context.builder().build();
 
       assertThat(context.id()).isNull();
+      assertThat(context.kind()).isNull();
       assertThat(context.name()).isNull();
       assertThat(context.traits()).isNull();
       assertThat(context.anonymous()).isFalse();
     }
 
     @Test
+    void a_null_kind_clears_the_kind() {
+      Context context = Context.builder().kind("device").kind(null).build();
+
+      assertThat(context.kind()).isNull();
+    }
+
+    @Test
+    void keeps_an_invalid_kind_exactly_as_given_without_throwing() {
+      String tooLong = "k".repeat(65);
+
+      assertThat(Context.builder().kind("").build().kind()).isEmpty();
+      assertThat(Context.builder().kind(tooLong).build().kind()).isEqualTo(tooLong);
+      assertThat(Context.builder().kind("Device").build().kind()).isEqualTo("Device");
+      assertThat(Context.builder().kind(" device ").build().kind()).isEqualTo(" device ");
+    }
+
+    @Test
     void the_empty_context_carries_nothing() {
       assertThat(Context.empty().id()).isNull();
+      assertThat(Context.empty().kind()).isNull();
       assertThat(Context.empty().traits()).isNull();
     }
 
@@ -128,6 +154,23 @@ class ContextTest {
       assertThat(base)
           .isNotEqualTo(
               Context.builder().id("u1").name("Ada").trait("plan", "pro").anonymous(true).build());
+      assertThat(base)
+          .isNotEqualTo(
+              Context.builder().id("u1").kind("device").name("Ada").trait("plan", "pro").build());
+    }
+
+    @Test
+    void contexts_of_the_same_kind_are_equal_and_hash_alike() {
+      Context first = Context.builder().id("u1").kind("device").build();
+      Context second = Context.builder().id("u1").kind("device").build();
+
+      assertThat(first).isEqualTo(second).hasSameHashCodeAs(second);
+    }
+
+    @Test
+    void an_omitted_kind_is_not_equal_to_an_explicit_user_kind() {
+      assertThat(Context.builder().id("u1").build())
+          .isNotEqualTo(Context.builder().id("u1").kind("user").build());
     }
 
     @Test
@@ -142,6 +185,15 @@ class ContextTest {
       Context context = Context.builder().id("u1").name("Ada").build();
 
       assertThat(context.toString()).contains("u1").contains("Ada");
+    }
+
+    @Test
+    void describes_its_kind_after_its_id() {
+      Context context =
+          Context.builder().id("u1").kind("device").name("Ada").trait("plan", "pro").build();
+
+      assertThat(context.toString())
+          .isEqualTo("Context[id=u1, kind=device, name=Ada, traits={plan=pro}, anonymous=false]");
     }
   }
 }

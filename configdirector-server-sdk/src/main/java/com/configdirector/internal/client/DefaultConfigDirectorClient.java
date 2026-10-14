@@ -15,6 +15,7 @@ import com.configdirector.EvaluationReason;
 import com.configdirector.Metadata;
 import com.configdirector.Subscription;
 import com.configdirector.TelemetryOptions;
+import com.configdirector.internal.ContextKinds;
 import com.configdirector.internal.PollingIntervals;
 import com.configdirector.internal.SdkIdentity;
 import com.configdirector.internal.evaluation.ConditionalRule;
@@ -23,6 +24,8 @@ import com.configdirector.internal.evaluation.ConfigEvaluator;
 import com.configdirector.internal.evaluation.EvaluationContext;
 import com.configdirector.internal.evaluation.Segment;
 import com.configdirector.internal.evaluation.SegmentCondition;
+import com.configdirector.internal.telemetry.InvalidContextRecording;
+import com.configdirector.internal.telemetry.InvalidContextSubmissions;
 import com.configdirector.internal.telemetry.ScheduledTelemetryCollector;
 import com.configdirector.internal.telemetry.TelemetryCollector;
 import com.configdirector.internal.telemetry.TelemetryCollectorFactory;
@@ -494,8 +497,9 @@ public final class DefaultConfigDirectorClient implements ConfigDirectorClient {
       String configKey,
       Config definition,
       Object defaultValue,
-      Context context,
+      Context suppliedContext,
       Map<String, Segment> segments) {
+    Context context = contextToEvaluate(suppliedContext);
     if (definition == null) {
       EvaluationReason reason =
           isReady() ? EvaluationReason.CONFIG_STATE_MISSING : EvaluationReason.CLIENT_NOT_READY;
@@ -533,6 +537,33 @@ public final class DefaultConfigDirectorClient implements ConfigDirectorClient {
     return result.value();
   }
 
+  private Context contextToEvaluate(Context suppliedContext) {
+    if (ContextKinds.isAccepted(suppliedContext)) {
+      return suppliedContext;
+    }
+    String kindSample = ContextKinds.sampleOf(suppliedContext.kind());
+    logInvalidContext(telemetry.recordInvalidContext(kindSample), kindSample);
+    return null;
+  }
+
+  private void logInvalidContext(InvalidContextRecording recording, String kindSample) {
+    switch (recording) {
+      case NEW_KIND_SAMPLE ->
+          logger.error(
+              "[ConfigDirectorClient] Ignored a context with the invalid kind '{}' and evaluated as"
+                  + " if no context was supplied. A context kind has 1 to 64 characters, using only"
+                  + " lowercase letters, digits, '-' and '_'.",
+              kindSample);
+      case FIRST_BEYOND_SAMPLE_LIMIT ->
+          logger.error(
+              "[ConfigDirectorClient] Ignored a context with another invalid kind and evaluated as"
+                  + " if no context was supplied. {} different invalid kinds were logged recently,"
+                  + " so further invalid kinds are not logged individually.",
+              InvalidContextSubmissions.DISTINCT_KIND_SAMPLE_LIMIT);
+      case KNOWN_KIND_SAMPLE, BEYOND_SAMPLE_LIMIT -> {}
+    }
+  }
+
   private void report(ConfigEvaluation evaluation, Object defaultValue, ConfigType type) {
     telemetry.recordEvaluation(evaluation, defaultValue, type);
     if (!evaluationHandlers.isEmpty()) {
@@ -551,7 +582,8 @@ public final class DefaultConfigDirectorClient implements ConfigDirectorClient {
   }
 
   @Override
-  public Map<String, ConfigState> getAllConfigs(Context context, List<String> configKeys) {
+  public Map<String, ConfigState> getAllConfigs(Context suppliedContext, List<String> configKeys) {
+    Context context = contextToEvaluate(suppliedContext);
     ServedDefinitions snapshot = served;
     if (closed || snapshot == null) {
       return Map.of();

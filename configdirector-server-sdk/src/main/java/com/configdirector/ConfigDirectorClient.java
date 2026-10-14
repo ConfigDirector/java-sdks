@@ -16,7 +16,9 @@ import java.util.function.Consumer;
  * produce the default. Which of those happened is reported through {@link #onConfigEvaluated}.
  *
  * <p>Each getter comes in two forms, with and without a {@link Context}. The context is what
- * targeting rules are evaluated against, so the same key can resolve differently per user.
+ * targeting rules are evaluated against, so the same key can resolve differently per user or other
+ * entity. A context with an invalid {@linkplain Context#kind() kind} is ignored: the client logs an
+ * error and evaluates exactly as if no context had been supplied.
  *
  * <p>Watching mirrors that: one watch per type, each in the same two forms. A watch fires whenever
  * an update carries its key or a segment its targeting rules use, with the value evaluated afresh,

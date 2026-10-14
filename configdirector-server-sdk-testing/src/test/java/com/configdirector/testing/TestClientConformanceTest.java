@@ -171,6 +171,36 @@ class TestClientConformanceTest {
   }
 
   @Test
+  void a_context_with_an_invalid_kind_is_evaluated_as_no_context_and_logged_on_every_read() {
+    ConfigDirectorClient client = create(Map.of("new-checkout", true)).client();
+    client.initialize();
+    List<ConfigEvaluation> evaluations = evaluationsOf(client);
+    Context invalid = Context.builder().id("user-a").kind("Tenant").build();
+
+    assertThat(client.getBoolean("new-checkout", false, invalid)).isTrue();
+    assertThat(client.getBoolean("new-checkout", false, invalid)).isTrue();
+    assertThat(client.getAllConfigs(invalid)).containsOnlyKeys("new-checkout");
+
+    assertThat(evaluations).extracting(ConfigEvaluation::context).containsOnlyNulls();
+    assertThat(errors())
+        .hasSize(3)
+        .allMatch(message -> message.contains("Ignored a context with the invalid kind 'Tenant'"));
+  }
+
+  @Test
+  void a_context_with_a_valid_kind_is_evaluated_as_supplied() {
+    ConfigDirectorClient client = create(Map.of("new-checkout", true)).client();
+    client.initialize();
+    List<ConfigEvaluation> evaluations = evaluationsOf(client);
+    Context device = Context.builder().id("device-a").kind("device").build();
+
+    assertThat(client.getBoolean("new-checkout", false, device)).isTrue();
+
+    assertThat(last(evaluations).context()).isEqualTo(device);
+    assertThat(errors()).isEmpty();
+  }
+
+  @Test
   void s2_reading_a_boolean_as_a_string_returns_the_in_code_default_with_type_mismatch() {
     TestClient testClient = create(Map.of("new-checkout", true));
     List<ConfigEvaluation> evaluations = evaluationsOf(testClient.client());

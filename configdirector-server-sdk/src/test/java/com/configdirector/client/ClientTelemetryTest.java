@@ -12,6 +12,7 @@ import com.configdirector.Context;
 import com.configdirector.internal.telemetry.ValueIds;
 import com.configdirector.testing.TestHttpServer;
 import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import java.io.IOException;
@@ -21,7 +22,10 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.function.Consumer;
+import java.util.stream.IntStream;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -55,6 +59,12 @@ class ClientTelemetryTest {
   }
 
   private ConfigDirectorClient readyClient(Consumer<ClientOptions> customize) {
+    startedClient(customize);
+    client.initialize();
+    return client;
+  }
+
+  private ConfigDirectorClient startedClient(Consumer<ClientOptions> customize) {
     server =
         start(
             session -> {
@@ -81,7 +91,6 @@ class ClientTelemetryTest {
                   connection -> connection.mode(ConnectionMode.POLLING).url(url).timeout(TIMEOUT));
               customize.accept(options);
             });
-    client.initialize();
     return client;
   }
 
@@ -113,6 +122,34 @@ class ClientTelemetryTest {
 
   private static JsonArray contextsOf(JsonObject report) {
     return report.getAsJsonObject("discreteEvents").getAsJsonArray("capturedContexts");
+  }
+
+  private static JsonArray invalidContextsOf(JsonObject report) {
+    return report.getAsJsonObject("aggregatedEvents").getAsJsonArray("invalidContext");
+  }
+
+  private static JsonObject invalidContextEntry(JsonObject report, String kindSample) {
+    for (JsonElement entry : invalidContextsOf(report)) {
+      JsonObject event = entry.getAsJsonObject().getAsJsonObject("event");
+      if (event.has("kindSample") && event.get("kindSample").getAsString().equals(kindSample)) {
+        return entry.getAsJsonObject();
+      }
+    }
+    throw new AssertionError("No invalid context entry for '" + kindSample + "' in " + report);
+  }
+
+  private static List<JsonObject> invalidContextEntriesWithoutSample(JsonObject report) {
+    List<JsonObject> entries = new ArrayList<>();
+    for (JsonElement entry : invalidContextsOf(report)) {
+      if (!entry.getAsJsonObject().getAsJsonObject("event").has("kindSample")) {
+        entries.add(entry.getAsJsonObject());
+      }
+    }
+    return entries;
+  }
+
+  private static Context withKind(String kind) {
+    return Context.builder().id("user-1").kind(kind).name("Ada").trait("plan", "pro").build();
   }
 
   @Nested
@@ -239,6 +276,229 @@ class ClientTelemetryTest {
 
       assertThat(contextsOf(report)).isEmpty();
       assertThat(eventOf(report, 0).has("contextId")).isFalse();
+    }
+  }
+
+  @Nested
+  @DisplayName("the kind of the context an evaluation was made for")
+  class Kinds {
+
+    @Test
+    void contexts_of_two_kinds_sharing_an_identifier_are_both_captured_with_their_kinds() {
+      ConfigDirectorClient client = readyClient();
+      client.getString("greeting", "fallback", Context.builder().id("42").build());
+      client.getString("greeting", "fallback", Context.builder().id("42").kind("device").build());
+
+      JsonObject report = reportAfterClosing();
+
+      assertThat(contextsOf(report)).hasSize(2);
+      JsonObject user = contextsOf(report).get(0).getAsJsonObject();
+      JsonObject device = contextsOf(report).get(1).getAsJsonObject();
+      assertThat(user.get("id").getAsString()).isEqualTo("42");
+      assertThat(user.get("kind").getAsString()).isEqualTo("user");
+      assertThat(device.get("id").getAsString()).isEqualTo("42");
+      assertThat(device.get("kind").getAsString()).isEqualTo("device");
+    }
+
+    @Test
+    void an_omitted_kind_and_an_explicit_user_kind_are_one_captured_context() {
+      ConfigDirectorClient client = readyClient();
+      client.getString("greeting", "fallback", Context.builder().id("42").build());
+      client.getString("greeting", "fallback", Context.builder().id("42").kind("user").build());
+
+      JsonObject report = reportAfterClosing();
+
+      assertThat(contextsOf(report)).hasSize(1);
+      assertThat(contextsOf(report).get(0).getAsJsonObject().get("kind").getAsString())
+          .isEqualTo("user");
+    }
+
+    @Test
+    void evaluated_config_events_carry_the_kind_beside_the_identifier() {
+      ConfigDirectorClient client = readyClient();
+      client.getString("greeting", "fallback", Context.builder().id("42").build());
+      client.getString("greeting", "fallback", Context.builder().id("42").kind("device").build());
+
+      JsonObject report = reportAfterClosing();
+
+      assertThat(eventOf(report, 0).get("contextId").getAsString()).isEqualTo("42");
+      assertThat(eventOf(report, 0).get("contextKind").getAsString()).isEqualTo("user");
+      assertThat(eventOf(report, 1).get("contextId").getAsString()).isEqualTo("42");
+      assertThat(eventOf(report, 1).get("contextKind").getAsString()).isEqualTo("device");
+    }
+
+    @Test
+    void an_event_without_an_identified_context_carries_no_kind() {
+      ConfigDirectorClient client = readyClient();
+      client.getString("greeting", "fallback", Context.builder().kind("device").build());
+      client.getString(
+          "greeting", "fallback", Context.builder().id("42").kind("tenant").anonymous(true).build());
+
+      JsonObject report = reportAfterClosing();
+
+      assertThat(evaluationsOf(report)).hasSize(1);
+      assertThat(evaluationsOf(report).get(0).getAsJsonObject().get("count").getAsInt()).isEqualTo(2);
+      assertThat(eventOf(report, 0).has("contextKind")).isFalse();
+      assertThat(contextsOf(report)).isEmpty();
+    }
+  }
+
+  @Nested
+  @DisplayName("contexts ignored for an invalid kind")
+  class InvalidContexts {
+
+    @Test
+    void are_counted_once_per_evaluation_with_a_sample_of_the_kind() {
+      ConfigDirectorClient client = readyClient();
+      client.getString("greeting", "fallback", withKind("Tenant"));
+      client.getString("greeting", "fallback", withKind("Tenant"));
+      client.getString("unknown-key", "fallback", withKind("Tenant"));
+
+      JsonObject report = reportAfterClosing();
+
+      assertThat(invalidContextsOf(report)).hasSize(1);
+      JsonObject entry = invalidContextEntry(report, "Tenant");
+      assertThat(entry.get("count").getAsInt()).isEqualTo(3);
+      assertThat(entry.getAsJsonObject("event").get("reason").getAsString())
+          .isEqualTo("invalid-context-kind");
+      assertThat(entry.get("startTime").getAsString()).isNotBlank();
+      assertThat(entry.get("endTime").getAsString()).isNotBlank();
+    }
+
+    @Test
+    void are_reported_without_the_identifier_name_or_traits() {
+      readyClient().getString("greeting", "fallback", withKind("Tenant"));
+
+      JsonObject report = reportAfterClosing();
+
+      assertThat(invalidContextEntry(report, "Tenant").getAsJsonObject("event").keySet())
+          .containsExactlyInAnyOrder("reason", "kindSample");
+      assertThat(contextsOf(report)).isEmpty();
+      assertThat(eventOf(report, 0).has("contextId")).isFalse();
+      assertThat(eventOf(report, 0).has("contextKind")).isFalse();
+      assertThat(report.toString()).doesNotContain("user-1").doesNotContain("Ada");
+    }
+
+    @Test
+    void count_every_watcher_re_evaluation() {
+      List<String> first = Collections.synchronizedList(new ArrayList<>());
+      List<String> second = Collections.synchronizedList(new ArrayList<>());
+      ConfigDirectorClient client = startedClient(options -> {});
+      client.watchString("greeting", "fallback", first::add, withKind("Tenant"));
+      client.watchString("greeting", "fallback", second::add, withKind("Tenant"));
+      client.initialize();
+      await().atMost(TIMEOUT).until(() -> !first.isEmpty() && !second.isEmpty());
+
+      JsonObject report = reportAfterClosing();
+
+      assertThat(invalidContextEntry(report, "Tenant").get("count").getAsInt()).isEqualTo(2);
+    }
+
+    @Test
+    void count_each_update_that_re_evaluates_the_same_watcher() throws InterruptedException {
+      BlockingQueue<TestHttpServer.Session> live = new LinkedBlockingQueue<>();
+      server =
+          start(
+              session -> {
+                if (session.path().endsWith("/server/telemetry/v1")) {
+                  telemetryBodies.add(session.bodyAsString());
+                  session.respond(200, "Content-Length: 0", "Connection: close");
+                  session.close();
+                } else {
+                  session.respondStreaming();
+                  session.send("data: " + BUNDLE + "\n\n");
+                  live.add(session);
+                }
+              });
+      String url = server.url("/");
+      client =
+          ConfigDirector.client(
+              "sdk-key",
+              options ->
+                  options.connection(
+                      connection ->
+                          connection.mode(ConnectionMode.STREAMING).url(url).timeout(TIMEOUT)));
+      List<String> seen = Collections.synchronizedList(new ArrayList<>());
+      client.watchString("greeting", "fallback", seen::add, withKind("Tenant"));
+      client.initialize();
+      await().atMost(TIMEOUT).until(() -> seen.size() == 1);
+
+      live.take().send("data: " + BUNDLE + "\n\n");
+      await().atMost(TIMEOUT).until(() -> seen.size() == 2);
+
+      JsonObject report = reportAfterClosing();
+
+      assertThat(invalidContextEntry(report, "Tenant").get("count").getAsInt()).isEqualTo(2);
+    }
+
+    @Test
+    void count_get_all_configs_once_per_call_in_a_report_that_holds_nothing_else() {
+      ConfigDirectorClient client = readyClient();
+      client.getAllConfigs(withKind("Tenant"));
+      client.getAllConfigs(withKind("Tenant"), List.of("greeting"));
+
+      JsonObject report = reportAfterClosing();
+
+      assertThat(evaluationsOf(report)).isEmpty();
+      assertThat(contextsOf(report)).isEmpty();
+      assertThat(invalidContextEntry(report, "Tenant").get("count").getAsInt()).isEqualTo(2);
+    }
+
+    @Test
+    void count_get_all_configs_before_the_client_is_ready() {
+      startedClient(options -> {}).getAllConfigs(withKind("Tenant"));
+
+      JsonObject report = reportAfterClosing();
+
+      assertThat(invalidContextEntry(report, "Tenant").get("count").getAsInt()).isEqualTo(1);
+    }
+
+    @Test
+    void keep_twenty_kind_samples_and_count_the_rest_in_an_entry_without_one() {
+      ConfigDirectorClient client = readyClient();
+      IntStream.range(0, 25)
+          .forEach(i -> client.getString("greeting", "fallback", withKind("Kind" + i)));
+      client.getString("greeting", "fallback", withKind("Kind0"));
+      client.getString("greeting", "fallback", withKind("Kind24"));
+
+      JsonObject report = reportAfterClosing();
+
+      assertThat(invalidContextsOf(report)).hasSize(21);
+      assertThat(invalidContextEntry(report, "Kind0").get("count").getAsInt()).isEqualTo(2);
+      assertThat(invalidContextEntry(report, "Kind19").get("count").getAsInt()).isEqualTo(1);
+      List<JsonObject> unsampled = invalidContextEntriesWithoutSample(report);
+      assertThat(unsampled).hasSize(1);
+      assertThat(unsampled.get(0).get("count").getAsInt()).isEqualTo(6);
+      assertThat(unsampled.get(0).getAsJsonObject("event").get("reason").getAsString())
+          .isEqualTo("invalid-context-kind");
+    }
+
+    @Test
+    void sample_a_long_kind_by_its_first_128_characters() {
+      readyClient().getString("greeting", "fallback", withKind("k".repeat(200)));
+
+      JsonObject report = reportAfterClosing();
+
+      invalidContextEntry(report, "k".repeat(128));
+      assertThat(invalidContextsOf(report)).hasSize(1);
+    }
+
+    @Test
+    void start_afresh_after_each_report() {
+      ConfigDirectorClient client = readyClient();
+      client.getString("greeting", "fallback", withKind("Tenant"));
+      await().atMost(Duration.ofSeconds(15)).until(() -> !telemetryBodies.isEmpty());
+      client.getString("greeting", "fallback", withKind("Device"));
+
+      client.close();
+      await().atMost(TIMEOUT).until(() -> telemetryBodies.size() == 2);
+
+      JsonObject second;
+      synchronized (telemetryBodies) {
+        second = JsonParser.parseString(telemetryBodies.get(1)).getAsJsonObject();
+      }
+      assertThat(invalidContextsOf(second)).hasSize(1);
+      invalidContextEntry(second, "Device");
     }
   }
 

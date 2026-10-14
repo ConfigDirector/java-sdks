@@ -33,6 +33,9 @@ public final class TestClientOptions {
    * Where the SDK client writes. Defaults to the SLF4J logger named {@value
    * ConfigDirector#LOGGER_NAME}, as for a production client.
    *
+   * <p>A test client sends no telemetry, so every read that supplies a context with an invalid
+   * kind logs an error, rather than each invalid kind once per telemetry flush interval.
+   *
    * @param logger the logger to write to
    * @return these options, so calls chain
    */

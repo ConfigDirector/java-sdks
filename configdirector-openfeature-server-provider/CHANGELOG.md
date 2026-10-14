@@ -8,6 +8,24 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- The provider reads a top-level `kind` field of the evaluation context, beside the targeting key,
+  as the ConfigDirector context kind, for example
+  `new ImmutableContext("42", Map.of("kind", new Value("device")))`. Leaving it out, or setting it
+  to null, means `user`, and a `kind` inside `traits` stays an ordinary trait. A kind has 1 to 64
+  characters, using only lowercase letters, digits, `-` and `_`. With any other kind the whole
+  context is ignored: the evaluation still resolves successfully, to the value for no context and
+  without an error code, and the SDK logs an error. A `kind` that is not a string is always invalid
+  and is logged and reported as its OpenFeature type and text, such as `number:42`. Requires the
+  version of `com.configdirector:server-sdk` that adds `Context.kind()`.
+
+### Changed
+
+- A top-level `kind` field in the evaluation context was ignored before. An application that
+  already sets one now has it evaluated as the context kind, and if it is not a valid kind the whole
+  context is ignored as described above.
+
 ## [1.5.1] - 2026-10-05
 
 ### Fixed

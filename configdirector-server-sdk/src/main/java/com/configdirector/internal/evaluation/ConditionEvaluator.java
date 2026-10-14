@@ -39,6 +39,7 @@ public final class ConditionEvaluator {
     Context subject = context.contextOrEmpty();
     return switch (condition.attribute()) {
       case "identifier" -> orAbsent(subject.id());
+      case "kind" -> context.effectiveKind();
       case "name" -> orAbsent(subject.name());
       case "appName" -> orAbsent(context.metadataOrEmpty().appName());
       case "appVersion" -> orAbsent(context.metadataOrEmpty().appVersion());

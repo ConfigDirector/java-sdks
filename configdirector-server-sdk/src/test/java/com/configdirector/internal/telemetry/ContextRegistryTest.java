@@ -15,7 +15,7 @@ class ContextRegistryTest {
 
   private static void add(ContextRegistry registry, String... ids) {
     for (String id : ids) {
-      registry.add(id, context(id));
+      registry.add("user", id, context(id));
     }
   }
 
@@ -35,8 +35,8 @@ class ContextRegistryTest {
     @Test
     void keeps_only_the_most_recent_context_for_an_id() {
       ContextRegistry registry = new ContextRegistry(10);
-      registry.add("a", Context.builder().id("a").name("first").build());
-      registry.add("a", Context.builder().id("a").name("second").build());
+      registry.add("user", "a", Context.builder().id("a").name("first").build());
+      registry.add("user", "a", Context.builder().id("a").name("second").build());
 
       assertThat(registry.takeSnapshot().contexts())
           .singleElement()
@@ -49,8 +49,8 @@ class ContextRegistryTest {
       // A server builds a fresh Context per request, so the same caller arrives as a new object
       // holding the same details. add() reads before it writes; the entry must come out unchanged.
       ContextRegistry registry = new ContextRegistry(10);
-      registry.add("a", Context.builder().id("a").name("Ada").trait("plan", "pro").build());
-      registry.add("a", Context.builder().id("a").name("Ada").trait("plan", "pro").build());
+      registry.add("user", "a", Context.builder().id("a").name("Ada").trait("plan", "pro").build());
+      registry.add("user", "a", Context.builder().id("a").name("Ada").trait("plan", "pro").build());
       add(registry, "b");
 
       assertThat(registry.takeSnapshot().contexts())

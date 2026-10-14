@@ -2,6 +2,7 @@ package com.configdirector.internal.evaluation;
 
 import com.configdirector.Context;
 import com.configdirector.Metadata;
+import com.configdirector.internal.ContextKinds;
 
 public record EvaluationContext(Context context, Metadata metadata) {
 
@@ -13,6 +14,10 @@ public record EvaluationContext(Context context, Metadata metadata) {
 
   public Context contextOrEmpty() {
     return context == null ? Context.empty() : context;
+  }
+
+  public String effectiveKind() {
+    return ContextKinds.effectiveKindOf(context);
   }
 
   public Metadata metadataOrEmpty() {

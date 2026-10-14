@@ -35,8 +35,12 @@ import java.util.function.Consumer;
  * }</pre>
  *
  * <p>The OpenFeature evaluation context maps onto the ConfigDirector {@link Context}: the targeting
- * key, or failing that an {@code id} attribute, becomes the context's id, {@code name} its name, a
- * {@code traits} structure its traits, and a boolean {@code anonymous} its anonymous flag.
+ * key, or failing that an {@code id} attribute, becomes the context's id, a top-level {@code kind}
+ * its kind, {@code name} its name, a {@code traits} structure its traits, and a boolean {@code
+ * anonymous} its anonymous flag. Leaving out {@code kind} means {@code user}, and a {@code kind}
+ * inside {@code traits} is an ordinary trait. A context whose kind is invalid, including one that
+ * is not a string, is ignored as a whole: the evaluation still resolves successfully, to the value
+ * for no context, and the SDK logs an error.
  *
  * <p>If the first config state does not arrive within the configured timeout, initialization still
  * completes and evaluations return their defaults with the error code {@code PROVIDER_NOT_READY}.

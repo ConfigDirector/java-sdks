@@ -8,6 +8,34 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- Contexts can say what kind of entity they represent: `Context.Builder.kind(String)` sets it and
+  `Context.kind()` returns it, for example `device`, `organization` or `tenant`. Leaving it out, or
+  setting null, means `user`, and `kind()` then returns null. A kind has 1 to 64 characters, using
+  only lowercase letters, digits, `-` and `_`, and is used exactly as given, without trimming or
+  changing its case.
+- Targeting rules and segments can match on a context's kind. Percentage rollouts give contexts of
+  other kinds assignments of their own, while `user` contexts keep the ones they have today.
+- A context with an invalid kind never makes the SDK throw, and building one never fails. Getters,
+  watchers and `getAllConfigs` evaluate exactly as if no context had been supplied, and
+  `ConfigEvaluation.context()` is null. The SDK logs an error through the configured logger for each
+  distinct invalid kind once per telemetry flush interval; past 20 distinct kinds in an interval it
+  logs once that further kinds are not logged individually. Once telemetry stops, after a fatal
+  response or `close()`, the interval no longer resets: each of the first 20 distinct invalid kinds
+  is logged once for the rest of the client's life, followed by that same single notice.
+- Telemetry reports how many evaluations were given a context with an invalid kind, with a sample of
+  each kind cut to 128 characters, at most 20 samples per report, and never the context's
+  identifier, name or traits. Captured contexts are reported per kind and identifier, so user `42`
+  and device `42` are reported separately, and evaluation events carry the context's kind.
+
+### Changed
+
+- `Context.equals`, `hashCode` and `toString` include the kind. `toString` now reads
+  `Context[id=…, kind=…, name=…, traits=…, anonymous=…]`, with `kind=null` for a context without a
+  kind, and a context without a kind is not equal to one whose kind is `user`, although both
+  evaluate the same.
+
 ## [1.8.1] - 2026-10-05
 
 ### Fixed

@@ -9,7 +9,8 @@ package com.configdirector;
  * @param reason why the evaluation produced the value that it did
  * @param valueId identifies the value that was returned: the server's identifier for it, or one
  *     derived from the value itself when it came from the caller's default
- * @param context the context the config was evaluated against, or null
+ * @param context the context the config was evaluated against, or null when none was supplied or
+ *     the one supplied was ignored for its invalid kind
  */
 public record ConfigEvaluation(
     String key,

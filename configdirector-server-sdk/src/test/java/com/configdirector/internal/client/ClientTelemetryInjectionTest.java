@@ -7,6 +7,7 @@ import com.configdirector.ConfigType;
 import com.configdirector.EvaluationReason;
 import com.configdirector.TelemetryOptions;
 import com.configdirector.internal.SdkIdentity;
+import com.configdirector.internal.telemetry.InvalidContextRecording;
 import com.configdirector.internal.telemetry.ScheduledTelemetryCollector;
 import com.configdirector.internal.telemetry.TelemetryCollector;
 import com.configdirector.internal.telemetry.TelemetryCollectorOptions;
@@ -108,6 +109,11 @@ class ClientTelemetryInjectionTest {
     public void recordEvaluation(
         ConfigEvaluation evaluation, Object defaultValue, ConfigType type) {
       recorded.add(new RecordedEvaluation(evaluation, defaultValue, type));
+    }
+
+    @Override
+    public InvalidContextRecording recordInvalidContext(String kindSample) {
+      return InvalidContextRecording.NEW_KIND_SAMPLE;
     }
 
     @Override

@@ -21,7 +21,7 @@ class AggregatedEventTest {
         new ConfigEvaluation(key, "hello", false, EvaluationReason.FOUND_MATCH, null, null),
         "fallback",
         null,
-        null);
+        null, null);
   }
 
   private static EventQueue.Snapshot snapshotOf(EvaluatedConfigEvent... events) {

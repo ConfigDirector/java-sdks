@@ -6,24 +6,30 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * The user's context, evaluated against targeting rules.
+ * The context evaluated against targeting rules: a user or another entity, such as a device or an
+ * organization.
  *
- * <p>{@code id} segments users in percentage rollouts, so changing it can move a user into a
+ * <p>{@code id} segments contexts in percentage rollouts, so changing it can move a context into a
  * different percentile. Trait values are JSON-shaped: {@link String}, {@link Number}, {@link
  * Boolean}, {@link java.util.List}, {@link java.util.Map}, or null. Anything else has no text form
  * and will not match a targeting rule.
+ *
+ * <p>A context with an invalid {@linkplain #kind() kind} is ignored as a whole: the client logs an
+ * error and evaluates as if no context had been supplied.
  */
 public final class Context {
 
   private static final Context EMPTY = builder().build();
 
   private final String id;
+  private final String kind;
   private final String name;
   private final Map<String, Object> traits;
   private final boolean anonymous;
 
   private Context(Builder builder) {
     this.id = builder.id;
+    this.kind = builder.kind;
     this.name = builder.name;
     // Copied rather than wrapped, so that reusing the builder cannot alter a context already
     // built from it. Map.copyOf is not usable here: a trait may legitimately be JSON null.
@@ -53,7 +59,7 @@ public final class Context {
   }
 
   /**
-   * The user's identifier.
+   * The context's identifier, unique among contexts of the same {@linkplain #kind() kind}.
    *
    * @return the id, or null, in which case a percentage rollout assigns an unstable bucket
    */
@@ -62,7 +68,17 @@ public final class Context {
   }
 
   /**
-   * The user's display name.
+   * The kind of entity this context represents, such as {@code user}, {@code device}, {@code
+   * organization}, {@code tenant} or {@code listing}.
+   *
+   * @return the kind exactly as it was set, or null when none was, which means {@code user}
+   */
+  public String kind() {
+    return kind;
+  }
+
+  /**
+   * The context's display name.
    *
    * @return the name, or null
    */
@@ -71,7 +87,7 @@ public final class Context {
   }
 
   /**
-   * The user's traits, evaluated against targeting rules.
+   * The context's traits, evaluated against targeting rules.
    *
    * @return the traits, unmodifiable, or null when none were set
    */
@@ -96,24 +112,36 @@ public final class Context {
     return other instanceof Context that
         && anonymous == that.anonymous
         && Objects.equals(id, that.id)
+        && Objects.equals(kind, that.kind)
         && Objects.equals(name, that.name)
         && Objects.equals(traits, that.traits);
   }
 
   @Override
   public int hashCode() {
-    return Objects.hash(id, name, traits, anonymous);
+    return Objects.hash(id, kind, name, traits, anonymous);
   }
 
   @Override
   public String toString() {
-    return "Context[id=" + id + ", name=" + name + ", traits=" + traits + ", anonymous=" + anonymous + "]";
+    return "Context[id="
+        + id
+        + ", kind="
+        + kind
+        + ", name="
+        + name
+        + ", traits="
+        + traits
+        + ", anonymous="
+        + anonymous
+        + "]";
   }
 
-  /** Collects the user's details. Every setter returns this, so calls chain. */
+  /** Collects the context's details. Every setter returns this, so calls chain. */
   public static final class Builder {
 
     private String id;
+    private String kind;
     private String name;
     private Map<String, Object> traits;
     private boolean anonymous;
@@ -121,7 +149,7 @@ public final class Context {
     private Builder() {}
 
     /**
-     * The user's identifier, which decides their bucket in a percentage rollout.
+     * The context's identifier, which decides its bucket in a percentage rollout.
      *
      * @param id the identifier, or null for an unstable bucket
      * @return this builder, so calls chain
@@ -132,7 +160,26 @@ public final class Context {
     }
 
     /**
-     * The user's display name.
+     * The kind of entity this context represents, such as {@code user}, {@code device}, {@code
+     * organization}, {@code tenant} or {@code listing}. Any other kind that fits the application
+     * can be used.
+     *
+     * <p>A kind has 1 to 64 characters, using only lowercase letters ({@code a}-{@code z}), digits,
+     * {@code -} and {@code _}. It is used exactly as given, without trimming or changing its case.
+     * Building never fails because of the kind: a context with an invalid kind is ignored as a
+     * whole when it is evaluated, and the client logs an error and evaluates as if no context had
+     * been supplied.
+     *
+     * @param kind the kind, or null for {@code user}
+     * @return this builder, so calls chain
+     */
+    public Builder kind(String kind) {
+      this.kind = kind;
+      return this;
+    }
+
+    /**
+     * The context's display name.
      *
      * @param name the name, or null
      * @return this builder, so calls chain

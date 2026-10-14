@@ -62,6 +62,32 @@ class ConditionEvaluatorTest {
     }
 
     @Test
+    void reads_the_context_kind() {
+      EvaluationContext context = contextWith(Context.builder().id("u1").kind("device").build());
+
+      assertThat(evaluate(condition("kind", "=", "text", null, "device"), context)).isTrue();
+      assertThat(evaluate(condition("kind", "=", "text", null, "user"), context)).isFalse();
+    }
+
+    @Test
+    void reads_user_as_the_kind_when_none_was_supplied() {
+      AttributeCondition isUser = condition("kind", "=", "text", null, "user");
+
+      assertThat(evaluate(isUser, contextWith(Context.builder().id("u1").build()))).isTrue();
+      assertThat(evaluate(isUser, contextWith(null))).isTrue();
+      assertThat(evaluate(isUser, null)).isTrue();
+    }
+
+    @Test
+    void reads_the_kind_rather_than_a_trait_named_kind() {
+      EvaluationContext context =
+          contextWith(Context.builder().kind("device").trait("kind", "tenant").build());
+
+      assertThat(evaluate(condition("kind", "=", "text", null, "device"), context)).isTrue();
+      assertThat(evaluate(condition("traits", "=", "text", "/kind", "tenant"), context)).isTrue();
+    }
+
+    @Test
     void reads_a_trait_by_pointer() {
       EvaluationContext context = withTraits(Map.of("plan", "pro", "nested", Map.of("tier", 2)));
 

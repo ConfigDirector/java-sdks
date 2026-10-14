@@ -3,6 +3,9 @@ package com.configdirector.openfeature;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import dev.openfeature.sdk.Client;
 import dev.openfeature.sdk.ErrorCode;
 import dev.openfeature.sdk.EvaluationContext;
@@ -21,6 +24,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.slf4j.LoggerFactory;
 
 class ConfigDirectorProviderTest {
 
@@ -231,6 +235,115 @@ class ConfigDirectorProviderTest {
 
     assertThat(client.getStringValue("by-id", "x", withId)).isEqualTo("matched");
     assertThat(client.getStringValue("by-id", "x", withBoth)).isEqualTo("default");
+  }
+
+  @Test
+  void maps_a_top_level_kind_onto_the_context_kind() {
+    Client client =
+        clientServing(
+            bundleOf(config("by-kind", "string", "default", rule("kind", null, "device", "matched"))));
+
+    EvaluationContext device = new ImmutableContext("42", Map.of("kind", new Value("device")));
+    EvaluationContext user = new ImmutableContext("42", Map.of("kind", new Value("user")));
+    EvaluationContext omitted = new ImmutableContext("42");
+
+    assertThat(client.getStringValue("by-kind", "x", device)).isEqualTo("matched");
+    assertThat(client.getStringValue("by-kind", "x", user)).isEqualTo("default");
+    assertThat(client.getStringValue("by-kind", "x", omitted)).isEqualTo("default");
+  }
+
+  @Test
+  void treats_a_kind_inside_traits_as_an_ordinary_trait() {
+    Client client =
+        clientServing(
+            bundleOf(
+                config("by-kind", "string", "default", rule("kind", null, "device", "matched")),
+                config("by-trait", "string", "default", rule("traits", "/kind", "device", "matched"))));
+
+    EvaluationContext traitOnly =
+        new ImmutableContext(
+            "42",
+            Map.of("traits", new Value(new ImmutableStructure(Map.of("kind", new Value("device"))))));
+
+    assertThat(client.getStringValue("by-kind", "x", traitOnly)).isEqualTo("default");
+    assertThat(client.getStringValue("by-trait", "x", traitOnly)).isEqualTo("matched");
+  }
+
+  @Test
+  void resolves_a_context_with_an_invalid_kind_successfully_to_the_value_for_no_context() {
+    Client client =
+        clientServing(
+            bundleOf(config("by-id", "string", "default", rule("identifier", null, "user-1", "matched"))));
+
+    FlagEvaluationDetails<String> withoutContext = client.getStringDetails("by-id", "x");
+    FlagEvaluationDetails<String> withInvalidKind =
+        client.getStringDetails(
+            "by-id", "x", new ImmutableContext("user-1", Map.of("kind", new Value("Device"))));
+
+    assertThat(withInvalidKind.getValue()).isEqualTo("default").isEqualTo(withoutContext.getValue());
+    assertThat(withInvalidKind.getReason()).isEqualTo(withoutContext.getReason());
+    assertThat(withInvalidKind.getVariant()).isEqualTo(withoutContext.getVariant());
+    assertThat(withInvalidKind.getErrorCode()).isNull();
+  }
+
+  @Test
+  void ignores_a_context_whose_kind_is_not_text_and_logs_its_type_and_text() {
+    ch.qos.logback.classic.Logger logger =
+        (ch.qos.logback.classic.Logger) LoggerFactory.getLogger("provider-kinds-under-test");
+    ListAppender<ILoggingEvent> appender = new ListAppender<>();
+    appender.start();
+    logger.addAppender(appender);
+    try {
+      server.send(
+          bundleOf(config("by-id", "string", "default", rule("identifier", null, "user-1", "matched"))));
+      String url = server.url();
+      api.setProviderAndWait(
+          new ConfigDirectorProvider(
+              "sdk-key",
+              options ->
+                  options
+                      .logger(logger)
+                      .connection(connection -> connection.url(url).timeout(TIMEOUT))));
+      Client client = api.getClient();
+
+      List<Value> kinds =
+          List.of(
+              new Value(42),
+              new Value(true),
+              new Value(new ImmutableStructure(Map.of("a", new Value(1)))),
+              new Value(List.of(new Value("device"))));
+      for (Value kind : kinds) {
+        FlagEvaluationDetails<String> details =
+            client.getStringDetails(
+                "by-id", "x", new ImmutableContext("user-1", Map.of("kind", kind)));
+        assertThat(details.getValue()).isEqualTo("default");
+        assertThat(details.getErrorCode()).isNull();
+      }
+
+      assertThat(
+              appender.list.stream()
+                  .filter(event -> event.getLevel() == Level.ERROR)
+                  .map(ILoggingEvent::getFormattedMessage))
+          .hasSize(4)
+          .anyMatch(message -> message.contains("invalid kind 'number:42'"))
+          .anyMatch(message -> message.contains("invalid kind 'boolean:true'"))
+          .anyMatch(message -> message.contains("invalid kind 'structure:{a=1}'"))
+          .anyMatch(message -> message.contains("invalid kind 'list:[device]'"));
+    } finally {
+      logger.detachAppender(appender);
+    }
+  }
+
+  @Test
+  void treats_a_null_kind_as_omitted() {
+    Client client =
+        clientServing(
+            bundleOf(config("by-id", "string", "default", rule("identifier", null, "user-1", "matched"))));
+
+    assertThat(
+            client.getStringValue(
+                "by-id", "x", new ImmutableContext("user-1", Map.of("kind", new Value()))))
+        .isEqualTo("matched");
   }
 
   @Test
