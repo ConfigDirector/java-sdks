@@ -10,9 +10,11 @@ checks when a test client is created.
 
 ## [Unreleased]
 
+## [1.9.0] - 2026-10-14
+
 ### Changed
 
-- Released with the `com.configdirector:server-sdk` version that adds context kinds. Test clients
+- Released with `com.configdirector:server-sdk` 1.9.0, which adds context kinds. Test clients
   evaluate `Context.kind()` like a production client, and a context with an invalid kind exactly as
   if no context had been supplied, with `ConfigEvaluation.context()` null. Since a test client sends
   no telemetry, every read given a context with an invalid kind logs an error, rather than each

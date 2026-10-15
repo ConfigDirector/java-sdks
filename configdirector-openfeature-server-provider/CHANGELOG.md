@@ -8,6 +8,8 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.6.0] - 2026-10-14
+
 ### Added
 
 - The provider reads a top-level `kind` field of the evaluation context, beside the targeting key,
@@ -17,8 +19,8 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   characters, using only lowercase letters, digits, `-` and `_`. With any other kind the whole
   context is ignored: the evaluation still resolves successfully, to the value for no context and
   without an error code, and the SDK logs an error. A `kind` that is not a string is always invalid
-  and is logged and reported as its OpenFeature type and text, such as `number:42`. Requires the
-  version of `com.configdirector:server-sdk` that adds `Context.kind()`.
+  and is logged and reported as its OpenFeature type and text, such as `number:42`. Requires version
+  1.9.0 of `com.configdirector:server-sdk`, which adds `Context.kind()`.
 
 ### Changed
 

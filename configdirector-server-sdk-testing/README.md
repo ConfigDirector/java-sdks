@@ -42,7 +42,7 @@ repositories {
 }
 
 dependencies {
-    testImplementation("com.configdirector:server-sdk-testing:1.8.1")
+    testImplementation("com.configdirector:server-sdk-testing:1.9.0")
 }
 ```
 
@@ -65,7 +65,7 @@ repositories {
 }
 
 dependencies {
-    testImplementation 'com.configdirector:server-sdk-testing:1.8.1'
+    testImplementation 'com.configdirector:server-sdk-testing:1.9.0'
 }
 ```
 
@@ -84,7 +84,7 @@ Maven:
 <dependency>
   <groupId>com.configdirector</groupId>
   <artifactId>server-sdk-testing</artifactId>
-  <version>1.8.1</version>
+  <version>1.9.0</version>
   <scope>test</scope>
 </dependency>
 ```

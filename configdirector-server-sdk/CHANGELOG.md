@@ -8,6 +8,8 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.9.0] - 2026-10-14
+
 ### Added
 
 - Contexts can say what kind of entity they represent: `Context.Builder.kind(String)` sets it and
