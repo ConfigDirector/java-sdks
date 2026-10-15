@@ -13,3 +13,5 @@ build
 
 # Secrets. .env.example is the template for each sample.
 .env
+
+.DS_Store
