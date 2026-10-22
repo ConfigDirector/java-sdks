@@ -10,6 +10,8 @@ checks when a test client is created.
 
 ## [Unreleased]
 
+## [1.10.0] - 2026-10-22
+
 ### Changed
 
 - Released with `com.configdirector:server-sdk` 1.10.0, which adds offline mode, serving values

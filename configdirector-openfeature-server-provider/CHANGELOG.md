@@ -8,6 +8,8 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.7.0] - 2026-10-22
+
 ### Added
 
 - Offline mode, through the SDK's `ConnectionMode.OFFLINE`: the provider never connects to

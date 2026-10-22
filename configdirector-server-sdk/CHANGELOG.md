@@ -8,6 +8,8 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.10.0] - 2026-10-22
+
 ### Added
 
 - Offline mode. `ConnectionMode.OFFLINE` runs a client that never connects to ConfigDirector and
