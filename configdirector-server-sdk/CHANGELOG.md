@@ -8,6 +8,40 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- Offline mode. `ConnectionMode.OFFLINE` runs a client that never connects to ConfigDirector and
+  sends nothing, for example in UI tests that pin every flag to a known value. It serves the values
+  in a JSON file, given with `ConnectionOptions.Builder.file(Path)`, or given inline with
+  `values(Map<String, ?>)`; `ConnectionOptions.file()` and `values()` return them. Each value takes
+  its config type from the value itself: a boolean, a whole number (`Integer` or `Long` inline), any
+  other number (`Float` or `Double` inline), a string, or an object or array (a `Map` with `String`
+  keys or a `List` inline). Every context receives the same value, and a value read as another type
+  returns the in-code default value, as it does against ConfigDirector. With neither a file nor
+  values, every config returns its in-code default value.
+- An offline client is ready as soon as `initialize()` returns, and fires `onClientReady` once. A
+  value it serves is evaluated with the reason `FOUND_MATCH`. A watch registered before
+  `initialize()` is called once with the offline value; calling `initialize()` again loads the
+  values, and reads the file, again.
+- `ConfigDirector.client(Consumer<ClientOptions>)` builds a client without a server SDK key, which
+  only offline mode allows, and `ConfigDirector.client(String, Consumer<ClientOptions>)` accepts a
+  null or blank key in offline mode. Every other mode still requires the key and throws
+  `ConfigDirectorValidationException` without one.
+- `ConfigDirectorInitializationException`, thrown by `initialize()` when an offline client cannot
+  load its values: the file is missing, unreadable, not a JSON object or holds a value such as
+  `null`; an inline value is null or of another type; both a file and values were given; or either
+  was given in `STREAMING` or `POLLING` mode. The client stays not ready, and opens no connection. A
+  client that was ready keeps the values it loaded before.
+
+### Changed
+
+- In offline mode, `ConnectionOptions.Builder.build()` no longer checks the timeout, the polling
+  interval or the URL, and `initialize(Duration)` ignores its argument, since an offline client
+  uses none of them.
+- `ConfigDirector.client(null)` no longer compiles, because `null` now matches both one-argument
+  forms. `ConfigDirector.client((String) null)` throws `ConfigDirectorValidationException` as
+  before.
+
 ## [1.9.0] - 2026-10-14
 
 ### Added

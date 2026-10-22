@@ -49,12 +49,32 @@ public final class ConfigDirector {
   /**
    * A client with the settings {@code configure} adjusts.
    *
-   * @param serverSdkKey a secret; do not commit it to source control
+   * @param serverSdkKey a secret; do not commit it to source control. May be null or blank when
+   *     the connection mode is {@link ConnectionMode#OFFLINE}
    * @param configure receives the settings to adjust before the client is built
    * @return a client that has not connected yet
    */
   public static ConfigDirectorClient client(String serverSdkKey, Consumer<ClientOptions> configure) {
     return build(serverSdkKey, configure, SdkIdentity.SERVER_SDK);
+  }
+
+  /**
+   * A client without a server SDK key, which only an offline client can run without.
+   *
+   * <pre>{@code
+   * ConfigDirectorClient client = ConfigDirector.client(options -> options
+   *     .connection(connection -> connection
+   *         .mode(ConnectionMode.OFFLINE)
+   *         .file(Path.of("flags/new-checkout-on.json"))));
+   * }</pre>
+   *
+   * @param configure receives the settings to adjust before the client is built; it must set the
+   *     connection mode to {@link ConnectionMode#OFFLINE}
+   * @return a client that has not initialized yet
+   * @throws ConfigDirectorValidationException if the connection mode is not offline
+   */
+  public static ConfigDirectorClient client(Consumer<ClientOptions> configure) {
+    return build(null, configure, SdkIdentity.SERVER_SDK);
   }
 
   private static ConfigDirectorClient build(

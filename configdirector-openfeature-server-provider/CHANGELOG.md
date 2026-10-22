@@ -8,6 +8,23 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- Offline mode, through the SDK's `ConnectionMode.OFFLINE`: the provider never connects to
+  ConfigDirector and serves the values it was given, from a JSON file or inline, sending nothing.
+  `new ConfigDirectorProvider(Consumer<ClientOptions>)` builds a provider without a server SDK key,
+  which only offline mode allows, and `ConfigDirectorProvider(String, Consumer<ClientOptions>)`
+  accepts a null or blank key in offline mode. If the offline values cannot be loaded,
+  initialization fails: `setProviderAndWait` throws OpenFeature's `GeneralError`, and the provider
+  is left in the error state. Requires version 1.10.0 of `com.configdirector:server-sdk`, which
+  adds offline mode.
+
+### Changed
+
+- `new ConfigDirectorProvider(null)` no longer compiles, because `null` now matches both
+  one-argument constructors. `new ConfigDirectorProvider((String) null)` throws
+  `ConfigDirectorValidationException` as before.
+
 ## [1.6.0] - 2026-10-14
 
 ### Added

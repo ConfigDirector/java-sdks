@@ -80,11 +80,11 @@ public final class InMemoryConnection {
   }
 
   public void setValue(String key, Object value) {
-    store(key, TestValueEncoder.encode(key, value));
+    store(key, NativeValueEncoder.encode(key, value, configIdOf(key), valueIdOf(key)));
   }
 
   public void setJsonValue(String key, String json) {
-    store(key, TestValueEncoder.encodeJsonText(key, json));
+    store(key, NativeValueEncoder.encodeJsonText(key, json, configIdOf(key), valueIdOf(key)));
   }
 
   public void removeValue(String key) {
@@ -294,9 +294,19 @@ public final class InMemoryConnection {
     Objects.requireNonNull(values, "values");
     Map<String, Config> encoded = new LinkedHashMap<>();
     for (Map.Entry<String, ?> entry : values.entrySet()) {
-      encoded.put(entry.getKey(), TestValueEncoder.encode(entry.getKey(), entry.getValue()));
+      String key = entry.getKey();
+      encoded.put(
+          key, NativeValueEncoder.encode(key, entry.getValue(), configIdOf(key), valueIdOf(key)));
     }
     return encoded;
+  }
+
+  private static String configIdOf(String key) {
+    return "test-config:" + key;
+  }
+
+  private static String valueIdOf(String key) {
+    return "test-value:" + key;
   }
 
   private final class Attempts implements Transport {

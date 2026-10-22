@@ -18,7 +18,7 @@ public final class Transports {
 
   private Transports() {}
 
-  public static Transport create(ConnectionMode mode, TransportOptions options) {
+  public static Transport create(LiveConnectionMode mode, TransportOptions options) {
     return switch (mode) {
       case POLLING -> new PollingTransport(options);
       case STREAMING -> new StreamingTransport(options);

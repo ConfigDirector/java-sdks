@@ -10,6 +10,13 @@ checks when a test client is created.
 
 ## [Unreleased]
 
+### Changed
+
+- Released with `com.configdirector:server-sdk` 1.10.0, which adds offline mode, serving values
+  typed by the same rule as a test client. A value a test client cannot encode is now
+  reported as "Invalid value for '<key>'" rather than "Invalid test value for '<key>'", and a blank
+  key as "The key of a value must be a non-empty string". The testing API is unchanged.
+
 ## [1.9.0] - 2026-10-14
 
 ### Changed

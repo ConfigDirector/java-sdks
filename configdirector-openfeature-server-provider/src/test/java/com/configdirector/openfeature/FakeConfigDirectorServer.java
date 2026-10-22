@@ -13,6 +13,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 final class FakeConfigDirectorServer implements AutoCloseable {
 
@@ -30,6 +31,7 @@ final class FakeConfigDirectorServer implements AutoCloseable {
   private final BlockingQueue<String> outbox = new LinkedBlockingQueue<>();
   private final BlockingQueue<Request> streamRequests = new LinkedBlockingQueue<>();
   private final BlockingQueue<Request> telemetryRequests = new LinkedBlockingQueue<>();
+  private final AtomicInteger requestCount = new AtomicInteger();
 
   record Request(String userAgent, String body) {}
 
@@ -38,7 +40,7 @@ final class FakeConfigDirectorServer implements AutoCloseable {
     server.setExecutor(workers);
     server.createContext(STREAM_PATH, this::stream);
     server.createContext(TELEMETRY_PATH, this::telemetry);
-    server.createContext("/", FakeConfigDirectorServer::acknowledge);
+    server.createContext("/", this::acknowledge);
     server.start();
   }
 
@@ -56,6 +58,10 @@ final class FakeConfigDirectorServer implements AutoCloseable {
 
   void send(String bundle) {
     outbox.add(bundle);
+  }
+
+  int requestCount() {
+    return requestCount.get();
   }
 
   Request nextStreamRequest() throws InterruptedException {
@@ -82,6 +88,7 @@ final class FakeConfigDirectorServer implements AutoCloseable {
   }
 
   private void stream(HttpExchange exchange) throws IOException {
+    requestCount.incrementAndGet();
     streamRequests.add(received(exchange));
     exchange.getResponseHeaders().add("Content-Type", "text/event-stream");
     exchange.sendResponseHeaders(200, 0);
@@ -97,11 +104,13 @@ final class FakeConfigDirectorServer implements AutoCloseable {
   }
 
   private void telemetry(HttpExchange exchange) throws IOException {
+    requestCount.incrementAndGet();
     telemetryRequests.add(received(exchange));
     respondEmpty(exchange);
   }
 
-  private static void acknowledge(HttpExchange exchange) throws IOException {
+  private void acknowledge(HttpExchange exchange) throws IOException {
+    requestCount.incrementAndGet();
     read(exchange);
     respondEmpty(exchange);
   }

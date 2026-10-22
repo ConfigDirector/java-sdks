@@ -2,7 +2,11 @@ package com.configdirector;
 
 import com.configdirector.internal.PollingIntervals;
 import java.net.URI;
+import java.nio.file.Path;
 import java.time.Duration;
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -15,7 +19,8 @@ import java.util.Objects;
  * <p>The timeout and URL are checked when the settings are built, so an unusable one is reported
  * where it was written rather than as a client that quietly never updates. The polling interval is
  * kept as configured: a value below the minimum is raised to the minimum by the client, which logs
- * a warning.
+ * a warning. In {@link ConnectionMode#OFFLINE} mode the client never connects, so none of the
+ * three is checked or used; the file or the values are checked when the client initializes.
  */
 public final class ConnectionOptions {
 
@@ -33,12 +38,19 @@ public final class ConnectionOptions {
   private final Duration pollingInterval;
   private final Duration timeout;
   private final String url;
+  private final Path file;
+  private final Map<String, Object> values;
 
   private ConnectionOptions(Builder builder) {
     this.mode = builder.mode;
     this.pollingInterval = builder.pollingInterval;
     this.timeout = builder.timeout;
     this.url = builder.url;
+    this.file = builder.file;
+    this.values =
+        builder.values == null
+            ? null
+            : Collections.unmodifiableMap(new LinkedHashMap<>(builder.values));
   }
 
   /**
@@ -97,6 +109,24 @@ public final class ConnectionOptions {
     return url;
   }
 
+  /**
+   * The JSON file an offline client serves its values from.
+   *
+   * @return the file as given, or null when none was given
+   */
+  public Path file() {
+    return file;
+  }
+
+  /**
+   * The values an offline client serves, keyed by config key.
+   *
+   * @return an unmodifiable copy of the values as given, or null when none were given
+   */
+  public Map<String, Object> values() {
+    return values;
+  }
+
   /** Collects connection settings. Every setter returns this, so calls chain. */
   public static final class Builder {
 
@@ -104,6 +134,8 @@ public final class ConnectionOptions {
     private Duration pollingInterval = PollingIntervals.DEFAULT;
     private Duration timeout = Duration.ofSeconds(3);
     private String url;
+    private Path file;
+    private Map<String, ?> values;
 
     private Builder() {}
 
@@ -156,18 +188,50 @@ public final class ConnectionOptions {
     }
 
     /**
+     * A JSON file holding one value per config key, for an offline client to serve. Used only in
+     * {@link ConnectionMode#OFFLINE} mode, and read when the client initializes. A relative path
+     * resolves against the working directory. Each value takes its config type from the JSON:
+     * {@code true} or {@code false} is a boolean, a whole number an integer, any other number a
+     * float, a string a string, and an object or array a JSON config.
+     *
+     * @param file the file to read, or null for none
+     * @return this builder, so calls chain
+     */
+    public Builder file(Path file) {
+      this.file = file;
+      return this;
+    }
+
+    /**
+     * The values for an offline client to serve, keyed by config key. Used only in {@link
+     * ConnectionMode#OFFLINE} mode. The map is copied when the settings are built, and a Map or
+     * List inside it is read when the client initializes. A Boolean is a boolean config, an
+     * Integer or a Long an integer, a Float or a Double a float, a String a string, and a Map with
+     * String keys or a List a JSON config.
+     *
+     * @param values the values to serve, or null for none
+     * @return this builder, so calls chain
+     */
+    public Builder values(Map<String, ?> values) {
+      this.values = values;
+      return this;
+    }
+
+    /**
      * Builds the settings.
      *
      * @return the settings as configured
      * @throws ConfigDirectorValidationException if the timeout is not positive, the timeout or the
      *     polling interval is longer than can be waited on, or the URL is not absolute or names no
-     *     host
+     *     host. None of these is checked in {@link ConnectionMode#OFFLINE} mode, which ignores them
      */
     public ConnectionOptions build() {
-      requirePositive(timeout, "timeout");
-      requireAtMost(pollingInterval, LONGEST_INTERVAL, "pollingInterval", "the SDK can wait for");
-      requireAtMost(timeout, LONGEST_TIMEOUT, "timeout", "the HTTP client accepts");
-      requireUsableUrl(url);
+      if (mode != ConnectionMode.OFFLINE) {
+        requirePositive(timeout, "timeout");
+        requireAtMost(pollingInterval, LONGEST_INTERVAL, "pollingInterval", "the SDK can wait for");
+        requireAtMost(timeout, LONGEST_TIMEOUT, "timeout", "the HTTP client accepts");
+        requireUsableUrl(url);
+      }
       return new ConnectionOptions(this);
     }
 

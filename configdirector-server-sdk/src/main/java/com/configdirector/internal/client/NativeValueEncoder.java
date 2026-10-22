@@ -10,45 +10,38 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonNull;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParseException;
-import com.google.gson.JsonParser;
 import com.google.gson.JsonPrimitive;
-import com.google.gson.Strictness;
-import com.google.gson.stream.JsonReader;
-import com.google.gson.stream.JsonToken;
-import com.google.gson.stream.MalformedJsonException;
-import java.io.IOException;
-import java.io.StringReader;
 import java.math.BigDecimal;
-import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.SortedMap;
 import java.util.TreeMap;
 
-final class TestValueEncoder {
+final class NativeValueEncoder {
 
-  private TestValueEncoder() {}
+  private NativeValueEncoder() {}
 
-  static Config encode(String key, Object value) {
+  static Config encode(String key, Object value, String configId, String valueId) {
     validateKey(key);
     if (value instanceof Boolean flag) {
-      return config(key, ConfigType.BOOLEAN, flag.toString());
+      return config(key, ConfigType.BOOLEAN, flag.toString(), configId, valueId);
     }
     if (value instanceof Integer || value instanceof Long) {
-      return config(key, ConfigType.INTEGER, value.toString());
+      return config(key, ConfigType.INTEGER, value.toString(), configId, valueId);
     }
     if (value instanceof Float || value instanceof Double) {
-      return config(key, ConfigType.FLOAT, plainDecimal(key, (Number) value));
+      return config(key, ConfigType.FLOAT, plainDecimal(key, (Number) value), configId, valueId);
     }
     if (value instanceof String text) {
-      return config(key, ConfigType.STRING, text);
+      return config(key, ConfigType.STRING, text, configId, valueId);
     }
     if (value instanceof Map || value instanceof List) {
-      return config(key, ConfigType.JSON, jsonContents(key, value, "").toString());
+      return config(
+          key, ConfigType.JSON, jsonContents(key, value, "").toString(), configId, valueId);
     }
     throw new ConfigDirectorValidationException(
-        "Invalid test value for '"
+        "Invalid value for '"
             + key
             + "': "
             + describe(value)
@@ -56,43 +49,30 @@ final class TestValueEncoder {
             + " keys, or a List.");
   }
 
-  static Config encodeJsonText(String key, String json) {
+  static Config encodeJsonText(String key, String json, String configId, String valueId) {
     validateKey(key);
     if (json == null) {
       throw invalidJsonText(key, "null is not JSON text");
     }
     JsonElement document;
-    try (JsonReader reader = new JsonReader(new StringReader(json))) {
-      reader.setStrictness(Strictness.STRICT);
-      document = JsonParser.parseReader(reader);
-      requireNothingAfterTheValue(key, reader);
-    } catch (JsonParseException | IOException malformed) {
+    try {
+      document = StrictJson.parse(json);
+    } catch (JsonParseException malformed) {
       throw invalidJsonText(key, malformed.getMessage());
     }
     if (!document.isJsonObject() && !document.isJsonArray()) {
       throw invalidJsonText(key, "a JSON config holds an object or an array");
     }
-    return config(key, ConfigType.JSON, document.toString());
+    return config(key, ConfigType.JSON, document.toString(), configId, valueId);
   }
 
-  private static void requireNothingAfterTheValue(String key, JsonReader reader) throws IOException {
-    boolean ended;
-    try {
-      ended = reader.peek() == JsonToken.END_DOCUMENT;
-    } catch (MalformedJsonException trailing) {
-      ended = false;
-    }
-    if (!ended) {
-      throw invalidJsonText(key, "the text continues after the JSON value");
-    }
-  }
-
-  private static Config config(String key, ConfigType type, String text) {
+  private static Config config(
+      String key, ConfigType type, String text, String configId, String valueId) {
     return new Config(
-        "test-config:" + key,
+        configId,
         key,
         type,
-        new TargetingRules(text, "test-value:" + key, List.of()),
+        new TargetingRules(text, valueId, List.of()),
         List.of(new Variation(text, null)),
         null);
   }
@@ -100,7 +80,7 @@ final class TestValueEncoder {
   private static void validateKey(String key) {
     if (key == null || key.isBlank()) {
       throw new ConfigDirectorValidationException(
-          "Invalid config key. The key of a test value must be a non-empty string.");
+          "Invalid config key. The key of a value must be a non-empty string.");
     }
   }
 
@@ -108,7 +88,7 @@ final class TestValueEncoder {
     String text = number.toString();
     if (!Double.isFinite(number.doubleValue())) {
       throw new ConfigDirectorValidationException(
-          "Invalid test value for '" + key + "': " + text + " is not a finite number.");
+          "Invalid value for '" + key + "': " + text + " is not a finite number.");
     }
     if (text.indexOf('E') < 0) {
       return text;
@@ -170,7 +150,7 @@ final class TestValueEncoder {
   private static ConfigDirectorValidationException invalidJsonContents(
       String key, String path, String problem) {
     return new ConfigDirectorValidationException(
-        "Invalid test value for '"
+        "Invalid value for '"
             + key
             + "'"
             + (path.isEmpty() ? "" : " at '" + path + "'")

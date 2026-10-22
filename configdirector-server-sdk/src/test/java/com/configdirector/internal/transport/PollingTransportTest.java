@@ -428,9 +428,9 @@ class PollingTransportTest {
     void builds_the_transport_the_mode_names() {
       TransportOptions options = optionsFor("https://api.test/", Duration.ofSeconds(60));
 
-      assertThat(Transports.create(ConnectionMode.STREAMING, options))
+      assertThat(Transports.create(LiveConnectionMode.STREAMING, options))
           .isInstanceOf(StreamingTransport.class);
-      assertThat(Transports.create(ConnectionMode.POLLING, options))
+      assertThat(Transports.create(LiveConnectionMode.POLLING, options))
           .isInstanceOf(PollingTransport.class);
     }
   }

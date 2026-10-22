@@ -6,6 +6,7 @@ import static org.awaitility.Awaitility.await;
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
+import com.configdirector.ConnectionMode;
 import dev.openfeature.sdk.Client;
 import dev.openfeature.sdk.ErrorCode;
 import dev.openfeature.sdk.EvaluationContext;
@@ -454,6 +455,28 @@ class ConfigDirectorProviderTest {
     api.shutdown();
 
     assertThat(provider.getBooleanEvaluation("show-banner", false, null).getValue()).isFalse();
+  }
+
+  @Test
+  void serves_offline_values_without_a_server_sdk_key_or_a_connection() {
+    String url = server.url();
+    api.setProviderAndWait(
+        new ConfigDirectorProvider(
+            options ->
+                options.connection(
+                    connection ->
+                        connection
+                            .mode(ConnectionMode.OFFLINE)
+                            .values(Map.of("show-banner", true))
+                            .url(url))));
+
+    FlagEvaluationDetails<Boolean> details =
+        api.getClient().getBooleanDetails("show-banner", false);
+    api.shutdown();
+
+    assertThat(details.getValue()).isTrue();
+    assertThat(details.getReason()).isEqualTo(Reason.TARGETING_MATCH.toString());
+    assertThat(server.requestCount()).isZero();
   }
 
   @Test

@@ -23,17 +23,29 @@ import java.util.function.Consumer;
  * <p>Watching mirrors that: one watch per type, each in the same two forms. A watch fires whenever
  * an update carries its key or a segment its targeting rules use, with the value evaluated afresh,
  * and whenever a full update no longer carries it, with the default. Handlers run on the transport
- * thread, so one that blocks delays later updates.
+ * thread, or for an offline client on the thread that calls {@link #initialize()}, so one that
+ * blocks delays later updates.
  */
 public interface ConfigDirectorClient extends AutoCloseable {
 
-  /** Connects and waits for the first config state, bounded by the configured timeout. */
+  /**
+   * Connects and waits for the first config state, bounded by the configured timeout. An offline
+   * client loads its values instead and is ready when this returns.
+   *
+   * @throws ConfigDirectorInitializationException if the client is offline and its values cannot
+   *     be loaded: the file is missing, unreadable, not a JSON object or holds a value such as
+   *     {@code null}, both a file and values were given, or either was given in a mode that
+   *     connects. A client that was ready keeps the values it loaded before
+   */
   void initialize();
 
   /**
-   * Connects and waits for the first config state, bounded by {@code timeout}.
+   * Connects and waits for the first config state, bounded by {@code timeout}. An offline client
+   * loads its values instead and ignores {@code timeout}.
    *
    * @param timeout how long to wait; must be positive
+   * @throws ConfigDirectorInitializationException if the client is offline and its values cannot
+   *     be loaded, as for {@link #initialize()}
    */
   void initialize(Duration timeout);
 

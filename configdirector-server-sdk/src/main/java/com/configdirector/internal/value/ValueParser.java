@@ -133,7 +133,7 @@ public final class ValueParser {
   }
 
   // JSON reaches the caller as plain JDK types, so no Gson type appears in this SDK's API.
-  private static Object toJava(JsonElement element) {
+  public static Object toJava(JsonElement element) {
     if (element == null || element.isJsonNull()) {
       return null;
     }

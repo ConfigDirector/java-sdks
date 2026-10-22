@@ -8,7 +8,6 @@ import com.configdirector.ConfigEvaluation;
 import com.configdirector.ConfigState;
 import com.configdirector.ConfigType;
 import com.configdirector.ConfigsUpdatedEvent;
-import com.configdirector.ConnectionMode;
 import com.configdirector.ConnectionOptions;
 import com.configdirector.Context;
 import com.configdirector.EvaluationReason;
@@ -24,6 +23,7 @@ import com.configdirector.internal.evaluation.ConfigEvaluator;
 import com.configdirector.internal.evaluation.EvaluationContext;
 import com.configdirector.internal.evaluation.Segment;
 import com.configdirector.internal.evaluation.SegmentCondition;
+import com.configdirector.internal.telemetry.DiscardingTelemetryCollector;
 import com.configdirector.internal.telemetry.InvalidContextRecording;
 import com.configdirector.internal.telemetry.InvalidContextSubmissions;
 import com.configdirector.internal.telemetry.ScheduledTelemetryCollector;
@@ -33,6 +33,7 @@ import com.configdirector.internal.telemetry.TelemetryCollectorOptions;
 import com.configdirector.internal.telemetry.TelemetryValue;
 import com.configdirector.internal.transport.ConfigBundle;
 import com.configdirector.internal.transport.HttpClient;
+import com.configdirector.internal.transport.LiveConnectionMode;
 import com.configdirector.internal.transport.Transport;
 import com.configdirector.internal.transport.TransportFactory;
 import com.configdirector.internal.transport.TransportOptions;
@@ -58,8 +59,6 @@ import org.slf4j.Logger;
 
 public final class DefaultConfigDirectorClient implements ConfigDirectorClient {
 
-  private static final String DEFAULT_BASE_URL = "https://server-sdk-api.configdirector.com";
-
   private static final Duration CLOSE_TIMEOUT = Duration.ofSeconds(5);
 
   // The longest timeout OkHttp accepts. ConnectionOptions bounds the one it carries; this bounds
@@ -71,7 +70,7 @@ public final class DefaultConfigDirectorClient implements ConfigDirectorClient {
   private final Logger logger;
   private final Metadata metadata;
   private final ConnectionOptions connection;
-  private final String baseUrl;
+  private final ConnectionPlan plan;
   private final HttpClient http;
   private final ConfigEvaluator evaluator;
   private final Transport transport;
@@ -91,6 +90,7 @@ public final class DefaultConfigDirectorClient implements ConfigDirectorClient {
   // and a map lookup -- no lock on the path every getX() call takes.
   private volatile ServedDefinitions served;
   private volatile boolean closed;
+  private boolean firstBundleReceived;
 
   public DefaultConfigDirectorClient(
       String serverSdkKey,
@@ -119,55 +119,54 @@ public final class DefaultConfigDirectorClient implements ConfigDirectorClient {
       Logger logger,
       TransportFactory transportFactory,
       TelemetryCollectorFactory telemetryFactory) {
-    if (serverSdkKey == null || serverSdkKey.isBlank()) {
-      throw new ConfigDirectorValidationException(
-          "No server SDK key was provided, the client cannot be instantiated without a valid "
-              + "server SDK key");
-    }
-
     this.logger = logger;
     this.metadata = metadata == null ? Metadata.empty() : metadata;
     this.connection = connection == null ? ConnectionOptions.defaults() : connection;
-    this.baseUrl = validatedUrl(this.connection.url());
+    this.plan = ConnectionPlan.of(serverSdkKey, this.connection);
     this.evaluator = new ConfigEvaluator(logger);
 
     // One pool for every request/response call this client makes -- polling and telemetry both.
     // Owned here so close() releases the connections it opened, rather than leaving them in a pool
     // shared across the process.
     this.http = new HttpClient();
-    Map<String, String> metaContext = metaContext(identity, this.metadata);
-    this.transport =
-        transportFactory.create(
-            modeOf(this.connection.mode()),
-            new TransportOptions(
-                serverSdkKey,
-                baseUrl,
-                identity,
-                metaContext,
-                logger,
-                this::onBundle,
-                http,
-                resolvePollingInterval(this.connection)));
+    if (plan instanceof ConnectionPlan.Connect live) {
+      Map<String, String> metaContext = metaContext(identity, this.metadata);
+      this.transport =
+          transportFactory.create(
+              live.mode(),
+              new TransportOptions(
+                  live.serverSdkKey(),
+                  live.baseUrl(),
+                  identity,
+                  metaContext,
+                  logger,
+                  this::onBundle,
+                  http,
+                  pollingIntervalToUse(live.mode(), this.connection.pollingInterval())));
 
-    TelemetryOptions telemetryOptions = telemetry == null ? TelemetryOptions.defaults() : telemetry;
-    this.telemetry =
-        telemetryFactory.create(
-            new TelemetryCollectorOptions(
-                serverSdkKey,
-                baseUrl,
-                identity,
-                metaContext,
-                logger,
-                http,
-                telemetryOptions.eventQueueLimit(),
-                telemetryOptions.flushInterval(),
-                ScheduledTelemetryCollector.INITIAL_FLUSH_DELAY));
+      TelemetryOptions telemetryOptions =
+          telemetry == null ? TelemetryOptions.defaults() : telemetry;
+      this.telemetry =
+          telemetryFactory.create(
+              new TelemetryCollectorOptions(
+                  live.serverSdkKey(),
+                  live.baseUrl(),
+                  identity,
+                  metaContext,
+                  logger,
+                  http,
+                  telemetryOptions.eventQueueLimit(),
+                  telemetryOptions.flushInterval(),
+                  ScheduledTelemetryCollector.INITIAL_FLUSH_DELAY));
+    } else {
+      this.transport =
+          new OfflineTransport(((ConnectionPlan.StayOffline) plan).source(), this::onBundle);
+      this.telemetry = DiscardingTelemetryCollector.INSTANCE;
+    }
   }
 
-  private Duration resolvePollingInterval(ConnectionOptions connection) {
-    Duration configured = connection.pollingInterval();
-    if (connection.mode() != ConnectionMode.POLLING
-        || configured.compareTo(PollingIntervals.MINIMUM) >= 0) {
+  private Duration pollingIntervalToUse(LiveConnectionMode mode, Duration configured) {
+    if (mode != LiveConnectionMode.POLLING || configured.compareTo(PollingIntervals.MINIMUM) >= 0) {
       return configured;
     }
     logger.warn(
@@ -185,6 +184,20 @@ public final class DefaultConfigDirectorClient implements ConfigDirectorClient {
 
   @Override
   public void initialize(Duration timeout) {
+    if (plan instanceof ConnectionPlan.Connect live) {
+      connect(live, timeout);
+    } else {
+      loadOfflineValues();
+    }
+  }
+
+  private void loadOfflineValues() {
+    raiseIfClosed();
+    logger.debug("[ConfigDirectorClient] Initializing in offline mode");
+    transport.connect(Duration.ZERO);
+  }
+
+  private void connect(ConnectionPlan.Connect live, Duration timeout) {
     if (timeout == null || timeout.isNegative() || timeout.isZero()) {
       throw new ConfigDirectorValidationException(
           "Invalid timeout '" + timeout + "'. The timeout must be a positive duration.");
@@ -202,8 +215,8 @@ public final class DefaultConfigDirectorClient implements ConfigDirectorClient {
     raiseIfClosed();
     logger.debug(
         "[ConfigDirectorClient] Initializing in {} mode against {} with a {} timeout",
-        connection.mode(),
-        baseUrl,
+        live.mode(),
+        live.baseUrl(),
         timeout);
 
     long started = System.nanoTime();
@@ -223,7 +236,7 @@ public final class DefaultConfigDirectorClient implements ConfigDirectorClient {
       logger.warn(
           "[ConfigDirectorClient] Timed out waiting for initialization after {}. {}",
           timeout,
-          connection.mode() == ConnectionMode.STREAMING
+          live.mode() == LiveConnectionMode.STREAMING
               ? "The client will continue to retry since there were no fatal errors detected. "
                   + "Configs will return the default value until the connection succeeds."
               : "Since the client was configured without streaming, configs may not update and "
@@ -302,7 +315,8 @@ public final class DefaultConfigDirectorClient implements ConfigDirectorClient {
       if (current == null || bundle.kind() == ConfigBundle.BundleKind.FULL) {
         merged = new LinkedHashMap<>(bundle.configs());
         segments = new LinkedHashMap<>(bundle.segments());
-        firstBundle = ready.getCount() > 0;
+        firstBundle = !firstBundleReceived;
+        firstBundleReceived = true;
         if (current != null) {
           removedKeys = keysAbsentFrom(current.configs(), bundle.configs());
         }
@@ -790,23 +804,6 @@ public final class DefaultConfigDirectorClient implements ConfigDirectorClient {
     }
   }
 
-  private static String validatedUrl(String url) {
-    if (url == null || url.isBlank()) {
-      return DEFAULT_BASE_URL;
-    }
-    java.net.URI parsed;
-    try {
-      parsed = java.net.URI.create(url.strip());
-    } catch (IllegalArgumentException malformed) {
-      throw new ConfigDirectorValidationException("Invalid connection URL '" + url + "'.");
-    }
-    if (!parsed.isAbsolute() || parsed.getHost() == null) {
-      throw new ConfigDirectorValidationException(
-          "Invalid connection URL '" + url + "'. It must be absolute and name a host.");
-    }
-    return parsed.toString();
-  }
-
   // The wire format is camelCase, and the server treats every field but the SDK identity as
   // optional, so absent metadata is left out rather than sent as null.
   private static Map<String, String> metaContext(SdkIdentity identity, Metadata metadata) {
@@ -820,13 +817,6 @@ public final class DefaultConfigDirectorClient implements ConfigDirectorClient {
       context.put("appVersion", metadata.appVersion());
     }
     return context;
-  }
-
-  private static com.configdirector.internal.transport.ConnectionMode modeOf(ConnectionMode mode) {
-    return switch (mode) {
-      case POLLING -> com.configdirector.internal.transport.ConnectionMode.POLLING;
-      case STREAMING -> com.configdirector.internal.transport.ConnectionMode.STREAMING;
-    };
   }
 
   // Identity comparison keeps two identical watches distinct, so unsubscribing one leaves the

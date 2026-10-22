@@ -484,7 +484,7 @@ class ConfigDirectorClientTest {
           .isThrownBy(() -> ConfigDirector.client("  "))
           .withMessageContaining("server SDK key");
       assertThatExceptionOfType(ConfigDirectorValidationException.class)
-          .isThrownBy(() -> ConfigDirector.client(null));
+          .isThrownBy(() -> ConfigDirector.client((String) null));
     }
 
     @Test

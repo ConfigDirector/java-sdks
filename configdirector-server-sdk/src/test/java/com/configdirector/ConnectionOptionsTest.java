@@ -4,7 +4,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 import static org.assertj.core.api.Assertions.assertThatNoException;
 
+import java.nio.file.Path;
 import java.time.Duration;
+import java.util.HashMap;
+import java.util.Map;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -142,6 +145,71 @@ class ConnectionOptionsTest {
     void a_usable_url_is_kept_as_it_was_given() {
       assertThat(builder().url("https://proxy.internal:8443/cd").build().url())
           .isEqualTo("https://proxy.internal:8443/cd");
+    }
+  }
+
+  @Nested
+  @DisplayName("offline mode")
+  class Offline {
+
+    private ConnectionOptions.Builder offline() {
+      return builder().mode(ConnectionMode.OFFLINE);
+    }
+
+    @Test
+    void has_no_file_and_no_values_unless_given() {
+      ConnectionOptions built = offline().build();
+
+      assertThat(built.file()).isNull();
+      assertThat(built.values()).isNull();
+    }
+
+    @Test
+    void keeps_the_file_as_given() {
+      Path file = Path.of("flags", "new-checkout-on.json");
+
+      assertThat(offline().file(file).build().file()).isEqualTo(file);
+    }
+
+    @Test
+    void keeps_the_values_as_given() {
+      assertThat(offline().values(Map.of("new-checkout", true)).build().values())
+          .isEqualTo(Map.of("new-checkout", true));
+    }
+
+    @Test
+    void copies_the_values_when_built() {
+      Map<String, Object> values = new HashMap<>();
+      values.put("new-checkout", true);
+      ConnectionOptions built = offline().values(values).build();
+
+      values.put("max-items", 20);
+
+      assertThat(built.values()).isEqualTo(Map.of("new-checkout", true));
+    }
+
+    @Test
+    void the_values_cannot_be_changed_through_the_settings() {
+      ConnectionOptions built = offline().values(Map.of("new-checkout", true)).build();
+
+      assertThatExceptionOfType(UnsupportedOperationException.class)
+          .isThrownBy(() -> built.values().put("max-items", 20));
+    }
+
+    @Test
+    void the_timeout_is_not_checked() {
+      assertThatNoException().isThrownBy(() -> offline().timeout(Duration.ZERO).build());
+    }
+
+    @Test
+    void the_polling_interval_is_not_checked() {
+      assertThatNoException()
+          .isThrownBy(() -> offline().pollingInterval(Duration.ofDays(400_000)).build());
+    }
+
+    @Test
+    void the_url_is_not_checked() {
+      assertThatNoException().isThrownBy(() -> offline().url("not-a-url").build());
     }
   }
 

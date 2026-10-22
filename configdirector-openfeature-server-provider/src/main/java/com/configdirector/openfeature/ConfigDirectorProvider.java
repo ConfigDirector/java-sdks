@@ -5,6 +5,7 @@ import com.configdirector.ConfigDirector;
 import com.configdirector.ConfigDirectorClient;
 import com.configdirector.ConfigEvaluation;
 import com.configdirector.ConfigsUpdatedEvent;
+import com.configdirector.ConnectionMode;
 import com.configdirector.Context;
 import com.configdirector.internal.SdkIdentity;
 import com.configdirector.internal.client.ClientFactory;
@@ -45,6 +46,10 @@ import java.util.function.Consumer;
  * <p>If the first config state does not arrive within the configured timeout, initialization still
  * completes and evaluations return their defaults with the error code {@code PROVIDER_NOT_READY}.
  * The provider keeps connecting, and emits {@code PROVIDER_READY} once config state arrives.
+ *
+ * <p>In {@link ConnectionMode#OFFLINE} mode the provider never connects and serves the values it
+ * was given. If those values cannot be loaded, initialization fails: {@code setProviderAndWait}
+ * throws, and the provider is left in the error state.
  */
 public final class ConfigDirectorProvider extends EventProvider {
 
@@ -68,7 +73,8 @@ public final class ConfigDirectorProvider extends EventProvider {
    * A provider whose client uses the settings {@code configure} adjusts. These are the same
    * settings {@link ConfigDirector#client(String, Consumer)} accepts.
    *
-   * @param serverSdkKey a secret; do not commit it to source control
+   * @param serverSdkKey a secret; do not commit it to source control. May be null or blank when
+   *     the connection mode is {@link ConnectionMode#OFFLINE}
    * @param configure receives the settings to adjust before the client is built
    */
   public ConfigDirectorProvider(String serverSdkKey, Consumer<ClientOptions> configure) {
@@ -78,6 +84,26 @@ public final class ConfigDirectorProvider extends EventProvider {
         event ->
             emitProviderConfigurationChanged(
                 ProviderEventDetails.builder().flagsChanged(changedFlags(event)).build()));
+  }
+
+  /**
+   * A provider without a server SDK key, which only an offline client can run without. These are
+   * the same settings {@link ConfigDirector#client(Consumer)} accepts.
+   *
+   * <pre>{@code
+   * api.setProviderAndWait(new ConfigDirectorProvider(options -> options
+   *     .connection(connection -> connection
+   *         .mode(ConnectionMode.OFFLINE)
+   *         .file(Path.of("flags/new-checkout-on.json")))));
+   * }</pre>
+   *
+   * @param configure receives the settings to adjust before the client is built; it must set the
+   *     connection mode to {@link ConnectionMode#OFFLINE}
+   * @throws com.configdirector.ConfigDirectorValidationException if the connection mode is not
+   *     offline
+   */
+  public ConfigDirectorProvider(Consumer<ClientOptions> configure) {
+    this(null, configure);
   }
 
   private static List<String> changedFlags(ConfigsUpdatedEvent event) {
