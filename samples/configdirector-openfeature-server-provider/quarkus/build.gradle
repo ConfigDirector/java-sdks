@@ -27,7 +27,7 @@ dependencies {
 
     implementation useLocalSdk
         ? project(':configdirector-openfeature-server-provider')
-        : 'com.configdirector:openfeature-server-provider:1.6.0'
+        : 'com.configdirector:openfeature-server-provider:1.7.0'
 
     implementation 'io.quarkus:quarkus-arc'
     implementation 'io.quarkus:quarkus-rest-jackson'
