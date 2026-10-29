@@ -99,6 +99,20 @@ Client client = api.getClient();
 boolean newCheckout = client.getBooleanValue("new-checkout", false);
 ```
 
+`setProviderAndWait` waits up to the connection timeout, 3 seconds by default, for config to arrive. If none arrives in time, or ConfigDirector rejects the server SDK key, it throws `dev.openfeature.sdk.exceptions.ProviderNotReadyError` and OpenFeature reports the `ERROR` state. Evaluations then return their in-code default values with `PROVIDER_NOT_READY`. After a timeout the provider keeps connecting, and OpenFeature reports `READY` once config arrives.
+
+To start without waiting for ConfigDirector, call `api.setProvider` instead, which initializes the provider in the background, or catch the exception:
+
+```java
+import dev.openfeature.sdk.exceptions.ProviderNotReadyError;
+
+try {
+  api.setProviderAndWait(new ConfigDirectorProvider("YOUR-SERVER-SDK-KEY"));
+} catch (ProviderNotReadyError error) {
+  log.warn("Starting on in-code default values until ConfigDirector sends config: {}", error.getMessage());
+}
+```
+
 Full details are in the [official documentation](https://docs.configdirector.com/sdks/openfeature/java).
 
 ## Test your code

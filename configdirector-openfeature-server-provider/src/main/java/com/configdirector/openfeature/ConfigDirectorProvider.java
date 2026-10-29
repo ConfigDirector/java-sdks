@@ -14,9 +14,19 @@ import dev.openfeature.sdk.EventProvider;
 import dev.openfeature.sdk.Metadata;
 import dev.openfeature.sdk.ProviderEvaluation;
 import dev.openfeature.sdk.ProviderEventDetails;
+import dev.openfeature.sdk.ProviderState;
 import dev.openfeature.sdk.Value;
+import dev.openfeature.sdk.exceptions.ProviderNotReadyError;
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.VarHandle;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executor;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 
@@ -43,9 +53,23 @@ import java.util.function.Consumer;
  * is not a string, is ignored as a whole: the evaluation still resolves successfully, to the value
  * for no context, and the SDK logs an error.
  *
- * <p>If the first config state does not arrive within the configured timeout, initialization still
- * completes and evaluations return their defaults with the error code {@code PROVIDER_NOT_READY}.
- * The provider keeps connecting, and emits {@code PROVIDER_READY} once config state arrives.
+ * <p>If no config arrives within the connection timeout, or ConfigDirector rejects the server SDK
+ * key, initialization fails with OpenFeature's {@link ProviderNotReadyError}: {@code
+ * setProviderAndWait} throws it, and OpenFeature reports the {@code ERROR} state. Evaluations
+ * return their in-code default values with the error code {@code PROVIDER_NOT_READY} until config
+ * arrives. After a timeout the provider keeps connecting, and reports {@code READY} once config
+ * arrives. To start without waiting for ConfigDirector, call {@code setProvider} instead, or catch
+ * the exception:
+ *
+ * <pre>{@code
+ * try {
+ *   api.setProviderAndWait(new ConfigDirectorProvider(sdkKey));
+ * } catch (ProviderNotReadyError error) {
+ *   log.warn(
+ *       "Starting on in-code default values until ConfigDirector sends config: {}",
+ *       error.getMessage());
+ * }
+ * }</pre>
  *
  * <p>In {@link ConnectionMode#OFFLINE} mode the provider never connects and serves the values it
  * was given. If those values cannot be loaded, initialization fails: {@code setProviderAndWait}
@@ -56,9 +80,59 @@ public final class ConfigDirectorProvider extends EventProvider {
   private static final String NAME = "ConfigDirectorProvider";
   private static final SdkIdentity IDENTITY =
       SdkIdentity.of("java-openfeature-server-provider", ConfigDirectorProvider.class);
-  private static final ThreadLocal<ConfigEvaluation> EVALUATED = new ThreadLocal<>();
+  private static final ThreadLocal<ConfigEvaluation> CURRENT_EVALUATION = new ThreadLocal<>();
+  private static final String NO_CONFIG_IN_TIME =
+      "No config arrived from ConfigDirector within the connection timeout. Flags resolve to their "
+          + "in-code default values until config arrives.";
+
+  private static final Duration RECORDED_FAILURE_POLL_INTERVAL = Duration.ofMillis(10);
+  private static final VarHandle STATE_MANAGER;
+  private static final VarHandle RECORDED_STATE;
+
+  static {
+    try {
+      MethodHandles.Lookup eventProviderAccess =
+          MethodHandles.privateLookupIn(EventProvider.class, MethodHandles.lookup());
+      Class<?> stateManagerClass =
+          eventProviderAccess.findClass("dev.openfeature.sdk.FeatureProviderStateManager");
+      STATE_MANAGER =
+          eventProviderAccess.findVarHandle(
+              EventProvider.class,
+              "eventProviderListener",
+              eventProviderAccess.findClass("dev.openfeature.sdk.EventProviderListener"));
+      RECORDED_STATE =
+          MethodHandles.privateLookupIn(stateManagerClass, MethodHandles.lookup())
+              .findVarHandle(stateManagerClass, "state", AtomicReference.class);
+    } catch (ReflectiveOperationException unsupported) {
+      throw new IllegalStateException(
+          "ConfigDirectorProvider does not support this version of the OpenFeature Java SDK: it "
+              + "cannot find where OpenFeature records a provider's state. Use the "
+              + "dev.openfeature:sdk version this release of the provider depends on.",
+          unsupported);
+    }
+  }
+
+  private static final Executor ON_A_NEW_DAEMON_THREAD =
+      readinessCheck -> {
+        Thread thread = new Thread(readinessCheck, "configdirector-openfeature-readiness-check");
+        thread.setDaemon(true);
+        thread.start();
+      };
+
+  private enum Startup {
+    INITIALIZING,
+    AWAITING_RECORDED_FAILURE,
+    AWAITING_CONFIG,
+    READY
+  }
 
   private final ConfigDirectorClient client;
+  private final Executor readinessCheckExecutor;
+  private final Object lock = new Object();
+  private final CountDownLatch shutdownStarted = new CountDownLatch(1);
+  private volatile CompletableFuture<Void> scheduledReadinessCheck =
+      CompletableFuture.completedFuture(null);
+  private Startup startup = Startup.INITIALIZING;
 
   /**
    * A provider whose client uses default settings.
@@ -78,12 +152,19 @@ public final class ConfigDirectorProvider extends EventProvider {
    * @param configure receives the settings to adjust before the client is built
    */
   public ConfigDirectorProvider(String serverSdkKey, Consumer<ClientOptions> configure) {
+    this(serverSdkKey, configure, ON_A_NEW_DAEMON_THREAD);
+  }
+
+  ConfigDirectorProvider(
+      String serverSdkKey, Consumer<ClientOptions> configure, Executor readinessCheckExecutor) {
     this.client = ClientFactory.create(serverSdkKey, configure, IDENTITY);
-    this.client.onConfigEvaluated(event -> EVALUATED.set(event.evaluation()));
+    this.readinessCheckExecutor = readinessCheckExecutor;
+    this.client.onConfigEvaluated(event -> CURRENT_EVALUATION.set(event.evaluation()));
     this.client.onConfigsUpdated(
         event ->
             emitProviderConfigurationChanged(
                 ProviderEventDetails.builder().flagsChanged(changedFlags(event)).build()));
+    this.client.onClientReady(event -> reportReadyIfConfigArrived());
   }
 
   /**
@@ -120,70 +201,124 @@ public final class ConfigDirectorProvider extends EventProvider {
   @Override
   public void initialize(EvaluationContext evaluationContext) {
     client.initialize();
-    if (!client.isReady()) {
-      client.onClientReady(event -> emitProviderReady(ProviderEventDetails.builder().build()));
+    synchronized (lock) {
+      if (client.isReady()) {
+        startup = Startup.READY;
+        return;
+      }
+      startup = Startup.AWAITING_RECORDED_FAILURE;
     }
+    scheduledReadinessCheck =
+        CompletableFuture.runAsync(
+            this::reportReadyOnceTheFailureIsRecorded, readinessCheckExecutor);
+    throw new ProviderNotReadyError(NO_CONFIG_IN_TIME);
   }
 
   @Override
   public void shutdown() {
+    shutdownStarted.countDown();
+    scheduledReadinessCheck.join();
     client.close();
     super.shutdown();
   }
 
   @Override
   public ProviderEvaluation<Boolean> getBooleanEvaluation(
-      String key, Boolean defaultValue, EvaluationContext ctx) {
-    return evaluate(key, defaultValue, ctx);
+      String key, Boolean defaultValue, EvaluationContext evaluationContext) {
+    return evaluate(key, defaultValue, evaluationContext);
   }
 
   @Override
   public ProviderEvaluation<String> getStringEvaluation(
-      String key, String defaultValue, EvaluationContext ctx) {
-    return evaluate(key, defaultValue, ctx);
+      String key, String defaultValue, EvaluationContext evaluationContext) {
+    return evaluate(key, defaultValue, evaluationContext);
   }
 
   @Override
   public ProviderEvaluation<Integer> getIntegerEvaluation(
-      String key, Integer defaultValue, EvaluationContext ctx) {
-    return evaluate(key, defaultValue, ctx);
+      String key, Integer defaultValue, EvaluationContext evaluationContext) {
+    return evaluate(key, defaultValue, evaluationContext);
   }
 
   @Override
   public ProviderEvaluation<Double> getDoubleEvaluation(
-      String key, Double defaultValue, EvaluationContext ctx) {
-    return evaluate(key, defaultValue, ctx);
+      String key, Double defaultValue, EvaluationContext evaluationContext) {
+    return evaluate(key, defaultValue, evaluationContext);
   }
 
   @Override
   public ProviderEvaluation<Long> getLongEvaluation(
-      String key, Long defaultValue, EvaluationContext ctx) {
-    return evaluate(key, defaultValue, ctx);
+      String key, Long defaultValue, EvaluationContext evaluationContext) {
+    return evaluate(key, defaultValue, evaluationContext);
   }
 
   @Override
   public ProviderEvaluation<Value> getObjectEvaluation(
-      String key, Value defaultValue, EvaluationContext ctx) {
+      String key, Value defaultValue, EvaluationContext evaluationContext) {
     return evaluate(
         key,
         ValueMapper.toJava(defaultValue),
-        ctx,
-        (value, usedDefault) -> usedDefault ? defaultValue : ValueMapper.toValue(value));
+        evaluationContext,
+        (value, servedInCodeDefault) ->
+            servedInCodeDefault ? defaultValue : ValueMapper.toValue(value));
   }
 
-  private <T> ProviderEvaluation<T> evaluate(String key, T defaultValue, EvaluationContext ctx) {
-    return evaluate(key, defaultValue, ctx, (value, usedDefault) -> value);
+  private void reportReadyOnceTheFailureIsRecorded() {
+    while (!openFeatureRecordedTheFailure()) {
+      if (stopRequestedWithin(RECORDED_FAILURE_POLL_INTERVAL)) {
+        return;
+      }
+    }
+    synchronized (lock) {
+      startup = Startup.AWAITING_CONFIG;
+    }
+    reportReadyIfConfigArrived();
+  }
+
+  private boolean openFeatureRecordedTheFailure() {
+    Object stateManager = STATE_MANAGER.get(this);
+    return stateManager != null
+        && ((AtomicReference<?>) RECORDED_STATE.get(stateManager)).get() == ProviderState.ERROR;
+  }
+
+  private boolean stopRequestedWithin(Duration timeout) {
+    try {
+      return shutdownStarted.await(timeout.toMillis(), TimeUnit.MILLISECONDS);
+    } catch (InterruptedException interrupted) {
+      Thread.currentThread().interrupt();
+      return true;
+    }
+  }
+
+  private void reportReadyIfConfigArrived() {
+    synchronized (lock) {
+      boolean configArrivedAfterTheFailure =
+          startup == Startup.AWAITING_CONFIG && client.isReady();
+      if (!configArrivedAfterTheFailure) {
+        return;
+      }
+      startup = Startup.READY;
+    }
+    emitProviderReady(ProviderEventDetails.builder().build());
+  }
+
+  private <T> ProviderEvaluation<T> evaluate(
+      String key, T defaultValue, EvaluationContext evaluationContext) {
+    return evaluate(key, defaultValue, evaluationContext, (value, servedInCodeDefault) -> value);
   }
 
   private <T, R> ProviderEvaluation<R> evaluate(
-      String key, T defaultValue, EvaluationContext ctx, BiFunction<T, Boolean, R> convert) {
+      String key,
+      T defaultValue,
+      EvaluationContext evaluationContext,
+      BiFunction<T, Boolean, R> convert) {
     try {
-      T value = client.getValue(key, defaultValue, ContextMapper.toContext(ctx));
-      ConfigEvaluation evaluation = EVALUATED.get();
-      boolean usedDefault = evaluation == null || evaluation.isDefault();
-      return Resolutions.of(convert.apply(value, usedDefault), evaluation);
+      T value = client.getValue(key, defaultValue, ContextMapper.toContext(evaluationContext));
+      ConfigEvaluation evaluation = CURRENT_EVALUATION.get();
+      boolean servedInCodeDefault = evaluation == null || evaluation.isDefault();
+      return Resolutions.of(convert.apply(value, servedInCodeDefault), evaluation);
     } finally {
-      EVALUATED.remove();
+      CURRENT_EVALUATION.remove();
     }
   }
 }

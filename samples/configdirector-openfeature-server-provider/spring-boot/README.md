@@ -70,7 +70,7 @@ breaking API change fails here before it ships.
 [`OpenFeatureConfiguration`](src/main/java/com/configdirector/samples/openfeature/springboot/OpenFeatureConfiguration.java) registers the provider with OpenFeature when the
 application starts and shuts OpenFeature down when it stops. The provider owns one ConfigDirector
 client, which holds a connection and the config state, so registering a provider per request would
-open a connection every time and serve defaults while each one connects.
+open a connection every time and serve in-code default values while each one connects.
 
 A Spring `@Bean` is built once and injected everywhere, and `destroyMethod = "shutdown"` is what
 closes the provider, and with it the ConfigDirector client, when the context stops:
@@ -79,7 +79,11 @@ closes the provider, and with it the ConfigDirector client, when the context sto
 @Bean(destroyMethod = "shutdown")
 public OpenFeatureAPI openFeatureApi(SampleProperties properties) {
   OpenFeatureAPI api = OpenFeatureAPI.getInstance();
-  api.setProviderAndWait(new ConfigDirectorProvider(properties.getServerKey(), options -> ...));
+  try {
+    api.setProviderAndWait(new ConfigDirectorProvider(properties.getServerKey(), options -> ...));
+  } catch (ProviderNotReadyError error) {
+    log.warn("Starting on in-code default values until ConfigDirector sends config: {}", error.getMessage());
+  }
   return api;
 }
 
@@ -89,9 +93,11 @@ public Client openFeatureClient(OpenFeatureAPI api) {
 }
 ```
 
-`setProviderAndWait` blocks until the first config state arrives or the timeout elapses. It does not
-throw when ConfigDirector is unreachable: the app keeps serving on the defaults it passes in, and
-the provider keeps connecting in the background.
+`setProviderAndWait` blocks until the first config state arrives or the timeout elapses, and throws
+`ProviderNotReadyError` when no config arrives in time or ConfigDirector rejects the server SDK key.
+The app catches it, logs a warning and still starts, serving the in-code default values it passes
+in. After a timeout the provider keeps connecting in the background, and OpenFeature reports the
+provider ready once config arrives.
 
 ## What else it demonstrates
 
@@ -108,7 +114,7 @@ parameters onto an OpenFeature `EvaluationContext`. `id` becomes the targeting k
 already holds in memory, with no network call on the request path.
 
 **Object values are OpenFeature `Value`s.** A JSON config is read with `getObjectValue`, whose
-default decides the shape: a structure for a JSON object, a list for a JSON array.
+in-code default value decides the shape: a structure for a JSON object, a list for a JSON array.
 
 **Configuration changes are events.** The sample logs the keys each update carried through
 `onProviderConfigurationChanged`.
@@ -144,6 +150,7 @@ empty, so a `.env` on your machine cannot change what they assert.
 
 ## Running without a server SDK key
 
-Without a valid key the provider never receives config state and every value falls back to the
-default this app passes in. That is the same path a production app takes when it cannot reach
-ConfigDirector.
+Without a valid key ConfigDirector rejects the key, so the provider never receives config state and
+every value falls back to the in-code default value this app passes in. The app still starts with
+a warning, as it does when it cannot reach ConfigDirector in time, but a rejected key is final: the
+provider stops connecting until the app restarts with a valid key.

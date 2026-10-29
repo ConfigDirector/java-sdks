@@ -1,27 +1,40 @@
 package com.configdirector.openfeature;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
+import static org.assertj.core.api.Assertions.catchThrowable;
 import static org.awaitility.Awaitility.await;
 
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
+import com.configdirector.ClientOptions;
 import com.configdirector.ConnectionMode;
 import dev.openfeature.sdk.Client;
 import dev.openfeature.sdk.ErrorCode;
 import dev.openfeature.sdk.EvaluationContext;
 import dev.openfeature.sdk.EventDetails;
 import dev.openfeature.sdk.FlagEvaluationDetails;
+import dev.openfeature.sdk.Hook;
+import dev.openfeature.sdk.HookContext;
 import dev.openfeature.sdk.ImmutableContext;
 import dev.openfeature.sdk.ImmutableStructure;
 import dev.openfeature.sdk.OpenFeatureAPI;
+import dev.openfeature.sdk.ProviderState;
 import dev.openfeature.sdk.Reason;
 import dev.openfeature.sdk.Value;
+import dev.openfeature.sdk.exceptions.OpenFeatureError;
+import dev.openfeature.sdk.exceptions.ProviderNotReadyError;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executor;
+import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -30,6 +43,7 @@ import org.slf4j.LoggerFactory;
 class ConfigDirectorProviderTest {
 
   private static final Duration TIMEOUT = Duration.ofSeconds(5);
+  private static final Duration WINDOW_FOR_AN_EARLY_READY = Duration.ofMillis(300);
 
   private FakeConfigDirectorServer server;
   private OpenFeatureAPI api;
@@ -91,16 +105,33 @@ class ConfigDirectorProviderTest {
         + "}]}";
   }
 
-  private ConfigDirectorProvider provider(Duration timeout) {
+  private Consumer<ClientOptions> connectingToTheServer(Duration timeout) {
     String url = server.url();
+    return options -> options.connection(connection -> connection.url(url).timeout(timeout));
+  }
+
+  private ConfigDirectorProvider provider(Duration timeout) {
+    return new ConfigDirectorProvider("sdk-key", connectingToTheServer(timeout));
+  }
+
+  private ConfigDirectorProvider provider(Duration timeout, Executor readinessCheckExecutor) {
     return new ConfigDirectorProvider(
-        "sdk-key", options -> options.connection(connection -> connection.url(url).timeout(timeout)));
+        "sdk-key", connectingToTheServer(timeout), readinessCheckExecutor);
   }
 
   private Client clientServing(String bundle) {
     server.send(bundle);
     api.setProviderAndWait(provider(TIMEOUT));
     return api.getClient();
+  }
+
+  private static boolean countedDownWithin(CountDownLatch latch, Duration timeout) {
+    try {
+      return latch.await(timeout.toMillis(), TimeUnit.MILLISECONDS);
+    } catch (InterruptedException interrupted) {
+      Thread.currentThread().interrupt();
+      return false;
+    }
   }
 
   @Test
@@ -169,6 +200,38 @@ class ConfigDirectorProviderTest {
     assertThat(number.getErrorCode()).isEqualTo(ErrorCode.TYPE_MISMATCH);
     assertThat(number.getErrorMessage()).contains("greeting").contains("invalid-number");
     assertThat(object.getErrorCode()).isEqualTo(ErrorCode.TYPE_MISMATCH);
+  }
+
+  @Test
+  void runs_an_after_hook_that_sees_targeting_match_and_the_value_id_for_a_served_value() {
+    Client client = clientServing(bundleOf(config("show-banner", "boolean", "true")));
+    RecordingHook hook = new RecordingHook();
+    client.addHooks(hook);
+
+    client.getBooleanValue("show-banner", false);
+
+    assertThat(hook.afterDetails)
+        .singleElement()
+        .satisfies(
+            details -> {
+              assertThat(details.getReason()).isEqualTo(Reason.TARGETING_MATCH.toString());
+              assertThat(details.getVariant()).isEqualTo("dv-show-banner");
+            });
+  }
+
+  @Test
+  void runs_an_error_hook_that_sees_flag_not_found_for_a_config_that_does_not_exist() {
+    Client client = clientServing(bundleOf());
+    RecordingHook hook = new RecordingHook();
+    client.addHooks(hook);
+
+    client.getBooleanValue("missing-flag", false);
+
+    assertThat(hook.errors)
+        .singleElement()
+        .isInstanceOfSatisfying(
+            OpenFeatureError.class,
+            error -> assertThat(error.getErrorCode()).isEqualTo(ErrorCode.FLAG_NOT_FOUND));
   }
 
   @Test
@@ -428,21 +491,130 @@ class ConfigDirectorProviderTest {
   }
 
   @Test
-  void finishes_initializing_without_configs_and_becomes_ready_when_they_arrive() {
-    List<EventDetails> ready = new CopyOnWriteArrayList<>();
-    api.onProviderReady(ready::add);
-    api.setProviderAndWait(provider(Duration.ofMillis(200)));
+  void fails_to_initialize_when_no_config_arrives_within_the_timeout() {
+    List<EventDetails> errors = new CopyOnWriteArrayList<>();
+    List<EventDetails> changes = new CopyOnWriteArrayList<>();
+    api.onProviderError(errors::add);
+    api.onProviderConfigurationChanged(changes::add);
     Client client = api.getClient();
-    await().atMost(TIMEOUT).until(() -> ready.size() == 1);
 
-    FlagEvaluationDetails<Boolean> early = client.getBooleanDetails("show-banner", false);
-    assertThat(early.getValue()).isFalse();
-    assertThat(early.getErrorCode()).isEqualTo(ErrorCode.PROVIDER_NOT_READY);
+    Throwable failure =
+        catchThrowable(() -> api.setProviderAndWait(provider(Duration.ofMillis(200))));
+    ProviderState state = client.getProviderState();
+    FlagEvaluationDetails<Boolean> details = client.getBooleanDetails("show-banner", false);
 
     server.send(bundleOf(config("show-banner", "boolean", "true")));
+    await().atMost(TIMEOUT).until(() -> !changes.isEmpty());
 
-    await().atMost(TIMEOUT).until(() -> ready.size() == 2);
+    assertThat(failure).isInstanceOf(ProviderNotReadyError.class);
+    assertThat(state).isEqualTo(ProviderState.ERROR);
+    assertThat(details.getValue()).isFalse();
+    assertThat(details.getErrorCode()).isEqualTo(ErrorCode.PROVIDER_NOT_READY);
+    assertThat(errors).hasSize(1);
+  }
+
+  @Test
+  void fails_to_initialize_when_the_sdk_key_is_rejected() {
+    server.send(bundleOf(config("show-banner", "boolean", "true")));
+    server.rejectTheSdkKey();
+    Client client = api.getClient();
+
+    Throwable failure = catchThrowable(() -> api.setProviderAndWait(provider(TIMEOUT)));
+    FlagEvaluationDetails<Boolean> details = client.getBooleanDetails("show-banner", false);
+
+    assertThat(failure).isInstanceOf(ProviderNotReadyError.class);
+    assertThat(client.getProviderState()).isEqualTo(ProviderState.ERROR);
+    assertThat(details.getValue()).isFalse();
+    assertThat(details.getErrorCode()).isEqualTo(ErrorCode.PROVIDER_NOT_READY);
+  }
+
+  @Test
+  void reports_ready_once_when_config_arrives_after_a_failed_initialization() {
+    List<EventDetails> ready = new CopyOnWriteArrayList<>();
+    List<EventDetails> changes = new CopyOnWriteArrayList<>();
+    api.onProviderReady(ready::add);
+    api.onProviderConfigurationChanged(changes::add);
+    Client client = api.getClient();
+    Throwable failure =
+        catchThrowable(() -> api.setProviderAndWait(provider(Duration.ofMillis(200))));
+
+    server.send(bundleOf(config("show-banner", "boolean", "true")));
+    await().atMost(TIMEOUT).until(() -> !ready.isEmpty());
+    server.send(deltaOf(config("greeting", "string", "Ciao")));
+    await().atMost(TIMEOUT).until(() -> changes.size() == 2);
+
+    assertThat(failure).isInstanceOf(ProviderNotReadyError.class);
+    assertThat(ready).hasSize(1);
+    assertThat(client.getProviderState()).isEqualTo(ProviderState.READY);
     assertThat(client.getBooleanValue("show-banner", false)).isTrue();
+  }
+
+  @Test
+  void reports_ready_when_config_arrives_while_open_feature_records_the_failure() {
+    List<EventDetails> errors = new CopyOnWriteArrayList<>();
+    CountDownLatch configChanged = new CountDownLatch(1);
+    CountDownLatch reportedReady = new CountDownLatch(1);
+    List<Boolean> configArrivedBeforeTheFailure = new CopyOnWriteArrayList<>();
+    api.onProviderError(errors::add);
+    api.onProviderConfigurationChanged(details -> configChanged.countDown());
+    api.onProviderReady(details -> reportedReady.countDown());
+    ConfigDirectorProvider provider =
+        provider(
+            Duration.ofMillis(200),
+            readinessCheck -> {
+              new Thread(readinessCheck).start();
+              server.send(bundleOf(config("show-banner", "boolean", "true")));
+              configArrivedBeforeTheFailure.add(countedDownWithin(configChanged, TIMEOUT));
+              countedDownWithin(reportedReady, WINDOW_FOR_AN_EARLY_READY);
+            });
+
+    api.setProvider(provider);
+    await().atMost(TIMEOUT).until(() -> !errors.isEmpty());
+
+    await()
+        .atMost(TIMEOUT)
+        .untilAsserted(
+            () -> assertThat(api.getClient().getProviderState()).isEqualTo(ProviderState.READY));
+    assertThat(configArrivedBeforeTheFailure).containsExactly(true);
+  }
+
+  @Test
+  void stops_waiting_for_open_feature_to_record_a_failure_when_shut_down() {
+    List<Thread> readinessChecks = new CopyOnWriteArrayList<>();
+    ConfigDirectorProvider provider =
+        provider(
+            Duration.ofMillis(200),
+            readinessCheck -> {
+              Thread thread = new Thread(readinessCheck);
+              readinessChecks.add(thread);
+              thread.start();
+            });
+    assertThatExceptionOfType(ProviderNotReadyError.class)
+        .isThrownBy(() -> provider.initialize(new ImmutableContext()));
+
+    provider.shutdown();
+
+    await()
+        .atMost(TIMEOUT)
+        .untilAsserted(
+            () ->
+                assertThat(readinessChecks)
+                    .singleElement()
+                    .satisfies(thread -> assertThat(thread.isAlive()).isFalse()));
+  }
+
+  @Test
+  void reports_ready_once_when_config_arrives_within_the_timeout() {
+    List<EventDetails> ready = new CopyOnWriteArrayList<>();
+    List<EventDetails> changes = new CopyOnWriteArrayList<>();
+    api.onProviderReady(ready::add);
+    api.onProviderConfigurationChanged(changes::add);
+    clientServing(bundleOf(config("show-banner", "boolean", "true")));
+
+    server.send(deltaOf(config("greeting", "string", "Ciao")));
+    await().atMost(TIMEOUT).until(() -> changes.size() == 2);
+
+    assertThat(ready).hasSize(1);
   }
 
   @Test
@@ -484,5 +656,24 @@ class ConfigDirectorProviderTest {
     clientServing(bundleOf());
 
     assertThat(api.getProviderMetadata().getName()).isEqualTo("ConfigDirectorProvider");
+  }
+
+  private static final class RecordingHook implements Hook<Boolean> {
+    private final List<FlagEvaluationDetails<Boolean>> afterDetails = new ArrayList<>();
+    private final List<Exception> errors = new ArrayList<>();
+
+    @Override
+    public void after(
+        HookContext<Boolean> hookContext,
+        FlagEvaluationDetails<Boolean> details,
+        Map<String, Object> hints) {
+      afterDetails.add(details);
+    }
+
+    @Override
+    public void error(
+        HookContext<Boolean> hookContext, Exception error, Map<String, Object> hints) {
+      errors.add(error);
+    }
   }
 }

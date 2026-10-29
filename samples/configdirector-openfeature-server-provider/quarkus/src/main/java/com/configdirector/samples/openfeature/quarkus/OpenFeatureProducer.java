@@ -4,6 +4,7 @@ import com.configdirector.ConnectionMode;
 import com.configdirector.openfeature.ConfigDirectorProvider;
 import dev.openfeature.sdk.Client;
 import dev.openfeature.sdk.OpenFeatureAPI;
+import dev.openfeature.sdk.exceptions.ProviderNotReadyError;
 import io.quarkus.runtime.Startup;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.inject.Disposes;
@@ -45,7 +46,13 @@ public class OpenFeatureProducer {
     OpenFeatureAPI api = OpenFeatureAPI.getInstance();
     api.onProviderConfigurationChanged(
         details -> log.info("Configs updated: {}", details.getFlagsChanged()));
-    api.setProviderAndWait(provider);
+    try {
+      api.setProviderAndWait(provider);
+    } catch (ProviderNotReadyError error) {
+      log.warn(
+          "Starting on in-code default values until ConfigDirector sends config: {}",
+          error.getMessage());
+    }
 
     log.info("ConfigDirector OpenFeature provider registered once at startup (mode={})", mode);
     return api;

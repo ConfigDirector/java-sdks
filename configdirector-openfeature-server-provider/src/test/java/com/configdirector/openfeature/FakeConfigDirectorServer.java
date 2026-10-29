@@ -32,6 +32,7 @@ final class FakeConfigDirectorServer implements AutoCloseable {
   private final BlockingQueue<Request> streamRequests = new LinkedBlockingQueue<>();
   private final BlockingQueue<Request> telemetryRequests = new LinkedBlockingQueue<>();
   private final AtomicInteger requestCount = new AtomicInteger();
+  private volatile boolean rejectsTheSdkKey;
 
   record Request(String userAgent, String body) {}
 
@@ -58,6 +59,10 @@ final class FakeConfigDirectorServer implements AutoCloseable {
 
   void send(String bundle) {
     outbox.add(bundle);
+  }
+
+  void rejectTheSdkKey() {
+    rejectsTheSdkKey = true;
   }
 
   int requestCount() {
@@ -90,6 +95,11 @@ final class FakeConfigDirectorServer implements AutoCloseable {
   private void stream(HttpExchange exchange) throws IOException {
     requestCount.incrementAndGet();
     streamRequests.add(received(exchange));
+    if (rejectsTheSdkKey) {
+      exchange.sendResponseHeaders(401, -1);
+      exchange.close();
+      return;
+    }
     exchange.getResponseHeaders().add("Content-Type", "text/event-stream");
     exchange.sendResponseHeaders(200, 0);
     try (OutputStream body = exchange.getResponseBody()) {

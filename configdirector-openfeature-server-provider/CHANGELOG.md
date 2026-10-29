@@ -8,6 +8,14 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- When no config arrives within the connection timeout, initialization now fails:
+  `setProviderAndWait` throws, and the provider reports the `ERROR` state until config arrives,
+  then `READY`. Before, it reported `READY` while serving in-code default values, then `READY`
+  again once config arrived. To start without waiting for ConfigDirector, call `setProvider`
+  instead, or catch the exception.
+
 ## [1.7.0] - 2026-10-22
 
 ### Added

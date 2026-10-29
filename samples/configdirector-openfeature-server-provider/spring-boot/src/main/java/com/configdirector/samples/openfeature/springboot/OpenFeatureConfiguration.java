@@ -4,6 +4,7 @@ import com.configdirector.ConnectionMode;
 import com.configdirector.openfeature.ConfigDirectorProvider;
 import dev.openfeature.sdk.Client;
 import dev.openfeature.sdk.OpenFeatureAPI;
+import dev.openfeature.sdk.exceptions.ProviderNotReadyError;
 import java.util.Locale;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -40,7 +41,13 @@ public class OpenFeatureConfiguration {
     OpenFeatureAPI api = OpenFeatureAPI.getInstance();
     api.onProviderConfigurationChanged(
         details -> log.info("Configs updated: {}", details.getFlagsChanged()));
-    api.setProviderAndWait(provider);
+    try {
+      api.setProviderAndWait(provider);
+    } catch (ProviderNotReadyError error) {
+      log.warn(
+          "Starting on in-code default values until ConfigDirector sends config: {}",
+          error.getMessage());
+    }
 
     log.info("ConfigDirector OpenFeature provider registered once at startup");
     return api;
