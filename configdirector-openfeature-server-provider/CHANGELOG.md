@@ -8,6 +8,8 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.8.0] - 2026-10-28
+
 ### Changed
 
 - When no config arrives within the connection timeout, initialization now fails:

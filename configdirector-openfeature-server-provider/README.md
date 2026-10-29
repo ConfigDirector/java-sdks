@@ -35,7 +35,7 @@ repositories {
 }
 
 dependencies {
-    implementation("com.configdirector:openfeature-server-provider:1.7.0")
+    implementation("com.configdirector:openfeature-server-provider:1.8.0")
 }
 ```
 
@@ -58,7 +58,7 @@ repositories {
 }
 
 dependencies {
-    implementation 'com.configdirector:openfeature-server-provider:1.7.0'
+    implementation 'com.configdirector:openfeature-server-provider:1.8.0'
 }
 ```
 
@@ -77,7 +77,7 @@ Maven:
 <dependency>
   <groupId>com.configdirector</groupId>
   <artifactId>openfeature-server-provider</artifactId>
-  <version>1.7.0</version>
+  <version>1.8.0</version>
 </dependency>
 ```
 
