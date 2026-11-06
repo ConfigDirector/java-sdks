@@ -141,8 +141,9 @@ parameter. The extension works with JUnit 5.10 or newer and JUnit 6.
 The extension is for code that receives the client from the test. A Spring, Micronaut, or Quarkus
 context that outlives a test keeps one test client in a static field, replaces the application's
 client bean with `testClient.client()`, initializes it where the application's own bean method
-would have, and calls `replaceValues` in each test's setup. Replacing matters: a second bean leaves
-the application's own client in place, which connects to ConfigDirector on startup.
+would have, and calls `replaceValues` in each test's setup, along with `trackedEvents().clear()`
+when tests read tracked events. Replacing matters: a second bean leaves the application's own client
+in place, which connects to ConfigDirector on startup.
 
 ### Values
 
@@ -168,8 +169,8 @@ so `Map.of("n", 1)` reads back as `{n=1L}`.
 | `setValue(key, value)` | Stores the value and, once the client is connected, delivers an update carrying only `key`. Watches of `key`, `configsUpdated` handlers, and reads see it before the call returns. |
 | `setJsonValue(key, json)` | As `setValue`, for strict JSON text that becomes a JSON config. |
 | `removeValue(key)` | Removes the value and delivers a full update without it. Reads return the in-code default value with the `CONFIG_STATE_MISSING` reason, watches of `key` receive the default, and `configsUpdated` lists `key` in `removedKeys()`. |
-| `replaceValues(values)` | Replaces every stored value, empties `trackedEvents()`, disarms any armed hold or failure, and delivers a full update. Use it to reset a test client shared across tests. |
-| `trackedEvents()` | Returns every event the code under test tracked through the client, in call order, as `TrackedEvent(name, context, value, details)`. Anything an event was not tracked with is null. |
+| `replaceValues(values)` | Replaces every stored value, disarms any armed hold or failure, and delivers a full update. Use it to reset a test client shared across tests. |
+| `trackedEvents()` | Returns the list of every event the code under test tracked through the client, in call order, as `TrackedEvent(name, context, value, details)`. Anything an event was not tracked with is null. It is the same list on every call: later events are added to it, and a test client shared across tests can `clear()` it. |
 | `holdInitialization()` | The next `initialize` waits until `completeInitialization()` or `failInitialization()`, or until the client's timeout elapses. `initialize` blocks, so a test calls it on another thread. |
 | `completeInitialization()` | Delivers the stored values to the held `initialize`, on the calling thread, so the client is ready when the call returns. Called while a hold is armed but not picked up, it disarms the hold. |
 | `failInitialization()` | Fails the held `initialize` the way an invalid SDK key does: it completes promptly, the client is not ready, and the error is logged. Called with no `initialize` held, it arms the next one to fail. |

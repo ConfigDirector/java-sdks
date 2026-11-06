@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<FindBugsFilter>
+  <Match>
+    <Class name="com.configdirector.testing.TestClient"/>
+    <Method name="trackedEvents"/>
+    <Bug pattern="EI_EXPOSE_REP"/>
+  </Match>
+</FindBugsFilter>

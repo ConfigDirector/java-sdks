@@ -14,7 +14,6 @@ import java.time.Duration;
 import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
@@ -43,7 +42,6 @@ public final class InMemoryConnection {
 
   private final Logger logger;
   private final ConfigDirectorClient client;
-  private final TrackedEventRecordingTelemetryCollector telemetry;
   private Consumer<ConfigBundle> onBundle;
 
   private final Object stateLock = new Object();
@@ -56,9 +54,12 @@ public final class InMemoryConnection {
   private final Deque<ConfigBundle> pendingDeliveries = new ArrayDeque<>();
   private boolean delivering;
 
-  public InMemoryConnection(Map<String, ?> values, Duration timeout, Logger logger) {
+  public InMemoryConnection(
+      Map<String, ?> values,
+      Duration timeout,
+      Logger logger,
+      Consumer<TrackedEventAdmission.Admitted> onTrackedEvent) {
     this.logger = Objects.requireNonNull(logger, "logger");
-    this.telemetry = new TrackedEventRecordingTelemetryCollector(logger);
     configs.putAll(encodeAll(values));
     ConnectionOptions connection =
         timeout == null
@@ -76,7 +77,7 @@ public final class InMemoryConnection {
               onBundle = options.onBundle();
               return new Attempts();
             },
-            options -> telemetry);
+            options -> new TrackedEventRecordingTelemetryCollector(logger, onTrackedEvent));
   }
 
   public ConfigDirectorClient client() {
@@ -107,15 +108,10 @@ public final class InMemoryConnection {
     synchronized (stateLock) {
       configs.clear();
       configs.putAll(encoded);
-      telemetry.clearTrackedEvents();
       armed = Armed.NOTHING;
       update = connected ? fullUpdate() : null;
     }
     deliverIfAny(update);
-  }
-
-  public List<TrackedEventAdmission.Admitted> trackedEvents() {
-    return telemetry.trackedEvents();
   }
 
   public void holdInitialization() {

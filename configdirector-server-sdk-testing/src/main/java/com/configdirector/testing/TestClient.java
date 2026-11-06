@@ -2,8 +2,11 @@ package com.configdirector.testing;
 
 import com.configdirector.ConfigDirectorClient;
 import com.configdirector.internal.client.InMemoryConnection;
+import java.time.Duration;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CopyOnWriteArrayList;
+import org.slf4j.Logger;
 
 /**
  * A real ConfigDirector client connected to an in-memory server that the test controls.
@@ -19,10 +22,22 @@ import java.util.Map;
  */
 public final class TestClient implements AutoCloseable {
 
+  private final List<TrackedEvent> trackedEvents = new CopyOnWriteArrayList<>();
   private final InMemoryConnection connection;
 
-  TestClient(InMemoryConnection connection) {
-    this.connection = connection;
+  TestClient(Map<String, ?> values, Duration timeout, Logger logger) {
+    this.connection =
+        new InMemoryConnection(
+            values,
+            timeout,
+            logger,
+            admitted ->
+                trackedEvents.add(
+                    new TrackedEvent(
+                        admitted.entry().name(),
+                        admitted.context(),
+                        admitted.entry().value(),
+                        admitted.entry().details())));
   }
 
   /**
@@ -78,9 +93,9 @@ public final class TestClient implements AutoCloseable {
   }
 
   /**
-   * Replaces every stored value with {@code values}, empties {@link #trackedEvents()}, disarms any
-   * armed hold or failure, and, when the client is connected, delivers the new values as a full
-   * update. Use it to reset a test client shared across tests.
+   * Replaces every stored value with {@code values}, disarms any armed hold or failure, and, when
+   * the client is connected, delivers the new values as a full update. Use it to reset a test
+   * client shared across tests.
    *
    * @param values the values to serve from now on, keyed by config key
    * @throws com.configdirector.ConfigDirectorValidationException as {@link #setValue(String,
@@ -123,18 +138,11 @@ public final class TestClient implements AutoCloseable {
    * or details the SDK would leave out are missing from the record. A context whose kind is invalid
    * is not recorded with its event. The limit of 1,000 events per telemetry batch does not apply.
    *
-   * @return the events tracked so far, unmodifiable; later events do not change this list
+   * @return the list of events tracked so far, the same one on every call: later events are added
+   *     to it, and a test client shared across tests can {@code clear()} it
    */
   public List<TrackedEvent> trackedEvents() {
-    return connection.trackedEvents().stream()
-        .map(
-            admitted ->
-                new TrackedEvent(
-                    admitted.entry().name(),
-                    admitted.context(),
-                    admitted.entry().value(),
-                    admitted.entry().details()))
-        .toList();
+    return trackedEvents;
   }
 
   /** Closes the client. Closing twice is harmless. */

@@ -69,7 +69,7 @@ class InMemoryConnectionTest {
   }
 
   private InMemoryConnection connection(Map<String, ?> values, Duration timeout) {
-    InMemoryConnection connection = new InMemoryConnection(values, timeout, logger);
+    InMemoryConnection connection = new InMemoryConnection(values, timeout, logger, admitted -> {});
     connections.add(connection);
     return connection;
   }

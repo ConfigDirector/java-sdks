@@ -3,17 +3,18 @@ package com.configdirector.internal.telemetry;
 import com.configdirector.ConfigEvaluation;
 import com.configdirector.ConfigType;
 import java.time.Duration;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.function.Consumer;
 import org.slf4j.Logger;
 
 public final class TrackedEventRecordingTelemetryCollector implements TelemetryCollector {
 
   private final Logger logger;
-  private final List<TrackedEventAdmission.Admitted> trackedEvents = new ArrayList<>();
+  private final Consumer<TrackedEventAdmission.Admitted> onTrackedEvent;
 
-  public TrackedEventRecordingTelemetryCollector(Logger logger) {
+  public TrackedEventRecordingTelemetryCollector(
+      Logger logger, Consumer<TrackedEventAdmission.Admitted> onTrackedEvent) {
     this.logger = logger;
+    this.onTrackedEvent = onTrackedEvent;
   }
 
   @Override
@@ -33,21 +34,7 @@ public final class TrackedEventRecordingTelemetryCollector implements TelemetryC
   public void recordTrackedEvent(TrackedEventAdmission admission) {
     admission.warnings().forEach(warning -> logger.warn("{}", warning.message()));
     if (admission instanceof TrackedEventAdmission.Admitted admitted) {
-      synchronized (trackedEvents) {
-        trackedEvents.add(admitted);
-      }
-    }
-  }
-
-  public List<TrackedEventAdmission.Admitted> trackedEvents() {
-    synchronized (trackedEvents) {
-      return List.copyOf(trackedEvents);
-    }
-  }
-
-  public void clearTrackedEvents() {
-    synchronized (trackedEvents) {
-      trackedEvents.clear();
+      onTrackedEvent.accept(admitted);
     }
   }
 

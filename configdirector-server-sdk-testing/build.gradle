@@ -79,6 +79,7 @@ tasks.named('jar') {
 spotbugs {
     effort = Effort.valueOf('MAX')
     reportLevel = Confidence.valueOf('DEFAULT')
+    excludeFilter = file('config/spotbugs/exclude.xml')
 }
 
 // The same tests once more on the newest JUnit 5, since consumers on either major keep their

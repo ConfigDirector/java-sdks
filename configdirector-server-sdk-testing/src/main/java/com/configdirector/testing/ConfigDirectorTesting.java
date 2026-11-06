@@ -1,7 +1,6 @@
 package com.configdirector.testing;
 
 import com.configdirector.ConfigDirectorClient;
-import com.configdirector.internal.client.InMemoryConnection;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Consumer;
@@ -64,6 +63,6 @@ public final class ConfigDirectorTesting {
         ConfigDirectorTesting.class.getPackage().getImplementationVersion());
     TestClientOptions options = new TestClientOptions();
     configure.accept(options);
-    return new TestClient(new InMemoryConnection(values, options.timeout(), options.logger()));
+    return new TestClient(values, options.timeout(), options.logger());
   }
 }

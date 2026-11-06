@@ -28,6 +28,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -399,22 +400,25 @@ class TestClientConformanceTest {
   }
 
   @Test
-  void the_tracked_events_returned_do_not_change_when_more_are_tracked() {
+  void the_tracked_events_returned_show_an_event_tracked_afterwards() {
     TestClient testClient = create(Map.of());
     testClient.client().track("first");
 
     List<TrackedEvent> returned = testClient.trackedEvents();
     testClient.client().track("second");
 
-    assertThat(returned).containsExactly(new TrackedEvent("first", null, null, null));
+    assertThat(returned)
+        .containsExactly(
+            new TrackedEvent("first", null, null, null),
+            new TrackedEvent("second", null, null, null));
   }
 
   @Test
-  void replace_values_empties_the_tracked_events() {
+  void clearing_the_tracked_events_leaves_only_the_events_tracked_afterwards() {
     TestClient testClient = create(Map.of());
     testClient.client().track("from-the-previous-test");
 
-    testClient.replaceValues(Map.of());
+    testClient.trackedEvents().clear();
     testClient.client().track("from-this-test");
 
     assertThat(testClient.trackedEvents())
@@ -422,15 +426,25 @@ class TestClientConformanceTest {
   }
 
   @Test
-  void replace_values_that_rejects_a_value_keeps_the_tracked_events() {
+  void replace_values_leaves_the_tracked_events_alone() {
     TestClient testClient = create(Map.of());
     testClient.client().track("checkout-completed");
 
-    assertThatExceptionOfType(ConfigDirectorValidationException.class)
-        .isThrownBy(() -> testClient.replaceValues(Map.of("rejected", new BigDecimal("1.5"))));
+    testClient.replaceValues(Map.of());
 
     assertThat(testClient.trackedEvents())
         .containsExactly(new TrackedEvent("checkout-completed", null, null, null));
+  }
+
+  @Test
+  void records_every_event_tracked_from_many_threads() {
+    TestClient testClient = create(Map.of());
+
+    IntStream.range(0, 1_000)
+        .parallel()
+        .forEach(number -> testClient.client().track("event-" + number));
+
+    assertThat(testClient.trackedEvents()).hasSize(1_000);
   }
 
   @Test
