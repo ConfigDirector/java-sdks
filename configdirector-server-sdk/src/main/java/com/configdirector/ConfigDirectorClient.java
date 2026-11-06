@@ -26,6 +26,9 @@ import java.util.function.Consumer;
  * and whenever a full update no longer carries it, with the default. Handlers run on the transport
  * thread, or for an offline client on the thread that calls {@link #initialize()}, so one that
  * blocks delays later updates.
+ *
+ * <p>{@link #track(String, Context, TrackOptions)} reports that something happened, such as a
+ * completed checkout.
  */
 public interface ConfigDirectorClient extends AutoCloseable {
 
@@ -256,6 +259,48 @@ public interface ConfigDirectorClient extends AutoCloseable {
    * @return the evaluated state by key, or an empty map before the first config state arrives
    */
   Map<String, ConfigState> getAllConfigs(Context context, List<String> configKeys);
+
+  /**
+   * Reports to ConfigDirector that something happened, such as a completed checkout, without a
+   * context and with neither a value nor details. See {@link #track(String, Context,
+   * TrackOptions)}.
+   *
+   * @param eventName the name of the event, 1 to 150 characters. An event with any other name is
+   *     not reported and a warning is logged
+   */
+  void track(String eventName);
+
+  /**
+   * Reports to ConfigDirector that something happened, for {@code context}, with neither a value
+   * nor details. See {@link #track(String, Context, TrackOptions)}.
+   *
+   * @param eventName the name of the event, 1 to 150 characters. An event with any other name is
+   *     not reported and a warning is logged
+   * @param context the context the event happened for; may be null
+   */
+  void track(String eventName, Context context);
+
+  /**
+   * Reports to ConfigDirector that something happened, such as a completed checkout, so it can be
+   * counted. The event is sent with the next telemetry batch. {@code track} never throws, and does
+   * nothing for an offline client or after {@link #close()}.
+   *
+   * <p>An event counts for an experiment only when it is tracked for a context with an {@code id},
+   * the one the experiment's config was evaluated for. Without a context, or for a context without
+   * an {@code id}, the event is still reported. The {@code id} of a context marked anonymous is not
+   * sent. A context with an invalid {@linkplain Context#kind() kind} is logged as it is for an
+   * evaluation, and the event is sent without a context.
+   *
+   * <p>A telemetry batch holds at most 1,000 tracked events, and events beyond that are not
+   * reported. Each cause of an event being dropped, or sent without its value or details, logs one
+   * warning per telemetry batch.
+   *
+   * @param eventName the name of the event, 1 to 150 characters. An event with any other name is
+   *     not reported and a warning is logged
+   * @param context the context the event happened for; may be null
+   * @param options the event's value and details; may be null
+   */
+  void track(String eventName, Context context, TrackOptions options);
 
   /**
    * Watches {@code configKey} as a boolean.

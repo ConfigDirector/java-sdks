@@ -19,6 +19,8 @@ import dev.openfeature.sdk.Hook;
 import dev.openfeature.sdk.HookContext;
 import dev.openfeature.sdk.ImmutableContext;
 import dev.openfeature.sdk.ImmutableStructure;
+import dev.openfeature.sdk.ImmutableTrackingEventDetails;
+import dev.openfeature.sdk.MutableTrackingEventDetails;
 import dev.openfeature.sdk.OpenFeatureAPI;
 import dev.openfeature.sdk.ProviderState;
 import dev.openfeature.sdk.Reason;
@@ -554,6 +556,176 @@ class ConfigDirectorProviderTest {
 
     assertThat(request.userAgent()).matches("java-openfeature-server-provider/\\S+");
     assertThat(request.body()).contains("\"sdkName\":\"java-openfeature-server-provider\"");
+  }
+
+  @Test
+  void forwards_a_tracking_event_with_its_context_value_and_details() throws InterruptedException {
+    Client client = clientServing(bundleOf());
+
+    client.track(
+        "checkout-completed",
+        new ImmutableContext("user-1"),
+        new MutableTrackingEventDetails(49.9).add("plan", "pro"));
+    api.shutdown();
+
+    assertThat(server.nextTelemetryRequest().body())
+        .contains(
+            "\"trackedEvents\":[{\"name\":\"checkout-completed\",\"contextKind\":\"user\","
+                + "\"contextIdentifier\":\"user-1\",\"value\":49.9,"
+                + "\"details\":{\"plan\":\"pro\"},\"happenedAt\":\"");
+  }
+
+  @Test
+  void forwards_a_tracking_event_without_a_context_or_details_with_only_its_name()
+      throws InterruptedException {
+    Client client = clientServing(bundleOf());
+
+    client.track("nightly-import-finished");
+    api.shutdown();
+
+    assertThat(server.nextTelemetryRequest().body())
+        .contains("\"trackedEvents\":[{\"name\":\"nightly-import-finished\",\"happenedAt\":\"");
+  }
+
+  @Test
+  void forwards_a_tracking_event_with_a_value_and_no_other_details_without_details()
+      throws InterruptedException {
+    Client client = clientServing(bundleOf());
+
+    client.track("nightly-import-finished", new MutableTrackingEventDetails(3));
+    api.shutdown();
+
+    assertThat(server.nextTelemetryRequest().body())
+        .contains(
+            "\"trackedEvents\":[{\"name\":\"nightly-import-finished\",\"value\":3,"
+                + "\"happenedAt\":\"");
+  }
+
+  @Test
+  void forwards_a_tracking_event_for_the_evaluation_context_set_on_the_api()
+      throws InterruptedException {
+    Client client = clientServing(bundleOf());
+    api.setEvaluationContext(new ImmutableContext("user-from-the-api"));
+
+    client.track("checkout-completed");
+    api.shutdown();
+
+    assertThat(server.nextTelemetryRequest().body())
+        .contains("\"contextIdentifier\":\"user-from-the-api\"");
+  }
+
+  @Test
+  void forwards_the_kind_of_the_evaluation_context_of_a_tracking_event()
+      throws InterruptedException {
+    Client client = clientServing(bundleOf());
+
+    client.track(
+        "seat-added", new ImmutableContext("acme", Map.of("kind", new Value("organization"))));
+    api.shutdown();
+
+    assertThat(server.nextTelemetryRequest().body())
+        .contains("\"contextKind\":\"organization\",\"contextIdentifier\":\"acme\"");
+  }
+
+  @Test
+  void withholds_the_targeting_key_of_an_anonymous_evaluation_context_from_a_tracking_event()
+      throws InterruptedException {
+    Client client = clientServing(bundleOf());
+
+    client.track(
+        "checkout-completed",
+        new ImmutableContext("hidden-user", Map.of("anonymous", new Value(true))));
+    api.shutdown();
+
+    assertThat(server.nextTelemetryRequest().body())
+        .contains("\"trackedEvents\":[{\"name\":\"checkout-completed\",\"happenedAt\":\"")
+        .doesNotContain("hidden-user");
+  }
+
+  @Test
+  void forwards_a_details_attribute_named_value_as_a_detail() throws InterruptedException {
+    Client client = clientServing(bundleOf());
+
+    client.track(
+        "checkout-completed", new MutableTrackingEventDetails(5).add("value", "not-the-number"));
+    api.shutdown();
+
+    assertThat(server.nextTelemetryRequest().body())
+        .contains("\"value\":5,\"details\":{\"value\":\"not-the-number\"},");
+  }
+
+  @Test
+  void forwards_every_type_of_tracking_event_detail() throws InterruptedException {
+    Client client = clientServing(bundleOf());
+
+    client.track(
+        "checkout-completed",
+        new ImmutableTrackingEventDetails(
+            49.9,
+            Map.of(
+                "plan", new Value("pro"),
+                "seats", new Value(3),
+                "ratio", new Value(0.5),
+                "trial", new Value(false),
+                "at", new Value(Instant.parse("2026-11-06T10:00:00Z")),
+                "items", new Value(List.of(new Value("book"))),
+                "cart", new Value(new ImmutableStructure(Map.of("id", new Value("c-1")))))));
+    api.shutdown();
+
+    assertThat(server.nextTelemetryRequest().body())
+        .contains("\"plan\":\"pro\"")
+        .contains("\"seats\":3")
+        .contains("\"ratio\":0.5")
+        .contains("\"trial\":false")
+        .contains("\"at\":\"2026-11-06T10:00:00Z\"")
+        .contains("\"items\":[\"book\"]")
+        .contains("\"cart\":{\"id\":\"c-1\"}");
+  }
+
+  @Test
+  void forwards_a_tracking_event_without_details_that_hold_themselves_and_logs_a_warning()
+      throws InterruptedException {
+    ch.qos.logback.classic.Logger logger =
+        (ch.qos.logback.classic.Logger) LoggerFactory.getLogger("provider-tracking-under-test");
+    ListAppender<ILoggingEvent> appender = new ListAppender<>();
+    appender.start();
+    logger.addAppender(appender);
+    try {
+      server.send(bundleOf());
+      String url = server.url();
+      api.setProviderAndWait(
+          new ConfigDirectorProvider(
+              "sdk-key",
+              options ->
+                  options
+                      .logger(logger)
+                      .connection(connection -> connection.url(url).timeout(TIMEOUT))));
+      MutableTrackingEventDetails details = new MutableTrackingEventDetails(49.9);
+      details.add("self", details);
+
+      api.getClient().track("checkout-completed", details);
+      api.shutdown();
+
+      assertThat(server.nextTelemetryRequest().body())
+          .contains(
+              "\"trackedEvents\":[{\"name\":\"checkout-completed\",\"value\":49.9,"
+                  + "\"happenedAt\":\"");
+      assertThat(appender.list.stream().filter(event -> event.getLevel() == Level.WARN)).hasSize(1);
+    } finally {
+      logger.detachAppender(appender);
+    }
+  }
+
+  @Test
+  void sends_nothing_for_a_tracking_event_on_an_offline_provider() {
+    api.setProviderAndWait(
+        new ConfigDirectorProvider(
+            options -> options.connection(connection -> connection.mode(ConnectionMode.OFFLINE))));
+
+    api.getClient().track("checkout-completed");
+    api.shutdown();
+
+    assertThat(server.requestCount()).isZero();
   }
 
   @Test

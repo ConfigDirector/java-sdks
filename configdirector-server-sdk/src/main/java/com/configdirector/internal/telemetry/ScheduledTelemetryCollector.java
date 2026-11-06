@@ -2,8 +2,6 @@ package com.configdirector.internal.telemetry;
 
 import com.configdirector.ConfigEvaluation;
 import com.configdirector.ConfigType;
-import com.configdirector.Context;
-import com.configdirector.internal.ContextKinds;
 import java.time.Duration;
 import java.util.concurrent.Executors;
 import java.util.concurrent.RejectedExecutionException;
@@ -33,6 +31,7 @@ public final class ScheduledTelemetryCollector implements TelemetryCollector {
   private final InvalidContextSubmissions invalidContexts = new InvalidContextSubmissions();
   private final InvalidContextSubmissions invalidContextsAfterStopping =
       new InvalidContextSubmissions();
+  private final TrackedEventQueue trackedEvents = new TrackedEventQueue();
   private final Duration flushInterval;
   private final ScheduledExecutorService scheduler;
 
@@ -88,25 +87,38 @@ public final class ScheduledTelemetryCollector implements TelemetryCollector {
       return;
     }
 
-    // An anonymous context still targets rules, but it is not persisted and must not be
-    // identifiable in what is reported.
-    Context context = evaluation.context();
-    String contextId = null;
-    String contextKind = null;
-    if (context != null && context.id() != null && !context.id().isBlank() && !context.anonymous()) {
-      contextId = context.id();
-      contextKind = ContextKinds.effectiveKindOf(context);
-      contexts.add(contextKind, contextId, context);
+    ReportedContext reportedContext = ReportedContext.of(evaluation.context());
+    if (reportedContext.identifier() != null) {
+      contexts.add(reportedContext.kind(), reportedContext.identifier(), evaluation.context());
     }
 
     events.push(
         EvaluatedConfigEvent.of(
-            evaluation, defaultValue, type, contextId, contextKind, ruleId, shareId));
+            evaluation,
+            defaultValue,
+            type,
+            reportedContext.identifier(),
+            reportedContext.kind(),
+            ruleId,
+            shareId));
   }
 
   @Override
   public InvalidContextRecording recordInvalidContext(String kindSample) {
     return (collecting.get() ? invalidContexts : invalidContextsAfterStopping).record(kindSample);
+  }
+
+  @Override
+  public void recordTrackedEvent(TrackedEventAdmission admission) {
+    if (!collecting.get()) {
+      return;
+    }
+
+    for (TrackedEventWarning warning : trackedEvents.add(admission)) {
+      logger.warn(
+          "{} Further tracked events like it are not logged until the next telemetry batch is sent.",
+          warning.message());
+    }
   }
 
   // Reports everything collected so far without waiting for the next interval, blocking until the
@@ -122,7 +134,8 @@ public final class ScheduledTelemetryCollector implements TelemetryCollector {
               evaluations.droppedCount(),
               captured.contexts(),
               captured.droppedCount(),
-              invalidContexts.takeSnapshot());
+              invalidContexts.takeSnapshot(),
+              trackedEvents.takeBatch());
       if (report.isEmpty()) {
         return;
       }
@@ -174,9 +187,14 @@ public final class ScheduledTelemetryCollector implements TelemetryCollector {
     } catch (InterruptedException interrupted) {
       Thread.currentThread().interrupt();
     }
+    clearWhatWasCollected();
+  }
+
+  private void clearWhatWasCollected() {
     events.clear();
     contexts.clear();
     invalidContexts.clear();
+    trackedEvents.clear();
   }
 
   private void submitFinalReport() {
@@ -220,9 +238,7 @@ public final class ScheduledTelemetryCollector implements TelemetryCollector {
     if (!collecting.compareAndSet(true, false)) {
       return;
     }
-    events.clear();
-    contexts.clear();
-    invalidContexts.clear();
+    clearWhatWasCollected();
     logger.warn(
         "[TelemetryCollector] Received a fatal error while reporting telemetry. No longer "
             + "collecting events.");

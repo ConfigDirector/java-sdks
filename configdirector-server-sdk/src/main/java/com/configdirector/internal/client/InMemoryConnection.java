@@ -4,7 +4,8 @@ import com.configdirector.ConfigDirectorClient;
 import com.configdirector.ConnectionOptions;
 import com.configdirector.internal.SdkIdentity;
 import com.configdirector.internal.evaluation.Config;
-import com.configdirector.internal.telemetry.DiscardingTelemetryCollector;
+import com.configdirector.internal.telemetry.TrackedEventAdmission;
+import com.configdirector.internal.telemetry.TrackedEventRecordingTelemetryCollector;
 import com.configdirector.internal.transport.ConfigBundle;
 import com.configdirector.internal.transport.ConfigDirectorConnectionException;
 import com.configdirector.internal.transport.Transport;
@@ -13,6 +14,7 @@ import java.time.Duration;
 import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
@@ -41,6 +43,7 @@ public final class InMemoryConnection {
 
   private final Logger logger;
   private final ConfigDirectorClient client;
+  private final TrackedEventRecordingTelemetryCollector telemetry;
   private Consumer<ConfigBundle> onBundle;
 
   private final Object stateLock = new Object();
@@ -55,6 +58,7 @@ public final class InMemoryConnection {
 
   public InMemoryConnection(Map<String, ?> values, Duration timeout, Logger logger) {
     this.logger = Objects.requireNonNull(logger, "logger");
+    this.telemetry = new TrackedEventRecordingTelemetryCollector(logger);
     configs.putAll(encodeAll(values));
     ConnectionOptions connection =
         timeout == null
@@ -72,7 +76,7 @@ public final class InMemoryConnection {
               onBundle = options.onBundle();
               return new Attempts();
             },
-            options -> DiscardingTelemetryCollector.INSTANCE);
+            options -> telemetry);
   }
 
   public ConfigDirectorClient client() {
@@ -103,10 +107,15 @@ public final class InMemoryConnection {
     synchronized (stateLock) {
       configs.clear();
       configs.putAll(encoded);
+      telemetry.clearTrackedEvents();
       armed = Armed.NOTHING;
       update = connected ? fullUpdate() : null;
     }
     deliverIfAny(update);
+  }
+
+  public List<TrackedEventAdmission.Admitted> trackedEvents() {
+    return telemetry.trackedEvents();
   }
 
   public void holdInitialization() {

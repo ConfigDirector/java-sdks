@@ -10,13 +10,15 @@ public record EventReport(
     int droppedEvaluations,
     List<Context> contexts,
     int droppedContexts,
-    List<InvalidContextEntry> invalidContexts) {
+    List<InvalidContextEntry> invalidContexts,
+    List<TrackedEventEntry> trackedEvents) {
 
   public boolean isEmpty() {
     return evaluations.isEmpty()
         && contexts.isEmpty()
         && droppedEvaluations == 0
         && droppedContexts == 0
-        && invalidContexts.isEmpty();
+        && invalidContexts.isEmpty()
+        && trackedEvents.isEmpty();
   }
 }

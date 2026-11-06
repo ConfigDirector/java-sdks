@@ -8,6 +8,24 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- The provider now implements OpenFeature's tracking. `client.track(eventName, context, details)`
+  reports to ConfigDirector that something happened, such as a completed checkout, so ConfigDirector
+  can show it on the live feed and count it for each variation of a running experiment. Before, a
+  `track` call did nothing. The value of the tracking event details is sent as the event's value,
+  their other attributes as its details, and the targeting key (or `id`) and `kind` of the merged
+  evaluation context as the context the event happened for.
+- An event counts for an experiment only when its evaluation context has the targeting key the
+  experiment's flag was evaluated with. Without one, the event is still reported. The targeting key
+  of a context marked `anonymous` is not sent.
+- Tracked events are sent with the next telemetry batch, at most 1,000 per batch; events beyond that
+  are not reported. An event whose name does not have 1 to 150 characters is not reported. Details
+  with more than 20 top-level keys or larger than 1 KB as JSON, and a value that is not a finite
+  number, are left out and the event is still reported. Each of these logs one warning per telemetry
+  batch. `track` does nothing in offline mode. OpenFeature's client throws on a null or empty event
+  name before the provider is called.
+
 ### Changed
 
 - The `variant` in evaluation details is now the variation's name when the config has variations and
@@ -22,6 +40,12 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - The evaluation counts the provider sends to ConfigDirector now say which variation was served, and
   which percentage rollout and share served it, so ConfigDirector can count the contexts each
   variation of an experiment reached.
+
+### Fixed
+
+- A telemetry report larger than ConfigDirector accepts no longer stops telemetry for the life of the
+  provider. That report is discarded with a warning and the next one is sent. Before, one oversized
+  report ended evaluation counts until the application restarted.
 
 ## [1.8.0] - 2026-10-28
 

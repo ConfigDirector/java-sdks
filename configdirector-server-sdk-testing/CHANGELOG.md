@@ -10,11 +10,21 @@ checks when a test client is created.
 
 ## [Unreleased]
 
+### Added
+
+- `TestClient.trackedEvents()` returns the events the code under test tracked through
+  `ConfigDirectorClient.track`, new in `com.configdirector:server-sdk`, in call order, as the new
+  `TrackedEvent(name, context, value, details)` record. An event whose name the SDK would not report
+  is not recorded, and a value or details the SDK would leave out are null in the record. The limit
+  of 1,000 events per telemetry batch does not apply to the record.
+
 ### Changed
 
 - A test client serves plain values without variations, so `ConfigEvaluation.variation()` is null on
   every evaluation. `evaluate`, new in `com.configdirector:server-sdk`, works on `client()` like
   every other read. The testing API is unchanged.
+- `TestClient.replaceValues` also empties `trackedEvents()`, since it is how a test client shared
+  across tests is reset.
 
 ## [1.10.0] - 2026-10-22
 

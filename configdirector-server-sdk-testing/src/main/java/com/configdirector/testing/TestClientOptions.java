@@ -34,7 +34,8 @@ public final class TestClientOptions {
    * ConfigDirector#LOGGER_NAME}, as for a production client.
    *
    * <p>A test client sends no telemetry, so every read that supplies a context with an invalid
-   * kind logs an error, rather than each invalid kind once per telemetry flush interval.
+   * kind logs an error, rather than each invalid kind once per telemetry flush interval. For the
+   * same reason, every tracked event that is not recorded as it was tracked logs a warning.
    *
    * @param logger the logger to write to
    * @return these options, so calls chain

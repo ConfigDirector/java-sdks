@@ -3,16 +3,22 @@ package com.configdirector.internal.telemetry;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import com.configdirector.ConfigEvaluation;
 import com.configdirector.ConfigType;
 import com.configdirector.Context;
 import com.configdirector.EvaluationReason;
+import com.configdirector.TrackOptions;
 import com.configdirector.internal.SdkIdentity;
 import com.configdirector.internal.transport.HttpClient;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -512,6 +518,88 @@ class ScheduledTelemetryCollectorTest {
       EvaluatedConfigEvent reported = reporter.lastReport().evaluations().get(0).event();
       assertThat(reported.evaluatedValue().valueId()).isEqualTo(ValueIds.generate("{\"on\":true}"));
       assertThat(reported.defaultValue().valueId()).isEqualTo(ValueIds.generate("{\"on\":false}"));
+    }
+  }
+
+  @Nested
+  @DisplayName("recording tracked events")
+  class RecordingTrackedEvents {
+
+    private final ch.qos.logback.classic.Logger logger =
+        (ch.qos.logback.classic.Logger)
+            LoggerFactory.getLogger(ScheduledTelemetryCollectorTest.class);
+    private final ListAppender<ILoggingEvent> appender = new ListAppender<>();
+
+    @BeforeEach
+    void attachAppender() {
+      appender.start();
+      logger.addAppender(appender);
+    }
+
+    @AfterEach
+    void detachAppender() {
+      logger.detachAppender(appender);
+    }
+
+    private TrackedEventAdmission admissionNamed(String name) {
+      return TrackedEventAdmission.of(name, null, TrackOptions.builder().build(), Instant.EPOCH);
+    }
+
+    private List<String> warnings() {
+      return appender.list.stream()
+          .filter(event -> event.getLevel() == Level.WARN)
+          .map(ILoggingEvent::getFormattedMessage)
+          .toList();
+    }
+
+    private List<List<String>> trackedEventNamesPerReport() {
+      return reporter.reports().stream()
+          .map(report -> report.trackedEvents().stream().map(TrackedEventEntry::name).toList())
+          .toList();
+    }
+
+    @Test
+    void reports_an_event_once_on_the_flush_after_it_was_tracked() {
+      ScheduledTelemetryCollector collector = collector();
+
+      collector.recordTrackedEvent(admissionNamed("first"));
+      collector.flush();
+      collector.recordTrackedEvent(admissionNamed("second"));
+      collector.flush();
+
+      assertThat(trackedEventNamesPerReport())
+          .containsExactly(List.of("first"), List.of("second"));
+    }
+
+    @Test
+    void logs_a_repeated_cause_once_until_the_telemetry_batch_is_sent_and_again_in_the_following_batch() {
+      ScheduledTelemetryCollector collector = collector();
+
+      collector.recordTrackedEvent(admissionNamed(""));
+      collector.recordTrackedEvent(admissionNamed(""));
+
+      assertThat(warnings()).hasSize(1);
+
+      collector.flush();
+      collector.recordTrackedEvent(admissionNamed(""));
+
+      assertThat(warnings()).hasSize(2);
+    }
+
+    @Test
+    void keeps_nothing_and_logs_no_warning_for_an_event_tracked_after_collection_stopped() {
+      ScheduledTelemetryCollector collector = collector();
+      reporter.respondWith(ReporterResponse.FATAL);
+      collector.recordTrackedEvent(admissionNamed("checkout-completed"));
+      collector.flush();
+      appender.list.clear();
+
+      collector.recordTrackedEvent(admissionNamed(""));
+      collector.recordTrackedEvent(admissionNamed("late"));
+      collector.flush();
+
+      assertThat(warnings()).isEmpty();
+      assertThat(reporter.reportCount()).isEqualTo(1);
     }
   }
 }

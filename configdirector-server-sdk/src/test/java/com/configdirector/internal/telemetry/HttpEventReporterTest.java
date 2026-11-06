@@ -2,6 +2,9 @@ package com.configdirector.internal.telemetry;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import com.configdirector.ConfigEvaluation;
 import com.configdirector.ConfigType;
 import com.configdirector.Context;
@@ -100,6 +103,7 @@ class HttpEventReporterTest {
         0,
         List.of(),
         0,
+        List.of(),
         List.of());
   }
 
@@ -220,7 +224,7 @@ class HttpEventReporterTest {
     void sends_the_captured_contexts() {
       Context user =
           Context.builder().id("user-1").name("Ada").trait("plan", "pro").trait("seats", 3).build();
-      EventReport report = new EventReport(List.of(), 0, List.of(user), 0, List.of());
+      EventReport report = new EventReport(List.of(), 0, List.of(user), 0, List.of(), List.of());
 
       reporterAgainst(200).report(report);
 
@@ -240,7 +244,7 @@ class HttpEventReporterTest {
     void omits_context_fields_that_were_not_supplied() {
       EventReport report =
           new EventReport(
-              List.of(), 0, List.of(Context.builder().id("user-1").build()), 0, List.of());
+              List.of(), 0, List.of(Context.builder().id("user-1").build()), 0, List.of(), List.of());
 
       reporterAgainst(200).report(report);
 
@@ -265,7 +269,7 @@ class HttpEventReporterTest {
 
     @Test
     void reports_what_was_dropped() {
-      reporterAgainst(200).report(new EventReport(List.of(), 7, List.of(), 3, List.of()));
+      reporterAgainst(200).report(new EventReport(List.of(), 7, List.of(), 3, List.of(), List.of()));
 
       JsonObject dropped = sentPayload().getAsJsonObject("droppedEvents");
       assertThat(dropped.get("evaluatedConfig").getAsInt()).isEqualTo(7);
@@ -282,7 +286,7 @@ class HttpEventReporterTest {
       HttpEventReporter reporter = reporterAgainst(200);
 
       ReporterResponse response =
-          reporter.report(new EventReport(List.of(), 0, List.of(), 0, List.of()));
+          reporter.report(new EventReport(List.of(), 0, List.of(), 0, List.of(), List.of()));
 
       assertThat(response.success()).isTrue();
       assertThat(server.connectionCount()).isZero();
@@ -290,7 +294,7 @@ class HttpEventReporterTest {
 
     @Test
     void a_report_holding_only_dropped_counts_is_still_sent() {
-      reporterAgainst(200).report(new EventReport(List.of(), 5, List.of(), 0, List.of()));
+      reporterAgainst(200).report(new EventReport(List.of(), 5, List.of(), 0, List.of(), List.of()));
 
       assertThat(snapshot(bodies)).hasSize(1);
     }
@@ -314,6 +318,35 @@ class HttpEventReporterTest {
 
       assertThat(response.success()).isFalse();
       assertThat(response.fatal()).isTrue();
+    }
+
+    @Test
+    void a_report_too_large_for_the_server_is_discarded_and_the_next_one_still_goes_out() {
+      HttpEventReporter reporter = reporterAgainst(413);
+
+      ReporterResponse response = reporter.report(reportOf(event("a", null)));
+      reporter.report(reportOf(event("b", null)));
+
+      assertThat(response.success()).isFalse();
+      assertThat(response.fatal()).isFalse();
+      assertThat(snapshot(bodies)).hasSize(2);
+    }
+
+    @Test
+    void logs_a_warning_for_a_report_too_large_for_the_server() {
+      ch.qos.logback.classic.Logger logger =
+          (ch.qos.logback.classic.Logger) LoggerFactory.getLogger(HttpEventReporterTest.class);
+      ListAppender<ILoggingEvent> appender = new ListAppender<>();
+      appender.start();
+      logger.addAppender(appender);
+      try {
+        reporterAgainst(413).report(reportOf(event("a", null)));
+
+        assertThat(appender.list.stream().filter(event -> event.getLevel() == Level.WARN))
+            .hasSize(1);
+      } finally {
+        logger.detachAppender(appender);
+      }
     }
 
     @Test

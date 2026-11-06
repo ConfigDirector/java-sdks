@@ -24,6 +24,9 @@ public final class DiscardingTelemetryCollector implements TelemetryCollector {
   }
 
   @Override
+  public void recordTrackedEvent(TrackedEventAdmission admission) {}
+
+  @Override
   public void close(Duration timeout) {}
 
   @Override

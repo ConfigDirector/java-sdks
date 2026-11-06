@@ -11,6 +11,7 @@ import com.configdirector.internal.telemetry.InvalidContextRecording;
 import com.configdirector.internal.telemetry.ScheduledTelemetryCollector;
 import com.configdirector.internal.telemetry.TelemetryCollector;
 import com.configdirector.internal.telemetry.TelemetryCollectorOptions;
+import com.configdirector.internal.telemetry.TrackedEventAdmission;
 import com.configdirector.internal.transport.Transport;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -119,6 +120,9 @@ class ClientTelemetryInjectionTest {
     public InvalidContextRecording recordInvalidContext(String kindSample) {
       return InvalidContextRecording.NEW_KIND_SAMPLE;
     }
+
+    @Override
+    public void recordTrackedEvent(TrackedEventAdmission admission) {}
 
     @Override
     public void close(Duration timeout) {

@@ -2,6 +2,7 @@ package com.configdirector.testing;
 
 import com.configdirector.ConfigDirectorClient;
 import com.configdirector.internal.client.InMemoryConnection;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -77,9 +78,9 @@ public final class TestClient implements AutoCloseable {
   }
 
   /**
-   * Replaces every stored value with {@code values}, disarms any armed hold or failure, and, when
-   * the client is connected, delivers the new values as a full update. Use it to reset a test
-   * client shared across tests.
+   * Replaces every stored value with {@code values}, empties {@link #trackedEvents()}, disarms any
+   * armed hold or failure, and, when the client is connected, delivers the new values as a full
+   * update. Use it to reset a test client shared across tests.
    *
    * @param values the values to serve from now on, keyed by config key
    * @throws com.configdirector.ConfigDirectorValidationException as {@link #setValue(String,
@@ -114,6 +115,26 @@ public final class TestClient implements AutoCloseable {
    */
   public void failInitialization() {
     connection.failInitialization();
+  }
+
+  /**
+   * Every event the code under test tracked through the client, in call order, as the SDK would
+   * report it: an event whose name does not have 1 to 150 characters is not recorded, and a value
+   * or details the SDK would leave out are missing from the record. A context whose kind is invalid
+   * is not recorded with its event. The limit of 1,000 events per telemetry batch does not apply.
+   *
+   * @return the events tracked so far, unmodifiable; later events do not change this list
+   */
+  public List<TrackedEvent> trackedEvents() {
+    return connection.trackedEvents().stream()
+        .map(
+            admitted ->
+                new TrackedEvent(
+                    admitted.entry().name(),
+                    admitted.context(),
+                    admitted.entry().value(),
+                    admitted.entry().details()))
+        .toList();
   }
 
   /** Closes the client. Closing twice is harmless. */

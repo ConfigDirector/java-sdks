@@ -168,7 +168,8 @@ so `Map.of("n", 1)` reads back as `{n=1L}`.
 | `setValue(key, value)` | Stores the value and, once the client is connected, delivers an update carrying only `key`. Watches of `key`, `configsUpdated` handlers, and reads see it before the call returns. |
 | `setJsonValue(key, json)` | As `setValue`, for strict JSON text that becomes a JSON config. |
 | `removeValue(key)` | Removes the value and delivers a full update without it. Reads return the in-code default value with the `CONFIG_STATE_MISSING` reason, watches of `key` receive the default, and `configsUpdated` lists `key` in `removedKeys()`. |
-| `replaceValues(values)` | Replaces every stored value, disarms any armed hold or failure, and delivers a full update. Use it to reset a test client shared across tests. |
+| `replaceValues(values)` | Replaces every stored value, empties `trackedEvents()`, disarms any armed hold or failure, and delivers a full update. Use it to reset a test client shared across tests. |
+| `trackedEvents()` | Returns every event the code under test tracked through the client, in call order, as `TrackedEvent(name, context, value, details)`. Anything an event was not tracked with is null. |
 | `holdInitialization()` | The next `initialize` waits until `completeInitialization()` or `failInitialization()`, or until the client's timeout elapses. `initialize` blocks, so a test calls it on another thread. |
 | `completeInitialization()` | Delivers the stored values to the held `initialize`, on the calling thread, so the client is ready when the call returns. Called while a hold is armed but not picked up, it disarms the hold. |
 | `failInitialization()` | Fails the held `initialize` the way an invalid SDK key does: it completes promptly, the client is not ready, and the error is logged. Called with no `initialize` held, it arms the next one to fail. |
@@ -197,8 +198,14 @@ bounds how long a held `initialize` waits; defaults to the SDK's production time
 - A `RuntimeException` thrown by a watch or handler is logged and does not propagate, as with the
   production transports. An `Error`, such as a failed assertion's `AssertionError`, propagates out
   of the call that delivered the update.
+- Tracked events are recorded as the SDK would report them. An event whose name does not have 1 to
+  150 characters is not recorded, a value or details the SDK would leave out are missing from the
+  record, and a context whose kind is invalid is not recorded with its event. Each of these logs
+  every time, since a test client has no telemetry batch. The limit of 1,000 events per batch does
+  not apply. A `Float` value is recorded as the `Double` with the same digits.
 - After `close`, reads return the in-code default value with the `CLIENT_NOT_READY` reason,
-  `getAllConfigs` returns an empty map, `initialize` throws `ConfigDirectorValidationException`,
+  `getAllConfigs` returns an empty map, `track` records nothing, `initialize` throws
+  `ConfigDirectorValidationException`,
   the test client's controls are silent no-ops, and no SDK thread is left running.
 
 ## Documentation

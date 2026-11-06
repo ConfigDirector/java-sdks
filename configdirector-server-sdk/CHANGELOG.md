@@ -28,6 +28,24 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - The evaluation counts the SDK sends to ConfigDirector now say which variation was served, and which
   percentage rollout and share served it, so ConfigDirector can count the contexts each variation of
   an experiment reached.
+- `ConfigDirectorClient.track(eventName)`, `track(eventName, context)` and `track(eventName, context,
+  options)` report to ConfigDirector that something happened, such as a completed checkout, so
+  ConfigDirector can show it on the live feed and count it for each variation of a running experiment.
+  The new `TrackOptions`, built with `TrackOptions.builder()`, takes a `value`, a number of any kind
+  such as an amount of money, a count or a duration, and `details`, a map whose values are strings,
+  numbers, booleans, nested maps and collections, or null. A class of your own that implements
+  `ConfigDirectorClient` has to add the three methods.
+- An event counts for an experiment only when it is tracked for a context with an `id`, the one the
+  experiment's config was evaluated for. Without a context, or for a context without an `id`, the
+  event is still reported. The `id` of a context marked anonymous is not sent. A context with an
+  invalid kind is logged as it is for an evaluation, and the event is sent without a context.
+- Tracked events are sent with the next telemetry batch, at most 1,000 per batch; events beyond that
+  are not reported. An event whose name does not have 1 to 150 characters is not reported. Details
+  with more than 20 top-level keys, larger than 1 KB as JSON, or holding any other type of value, and
+  a `value` that is not a finite number, are left out and the event is still reported. Each of these
+  logs one warning per telemetry batch. `track` never throws, and does nothing for an offline client
+  or after `close`. ConfigDirector stores an event without its value when the value is written in
+  more than 64 characters or has a decimal exponent beyond 400, which a `BigDecimal` can reach.
 
 ### Changed
 
@@ -39,6 +57,12 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   stable `id`, such as a session or device ID, to keep it in a rollout. A rule that serves a single
   value still applies to a context without an `id`. A `switch` over `EvaluationReason` with no
   `default` needs a case for the new reason.
+
+### Fixed
+
+- A telemetry report larger than ConfigDirector accepts no longer stops telemetry for the life of the
+  client. That report is discarded with a warning and the next one is sent. Before, one oversized
+  report ended evaluation counts until the application restarted.
 
 ## [1.10.0] - 2026-10-22
 

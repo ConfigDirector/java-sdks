@@ -7,6 +7,7 @@ import com.configdirector.ConfigEvaluation;
 import com.configdirector.ConfigsUpdatedEvent;
 import com.configdirector.ConnectionMode;
 import com.configdirector.Context;
+import com.configdirector.TrackOptions;
 import com.configdirector.internal.SdkIdentity;
 import com.configdirector.internal.client.ClientFactory;
 import dev.openfeature.sdk.EvaluationContext;
@@ -15,6 +16,7 @@ import dev.openfeature.sdk.Metadata;
 import dev.openfeature.sdk.ProviderEvaluation;
 import dev.openfeature.sdk.ProviderEventDetails;
 import dev.openfeature.sdk.ProviderState;
+import dev.openfeature.sdk.TrackingEventDetails;
 import dev.openfeature.sdk.Value;
 import dev.openfeature.sdk.exceptions.ProviderNotReadyError;
 import java.lang.invoke.MethodHandles;
@@ -22,6 +24,7 @@ import java.lang.invoke.VarHandle;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
@@ -58,6 +61,16 @@ import java.util.function.Consumer;
  * rules after the rollout are not tried. The {@code variant} is the variation's name when the
  * config has variations and the variation served has a name, and otherwise the value's ID.
  *
+ * <p>A call to OpenFeature's {@code track} reports the event to ConfigDirector with the next
+ * telemetry batch. The value of the tracking event details is sent as the event's value, their
+ * other attributes as its details, and the targeting key and {@code kind} of the merged evaluation
+ * context as the context it happened for. An event counts for an experiment only when its
+ * evaluation context has the targeting key the experiment's flag was evaluated with. Without one,
+ * the event is still reported. The targeting key of a context marked anonymous is not sent. An
+ * event whose name is outside 1 to 150 characters is not reported, and a value or details outside
+ * the limits are left out with the event still reported, each with a warning in the log.
+ * OpenFeature's client throws on a null or empty name before the provider is called.
+ *
  * <p>If no config arrives within the connection timeout, or ConfigDirector rejects the server SDK
  * key, initialization fails with OpenFeature's {@link ProviderNotReadyError}: {@code
  * setProviderAndWait} throws it, and OpenFeature reports the {@code ERROR} state. Evaluations
@@ -88,6 +101,9 @@ public final class ConfigDirectorProvider extends EventProvider {
   private static final String NO_CONFIG_IN_TIME =
       "No config arrived from ConfigDirector within the connection timeout. Flags resolve to their "
           + "in-code default values until config arrives.";
+
+  private static final Map<String, Object> DETAILS_THE_SDK_LEAVES_OUT =
+      Map.of("no-json-form", new Object());
 
   private static final Duration RECORDED_FAILURE_POLL_INTERVAL = Duration.ofMillis(10);
   private static final VarHandle STATE_MANAGER;
@@ -264,6 +280,29 @@ public final class ConfigDirectorProvider extends EventProvider {
         evaluationContext,
         (value, servedInCodeDefault) ->
             servedInCodeDefault ? defaultValue : ValueMapper.toValue(value));
+  }
+
+  @Override
+  public void track(String eventName, EvaluationContext context, TrackingEventDetails details) {
+    client.track(eventName, ContextMapper.toContext(context), trackOptionsOf(details));
+  }
+
+  private static TrackOptions trackOptionsOf(TrackingEventDetails details) {
+    if (details == null) {
+      return null;
+    }
+    return TrackOptions.builder()
+        .value(details.getValue().orElse(null))
+        .details(detailsOf(details))
+        .build();
+  }
+
+  private static Map<String, Object> detailsOf(TrackingEventDetails details) {
+    try {
+      return details.isEmpty() ? null : ValueMapper.toJava(details);
+    } catch (RuntimeException | StackOverflowError unreadable) {
+      return DETAILS_THE_SDK_LEAVES_OUT;
+    }
   }
 
   private void reportReadyOnceTheFailureIsRecorded() {

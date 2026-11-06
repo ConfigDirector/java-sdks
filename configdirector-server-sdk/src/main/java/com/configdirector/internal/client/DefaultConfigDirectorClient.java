@@ -14,6 +14,7 @@ import com.configdirector.EvaluationReason;
 import com.configdirector.Metadata;
 import com.configdirector.Subscription;
 import com.configdirector.TelemetryOptions;
+import com.configdirector.TrackOptions;
 import com.configdirector.internal.ContextKinds;
 import com.configdirector.internal.PollingIntervals;
 import com.configdirector.internal.SdkIdentity;
@@ -32,6 +33,7 @@ import com.configdirector.internal.telemetry.TelemetryCollector;
 import com.configdirector.internal.telemetry.TelemetryCollectorFactory;
 import com.configdirector.internal.telemetry.TelemetryCollectorOptions;
 import com.configdirector.internal.telemetry.TelemetryValue;
+import com.configdirector.internal.telemetry.TrackedEventAdmission;
 import com.configdirector.internal.transport.ConfigBundle;
 import com.configdirector.internal.transport.HttpClient;
 import com.configdirector.internal.transport.LiveConnectionMode;
@@ -42,6 +44,7 @@ import com.configdirector.internal.transport.Transports;
 import com.configdirector.internal.value.ParseResult;
 import com.configdirector.internal.value.ValueParser;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -67,6 +70,7 @@ public final class DefaultConfigDirectorClient implements ConfigDirectorClient {
   // initialization would otherwise report only as a client that never becomes ready.
   private static final Duration LONGEST_TIMEOUT = Duration.ofMillis(Integer.MAX_VALUE);
 
+  private static final TrackOptions NO_TRACK_OPTIONS = TrackOptions.builder().build();
 
   private final Logger logger;
   private final Metadata metadata;
@@ -521,7 +525,7 @@ public final class DefaultConfigDirectorClient implements ConfigDirectorClient {
       Object defaultValue,
       Context suppliedContext,
       Map<String, Segment> segments) {
-    Context context = contextToEvaluate(suppliedContext);
+    Context context = acceptedContextOf(suppliedContext);
     if (definition == null) {
       EvaluationReason reason =
           isReady() ? EvaluationReason.CONFIG_STATE_MISSING : EvaluationReason.CLIENT_NOT_READY;
@@ -563,7 +567,7 @@ public final class DefaultConfigDirectorClient implements ConfigDirectorClient {
     return evaluation;
   }
 
-  private Context contextToEvaluate(Context suppliedContext) {
+  private Context acceptedContextOf(Context suppliedContext) {
     if (ContextKinds.isAccepted(suppliedContext)) {
       return suppliedContext;
     }
@@ -614,7 +618,7 @@ public final class DefaultConfigDirectorClient implements ConfigDirectorClient {
 
   @Override
   public Map<String, ConfigState> getAllConfigs(Context suppliedContext, List<String> configKeys) {
-    Context context = contextToEvaluate(suppliedContext);
+    Context context = acceptedContextOf(suppliedContext);
     ServedDefinitions snapshot = served;
     if (closed || snapshot == null) {
       return Map.of();
@@ -634,6 +638,30 @@ public final class DefaultConfigDirectorClient implements ConfigDirectorClient {
           }
         });
     return evaluated;
+  }
+
+  @Override
+  public void track(String eventName) {
+    track(eventName, null, null);
+  }
+
+  @Override
+  public void track(String eventName, Context context) {
+    track(eventName, context, null);
+  }
+
+  @Override
+  public void track(String eventName, Context context, TrackOptions options) {
+    if (closed || plan instanceof ConnectionPlan.StayOffline) {
+      return;
+    }
+
+    telemetry.recordTrackedEvent(
+        TrackedEventAdmission.of(
+            eventName,
+            acceptedContextOf(context),
+            options == null ? NO_TRACK_OPTIONS : options,
+            Instant.now()));
   }
 
   @Override

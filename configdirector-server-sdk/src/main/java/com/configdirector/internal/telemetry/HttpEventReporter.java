@@ -23,6 +23,7 @@ public final class HttpEventReporter implements EventReporter {
   public static final Duration REQUEST_TIMEOUT = Duration.ofSeconds(5);
 
   private static final String PATH = "server/telemetry/v1";
+  private static final int REPORT_TOO_LARGE_STATUS = 413;
 
   private final String serverSdkKey;
   private final String url;
@@ -87,6 +88,13 @@ public final class HttpEventReporter implements EventReporter {
     List<Object> invalidContexts = new ArrayList<>(report.invalidContexts().size());
     report.invalidContexts().forEach(entry -> invalidContexts.add(entry.toWire()));
 
+    List<Object> trackedEvents = new ArrayList<>(report.trackedEvents().size());
+    report.trackedEvents().forEach(entry -> trackedEvents.add(entry.toWire()));
+
+    Map<String, Object> discreteEvents = new LinkedHashMap<>();
+    discreteEvents.put("capturedContexts", contexts);
+    discreteEvents.put("trackedEvents", trackedEvents);
+
     Map<String, Object> aggregatedEvents = new LinkedHashMap<>();
     aggregatedEvents.put("evaluatedConfig", evaluations);
     aggregatedEvents.put("invalidContext", invalidContexts);
@@ -98,7 +106,7 @@ public final class HttpEventReporter implements EventReporter {
     Map<String, Object> payload = new LinkedHashMap<>();
     payload.put("serverSdkKey", serverSdkKey);
     payload.put("metaContext", metaContext);
-    payload.put("discreteEvents", Map.of("capturedContexts", contexts));
+    payload.put("discreteEvents", discreteEvents);
     payload.put("aggregatedEvents", aggregatedEvents);
     payload.put("droppedEvents", droppedEvents);
     return payload;
@@ -119,6 +127,10 @@ public final class HttpEventReporter implements EventReporter {
     return wire;
   }
 
+  private static boolean endsTelemetry(int status) {
+    return Transports.isFatalStatus(status) && status != REPORT_TOO_LARGE_STATUS;
+  }
+
   private ReporterResponse send(byte[] body) {
     HttpResponse response;
     try {
@@ -134,7 +146,7 @@ public final class HttpEventReporter implements EventReporter {
       return ReporterResponse.FAILED;
     }
 
-    if (Transports.isFatalStatus(response.status())) {
+    if (endsTelemetry(response.status())) {
       logger.warn(
           "[EventReporter] Received a fatal status response ({}) from the telemetry endpoint. "
               + "No more telemetry data will be sent.",

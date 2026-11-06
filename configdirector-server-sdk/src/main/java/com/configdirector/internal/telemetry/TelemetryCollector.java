@@ -15,6 +15,8 @@ public interface TelemetryCollector extends AutoCloseable {
 
   InvalidContextRecording recordInvalidContext(String kindSample);
 
+  void recordTrackedEvent(TrackedEventAdmission admission);
+
   void close(Duration timeout);
 
   @Override

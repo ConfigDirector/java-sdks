@@ -15,9 +15,11 @@ import com.configdirector.ConfigType;
 import com.configdirector.ConfigsUpdatedEvent;
 import com.configdirector.Context;
 import com.configdirector.EvaluationReason;
+import com.configdirector.TrackOptions;
 import java.math.BigDecimal;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -83,6 +85,13 @@ class TestClientConformanceTest {
   private List<String> errors() {
     return appender.list.stream()
         .filter(event -> event.getLevel() == Level.ERROR)
+        .map(ILoggingEvent::getFormattedMessage)
+        .toList();
+  }
+
+  private List<String> warnings() {
+    return appender.list.stream()
+        .filter(event -> event.getLevel() == Level.WARN)
         .map(ILoggingEvent::getFormattedMessage)
         .toList();
   }
@@ -222,6 +231,216 @@ class TestClientConformanceTest {
     assertThat(evaluation.value()).isEqualTo(true);
     assertThat(evaluation.reason()).isEqualTo(EvaluationReason.FOUND_MATCH);
     assertThat(evaluation.variation()).isNull();
+  }
+
+  @Test
+  void records_the_events_the_code_under_test_tracked_in_call_order() {
+    TestClient testClient = create(Map.of());
+    ConfigDirectorClient client = testClient.client();
+    Context context = Context.builder().id("user-1").build();
+
+    client.track("checkout-started");
+    client.track("seat-added", context);
+    client.track(
+        "checkout-completed",
+        context,
+        TrackOptions.builder().value(49.9).details(Map.of("plan", "pro", "seats", 3)).build());
+
+    assertThat(testClient.trackedEvents())
+        .containsExactly(
+            new TrackedEvent("checkout-started", null, null, null),
+            new TrackedEvent("seat-added", context, null, null),
+            new TrackedEvent("checkout-completed", context, 49.9, Map.of("plan", "pro", "seats", 3)));
+  }
+
+  @Test
+  void records_an_anonymous_context_with_the_event_tracked_for_it() {
+    TestClient testClient = create(Map.of());
+    Context anonymous = Context.builder().id("visitor-7").anonymous(true).build();
+
+    testClient.client().track("checkout-completed", anonymous);
+
+    assertThat(testClient.trackedEvents())
+        .containsExactly(new TrackedEvent("checkout-completed", anonymous, null, null));
+  }
+
+  @Test
+  void records_an_event_for_a_context_with_an_invalid_kind_without_the_context_and_logs_the_error() {
+    TestClient testClient = create(Map.of());
+
+    testClient.client().track("checkout-completed", Context.builder().id("a").kind("Tenant").build());
+
+    assertThat(testClient.trackedEvents())
+        .containsExactly(new TrackedEvent("checkout-completed", null, null, null));
+    assertThat(errors()).hasSize(1);
+  }
+
+  @Test
+  void does_not_record_an_event_whose_name_is_empty_and_logs_a_warning() {
+    TestClient testClient = create(Map.of());
+
+    testClient.client().track("");
+
+    assertThat(testClient.trackedEvents()).isEmpty();
+    assertThat(warnings()).hasSize(1);
+  }
+
+  @Test
+  void does_not_record_an_event_whose_name_has_151_characters_and_logs_a_warning() {
+    TestClient testClient = create(Map.of());
+
+    testClient.client().track("n".repeat(151));
+
+    assertThat(testClient.trackedEvents()).isEmpty();
+    assertThat(warnings()).hasSize(1);
+  }
+
+  @Test
+  void logs_a_warning_for_every_event_not_recorded_as_it_was_tracked() {
+    TestClient testClient = create(Map.of());
+
+    testClient.client().track("");
+    testClient.client().track("");
+
+    assertThat(warnings()).hasSize(2);
+  }
+
+  @Test
+  void records_an_event_without_a_value_production_would_leave_out_and_logs_a_warning() {
+    TestClient testClient = create(Map.of());
+
+    testClient
+        .client()
+        .track("checkout-completed", null, TrackOptions.builder().value(Double.NaN).build());
+
+    assertThat(testClient.trackedEvents())
+        .containsExactly(new TrackedEvent("checkout-completed", null, null, null));
+    assertThat(warnings()).hasSize(1);
+  }
+
+  @Test
+  void records_an_event_without_details_production_would_leave_out_and_logs_a_warning() {
+    TestClient testClient = create(Map.of());
+
+    testClient
+        .client()
+        .track(
+            "checkout-completed",
+            null,
+            TrackOptions.builder().details(Map.of("note", "a".repeat(1_014))).build());
+
+    assertThat(testClient.trackedEvents())
+        .containsExactly(new TrackedEvent("checkout-completed", null, null, null));
+    assertThat(warnings()).hasSize(1);
+  }
+
+  @Test
+  void records_a_number_that_is_not_finite_inside_details_as_null_as_production_sends_it() {
+    TestClient testClient = create(Map.of());
+
+    testClient
+        .client()
+        .track(
+            "checkout-completed",
+            null,
+            TrackOptions.builder().details(Map.of("ratio", Double.NaN)).build());
+
+    assertThat(testClient.trackedEvents())
+        .containsExactly(
+            new TrackedEvent(
+                "checkout-completed", null, null, Collections.singletonMap("ratio", null)));
+  }
+
+  @Test
+  void records_a_long_value_as_a_long() {
+    TestClient testClient = create(Map.of());
+
+    testClient.client().track("checkout-completed", null, TrackOptions.builder().value(3L).build());
+
+    assertThat(testClient.trackedEvents())
+        .containsExactly(new TrackedEvent("checkout-completed", null, 3L, null));
+  }
+
+  @Test
+  void records_a_big_decimal_value_with_its_scale() {
+    TestClient testClient = create(Map.of());
+
+    testClient
+        .client()
+        .track(
+            "checkout-completed",
+            null,
+            TrackOptions.builder().value(new BigDecimal("49.90")).build());
+
+    assertThat(testClient.trackedEvents())
+        .containsExactly(new TrackedEvent("checkout-completed", null, new BigDecimal("49.90"), null));
+  }
+
+  @Test
+  void records_a_float_value_as_the_double_with_the_same_digits() {
+    TestClient testClient = create(Map.of());
+
+    testClient.client().track("checkout-completed", null, TrackOptions.builder().value(0.1f).build());
+
+    assertThat(testClient.trackedEvents())
+        .containsExactly(new TrackedEvent("checkout-completed", null, 0.1, null));
+  }
+
+  @Test
+  void records_more_events_than_one_telemetry_batch_of_production_holds() {
+    TestClient testClient = create(Map.of());
+
+    for (int number = 1; number <= 1_001; number++) {
+      testClient.client().track("event-" + number);
+    }
+
+    assertThat(testClient.trackedEvents()).hasSize(1_001);
+    assertThat(warnings()).isEmpty();
+  }
+
+  @Test
+  void the_tracked_events_returned_do_not_change_when_more_are_tracked() {
+    TestClient testClient = create(Map.of());
+    testClient.client().track("first");
+
+    List<TrackedEvent> returned = testClient.trackedEvents();
+    testClient.client().track("second");
+
+    assertThat(returned).containsExactly(new TrackedEvent("first", null, null, null));
+  }
+
+  @Test
+  void replace_values_empties_the_tracked_events() {
+    TestClient testClient = create(Map.of());
+    testClient.client().track("from-the-previous-test");
+
+    testClient.replaceValues(Map.of());
+    testClient.client().track("from-this-test");
+
+    assertThat(testClient.trackedEvents())
+        .containsExactly(new TrackedEvent("from-this-test", null, null, null));
+  }
+
+  @Test
+  void replace_values_that_rejects_a_value_keeps_the_tracked_events() {
+    TestClient testClient = create(Map.of());
+    testClient.client().track("checkout-completed");
+
+    assertThatExceptionOfType(ConfigDirectorValidationException.class)
+        .isThrownBy(() -> testClient.replaceValues(Map.of("rejected", new BigDecimal("1.5"))));
+
+    assertThat(testClient.trackedEvents())
+        .containsExactly(new TrackedEvent("checkout-completed", null, null, null));
+  }
+
+  @Test
+  void records_nothing_after_close() {
+    TestClient testClient = create(Map.of());
+    testClient.close();
+
+    testClient.client().track("checkout-completed");
+
+    assertThat(testClient.trackedEvents()).isEmpty();
   }
 
   @Test
