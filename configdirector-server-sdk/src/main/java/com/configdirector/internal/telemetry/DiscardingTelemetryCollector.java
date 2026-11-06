@@ -11,7 +11,12 @@ public final class DiscardingTelemetryCollector implements TelemetryCollector {
   private DiscardingTelemetryCollector() {}
 
   @Override
-  public void recordEvaluation(ConfigEvaluation evaluation, Object defaultValue, ConfigType type) {}
+  public void recordEvaluation(
+      ConfigEvaluation evaluation,
+      Object defaultValue,
+      ConfigType type,
+      String ruleId,
+      String shareId) {}
 
   @Override
   public InvalidContextRecording recordInvalidContext(String kindSample) {

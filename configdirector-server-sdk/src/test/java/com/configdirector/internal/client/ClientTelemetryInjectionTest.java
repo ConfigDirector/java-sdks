@@ -107,7 +107,11 @@ class ClientTelemetryInjectionTest {
 
     @Override
     public void recordEvaluation(
-        ConfigEvaluation evaluation, Object defaultValue, ConfigType type) {
+        ConfigEvaluation evaluation,
+        Object defaultValue,
+        ConfigType type,
+        String ruleId,
+        String shareId) {
       recorded.add(new RecordedEvaluation(evaluation, defaultValue, type));
     }
 

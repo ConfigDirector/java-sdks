@@ -10,6 +10,12 @@ checks when a test client is created.
 
 ## [Unreleased]
 
+### Changed
+
+- A test client serves plain values without variations, so `ConfigEvaluation.variation()` is null on
+  every evaluation. `evaluate`, new in `com.configdirector:server-sdk`, works on `client()` like
+  every other read. The testing API is unchanged.
+
 ## [1.10.0] - 2026-10-22
 
 ### Changed

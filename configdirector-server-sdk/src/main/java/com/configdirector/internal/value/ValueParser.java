@@ -3,6 +3,7 @@ package com.configdirector.internal.value;
 import com.configdirector.ConfigState;
 import com.configdirector.ConfigType;
 import com.configdirector.EvaluationReason;
+import com.configdirector.internal.evaluation.ServedConfig;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonParseException;
@@ -32,7 +33,8 @@ public final class ValueParser {
 
   private ValueParser() {}
 
-  public static ParseResult parse(ConfigState state, Object defaultValue) {
+  public static ParseResult parse(ServedConfig served, Object defaultValue) {
+    ConfigState state = served.state();
     String raw = state.value();
     if (raw == null || raw.isEmpty()) {
       return usedDefault(defaultValue, EvaluationReason.VALUE_MISSING);
@@ -41,16 +43,16 @@ public final class ValueParser {
     if (defaultValue instanceof Boolean) {
       String lowered = raw.toLowerCase(Locale.ROOT);
       if (lowered.equals("true")) {
-        return matched(true, state);
+        return matched(true, served);
       }
       return lowered.equals("false")
-          ? matched(false, state)
+          ? matched(false, served)
           : usedDefault(defaultValue, EvaluationReason.INVALID_BOOLEAN);
     }
     if (defaultValue instanceof String) {
       return TYPES_NOT_READABLE_AS_STRING.contains(state.type())
           ? usedDefault(defaultValue, EvaluationReason.TYPE_MISMATCH)
-          : matched(raw, state);
+          : matched(raw, served);
     }
     if (defaultValue instanceof Integer || defaultValue instanceof Long) {
       Long parsed = parseInteger(raw);
@@ -58,18 +60,18 @@ public final class ValueParser {
         return usedDefault(defaultValue, EvaluationReason.INVALID_NUMBER);
       }
       if (defaultValue instanceof Long) {
-        return matched(parsed, state);
+        return matched(parsed, served);
       }
       if (parsed < Integer.MIN_VALUE || parsed > Integer.MAX_VALUE) {
         return usedDefault(defaultValue, EvaluationReason.INVALID_NUMBER);
       }
-      return matched(parsed.intValue(), state);
+      return matched(parsed.intValue(), served);
     }
     if (defaultValue instanceof Double || defaultValue instanceof Float) {
       Double parsed = parseDouble(raw);
       return parsed == null
           ? usedDefault(defaultValue, EvaluationReason.INVALID_NUMBER)
-          : matched(defaultValue instanceof Float ? (Object) parsed.floatValue() : parsed, state);
+          : matched(defaultValue instanceof Float ? (Object) parsed.floatValue() : parsed, served);
     }
 
     // A map or a list: the config holds JSON.
@@ -80,19 +82,27 @@ public final class ValueParser {
           (defaultValue instanceof Map && converted instanceof Map)
               || (defaultValue instanceof List && converted instanceof List);
       return shapeMatches
-          ? matched(converted, state)
+          ? matched(converted, served)
           : usedDefault(defaultValue, EvaluationReason.INVALID_JSON);
     } catch (JsonParseException malformed) {
       return usedDefault(defaultValue, EvaluationReason.INVALID_JSON);
     }
   }
 
-  private static ParseResult matched(Object value, ConfigState state) {
-    return new ParseResult(value, EvaluationReason.FOUND_MATCH, false, state.valueId());
+  private static ParseResult matched(Object value, ServedConfig served) {
+    ConfigState state = served.state();
+    return new ParseResult(
+        value,
+        served.reason(),
+        false,
+        state.valueId(),
+        state.variation(),
+        state.ruleId(),
+        state.shareId());
   }
 
   private static ParseResult usedDefault(Object defaultValue, EvaluationReason reason) {
-    return new ParseResult(defaultValue, reason, true, null);
+    return new ParseResult(defaultValue, reason, true, null, null, null, null);
   }
 
   private static Long parseInteger(String value) {

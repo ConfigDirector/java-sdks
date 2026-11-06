@@ -8,6 +8,38 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- `ConfigDirectorClient.evaluate(configKey, defaultValue)` and `evaluate(configKey, defaultValue,
+  context)` read a config as `getValue` does and return the `ConfigEvaluation`: the value, the
+  reason it was served, its value ID and its variation. Like every read, they fire
+  `onConfigEvaluated` and are counted in telemetry. `value()` returns an `Object` in the type of the
+  in-code default value. A class of your own that implements `ConfigDirectorClient` has to add both
+  methods.
+- `ConfigEvaluation.variation()` and the new `Variation` record: the `id` and `name` of the variation
+  that was served. It is null when the config has no variations or the in-code default value is
+  returned, and an unnamed variation has a null `name`. `onConfigEvaluated` carries it too. The
+  six-argument `ConfigEvaluation` constructor is kept, so existing calls compile; a record pattern
+  over the six components does not.
+- `ConfigState.variation()`, `ruleId()` and `shareId()` on each `getAllConfigs` entry: the variation
+  served when the config has variations, and the rule and share of the percentage rollout that
+  served the value. The five-argument `ConfigState` constructor is kept, so existing calls compile;
+  a record pattern over the five components does not.
+- The evaluation counts the SDK sends to ConfigDirector now say which variation was served, and which
+  percentage rollout and share served it, so ConfigDirector can count the contexts each variation of
+  an experiment reached.
+
+### Changed
+
+- A context without an `id` now skips percentage rollouts. The getters, `evaluate`, watches and
+  `getAllConfigs` serve it the default targeting rule value, and the targeting rules after the
+  rollout are not tried. `evaluate` and `onConfigEvaluated` report it with the new reason
+  `EvaluationReason.ROLLOUT_SKIPPED_NO_IDENTIFIER` and `isDefault()` false. Before, every context
+  without an `id` was served the rollout's first share wider than 0%. Give an anonymous context a
+  stable `id`, such as a session or device ID, to keep it in a rollout. A rule that serves a single
+  value still applies to a context without an `id`. A `switch` over `EvaluationReason` with no
+  `default` needs a case for the new reason.
+
 ## [1.10.0] - 2026-10-22
 
 ### Added

@@ -10,8 +10,6 @@ final class PercentHashing {
   // The values a percentage can take: 0.0 through 99.9, in tenths.
   private static final int BUCKETS = 1_000;
 
-  static final double PERCENTAGE_WITHOUT_IDENTIFIER = 0.0;
-
   private PercentHashing() {}
 
   static double assignPercentage(String configId, String contextIdentifier, String contextKind) {

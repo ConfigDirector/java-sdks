@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.configdirector.ConfigEvaluation;
 import com.configdirector.EvaluationReason;
+import com.configdirector.Variation;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
@@ -21,7 +22,28 @@ class AggregatedEventTest {
         new ConfigEvaluation(key, "hello", false, EvaluationReason.FOUND_MATCH, null, null),
         "fallback",
         null,
-        null, null);
+        null,
+        null,
+        null,
+        null);
+  }
+
+  private static EvaluatedConfigEvent servedBy(String ruleId, String shareId, String variationId) {
+    return EvaluatedConfigEvent.of(
+        new ConfigEvaluation(
+            "a",
+            "hello",
+            false,
+            EvaluationReason.FOUND_MATCH,
+            null,
+            null,
+            new Variation(variationId, null)),
+        "fallback",
+        null,
+        null,
+        null,
+        ruleId,
+        shareId);
   }
 
   private static EventQueue.Snapshot snapshotOf(EvaluatedConfigEvent... events) {
@@ -47,6 +69,50 @@ class AggregatedEventTest {
 
       assertThat(aggregated).extracting(AggregatedEvent::count).containsExactly(2, 1);
       assertThat(aggregated).extracting(entry -> entry.event().key()).containsExactly("a", "b");
+    }
+
+    @Test
+    void keeps_events_served_by_different_rules_apart() {
+      List<AggregatedEvent> aggregated =
+          AggregatedEvent.aggregate(
+              snapshotOf(
+                  servedBy("rule-1", "share-1", "variation-1"),
+                  servedBy("rule-2", "share-1", "variation-1")));
+
+      assertThat(aggregated).extracting(AggregatedEvent::count).containsExactly(1, 1);
+    }
+
+    @Test
+    void keeps_events_served_by_different_shares_apart() {
+      List<AggregatedEvent> aggregated =
+          AggregatedEvent.aggregate(
+              snapshotOf(
+                  servedBy("rule-1", "share-1", "variation-1"),
+                  servedBy("rule-1", "share-2", "variation-1")));
+
+      assertThat(aggregated).extracting(AggregatedEvent::count).containsExactly(1, 1);
+    }
+
+    @Test
+    void keeps_events_serving_different_variations_apart() {
+      List<AggregatedEvent> aggregated =
+          AggregatedEvent.aggregate(
+              snapshotOf(
+                  servedBy("rule-1", "share-1", "variation-1"),
+                  servedBy("rule-1", "share-1", "variation-2")));
+
+      assertThat(aggregated).extracting(AggregatedEvent::count).containsExactly(1, 1);
+    }
+
+    @Test
+    void collapses_events_served_by_the_same_rule_share_and_variation() {
+      List<AggregatedEvent> aggregated =
+          AggregatedEvent.aggregate(
+              snapshotOf(
+                  servedBy("rule-1", "share-1", "variation-1"),
+                  servedBy("rule-1", "share-1", "variation-1")));
+
+      assertThat(aggregated).singleElement().extracting(AggregatedEvent::count).isEqualTo(2);
     }
 
     @Test

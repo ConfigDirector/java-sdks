@@ -40,9 +40,10 @@ class SegmentEvaluatorTest {
         new TargetingRules(
             "hello",
             null,
+            null,
             List.of(
                 new ConditionalRule(
-                    "r", 0, List.of(conditions), "value", value, "value-id", List.of()))),
+                    "r", 0, List.of(conditions), "value", value, "value-id", null, List.of()))),
         List.of(),
         null);
   }

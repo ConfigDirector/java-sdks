@@ -11,9 +11,10 @@ import java.util.function.Consumer;
  * <p>Build one with {@link ConfigDirector#client}, call {@link #initialize()} once during
  * application startup, and close it on shutdown. A client is safe to share across threads.
  *
- * <p>Every getter takes a default and returns it rather than throwing: a config the SDK has never
- * heard of, an unreachable server, or a value that will not coerce to the requested type all
- * produce the default. Which of those happened is reported through {@link #onConfigEvaluated}.
+ * <p>Every getter takes an in-code default value and returns it rather than throwing: a config the
+ * SDK has never heard of, an unreachable server, or a value that will not coerce to the requested
+ * type all produce that value. Which of those happened is reported through {@link
+ * #onConfigEvaluated}, and {@link #evaluate(String, Object)} returns it along with the value.
  *
  * <p>Each getter comes in two forms, with and without a {@link Context}. The context is what
  * targeting rules are evaluated against, so the same key can resolve differently per user or other
@@ -204,6 +205,30 @@ public interface ConfigDirectorClient extends AutoCloseable {
    * @return the evaluated value, or {@code defaultValue}
    */
   <T> T getValue(String configKey, T defaultValue, Context context);
+
+  /**
+   * Evaluates {@code configKey} as {@link #getValue(String, Object)} does and returns the
+   * evaluation: the value, the reason it was served, its value ID and its variation.
+   *
+   * <p>Like every read, it fires {@link #onConfigEvaluated} and is counted in telemetry.
+   *
+   * @param configKey the config to read
+   * @param defaultValue returned when the config is missing, unreachable, or will not coerce to
+   *     its type; it must be a Boolean, String, Integer, Long, Double, Float, Map or List
+   * @return the evaluation, whose value is what {@code getValue} returns
+   */
+  ConfigEvaluation evaluate(String configKey, Object defaultValue);
+
+  /**
+   * Evaluates {@code configKey} as {@link #evaluate(String, Object)} does, against {@code context}.
+   *
+   * @param configKey the config to read
+   * @param defaultValue returned when the config is missing, unreachable, or will not coerce to
+   *     its type; it must be a Boolean, String, Integer, Long, Double, Float, Map or List
+   * @param context evaluated against targeting rules; may be null
+   * @return the evaluation, whose value is what {@code getValue} returns
+   */
+  ConfigEvaluation evaluate(String configKey, Object defaultValue, Context context);
 
   /**
    * Every config the SDK currently holds, evaluated, before type parsing.

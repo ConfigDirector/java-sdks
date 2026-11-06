@@ -23,6 +23,7 @@ import com.configdirector.internal.evaluation.ConfigEvaluator;
 import com.configdirector.internal.evaluation.EvaluationContext;
 import com.configdirector.internal.evaluation.Segment;
 import com.configdirector.internal.evaluation.SegmentCondition;
+import com.configdirector.internal.evaluation.ServedConfig;
 import com.configdirector.internal.telemetry.DiscardingTelemetryCollector;
 import com.configdirector.internal.telemetry.InvalidContextRecording;
 import com.configdirector.internal.telemetry.InvalidContextSubmissions;
@@ -407,11 +408,12 @@ public final class DefaultConfigDirectorClient implements ConfigDirectorClient {
             try {
               watcher.notify(
                   evaluate(
-                      key,
-                      definition,
-                      watcher.defaultValue(),
-                      watcher.context(),
-                      published.segments()));
+                          key,
+                          definition,
+                          watcher.defaultValue(),
+                          watcher.context(),
+                          published.segments())
+                      .value());
             } catch (RuntimeException error) {
               // One faulty watcher must not cost the others their update, and must not take down
               // the transport thread this runs on.
@@ -428,7 +430,7 @@ public final class DefaultConfigDirectorClient implements ConfigDirectorClient {
 
   @Override
   public boolean getBoolean(String configKey, boolean defaultValue, Context context) {
-    return (Boolean) resolve(configKey, defaultValue, context);
+    return (Boolean) evaluate(configKey, defaultValue, context).value();
   }
 
   @Override
@@ -438,7 +440,7 @@ public final class DefaultConfigDirectorClient implements ConfigDirectorClient {
 
   @Override
   public String getString(String configKey, String defaultValue, Context context) {
-    return (String) resolve(configKey, defaultValue, context);
+    return (String) evaluate(configKey, defaultValue, context).value();
   }
 
   @Override
@@ -448,7 +450,7 @@ public final class DefaultConfigDirectorClient implements ConfigDirectorClient {
 
   @Override
   public int getInteger(String configKey, int defaultValue, Context context) {
-    return (Integer) resolve(configKey, defaultValue, context);
+    return (Integer) evaluate(configKey, defaultValue, context).value();
   }
 
   @Override
@@ -458,7 +460,7 @@ public final class DefaultConfigDirectorClient implements ConfigDirectorClient {
 
   @Override
   public double getDouble(String configKey, double defaultValue, Context context) {
-    return (Double) resolve(configKey, defaultValue, context);
+    return (Double) evaluate(configKey, defaultValue, context).value();
   }
 
   @Override
@@ -470,7 +472,7 @@ public final class DefaultConfigDirectorClient implements ConfigDirectorClient {
   @SuppressWarnings("unchecked")
   public Map<String, Object> getJsonObject(
       String configKey, Map<String, Object> defaultValue, Context context) {
-    return (Map<String, Object>) resolve(configKey, defaultValue, context);
+    return (Map<String, Object>) evaluate(configKey, defaultValue, context).value();
   }
 
   @Override
@@ -481,7 +483,7 @@ public final class DefaultConfigDirectorClient implements ConfigDirectorClient {
   @Override
   @SuppressWarnings("unchecked")
   public List<Object> getJsonArray(String configKey, List<Object> defaultValue, Context context) {
-    return (List<Object>) resolve(configKey, defaultValue, context);
+    return (List<Object>) evaluate(configKey, defaultValue, context).value();
   }
 
   @Override
@@ -494,10 +496,16 @@ public final class DefaultConfigDirectorClient implements ConfigDirectorClient {
   public <T> T getValue(String configKey, T defaultValue, Context context) {
     // Safe because every path through the parser returns either the parsed value in the default's
     // own type or the default itself.
-    return (T) resolve(configKey, defaultValue, context);
+    return (T) evaluate(configKey, defaultValue, context).value();
   }
 
-  private Object resolve(String configKey, Object defaultValue, Context context) {
+  @Override
+  public ConfigEvaluation evaluate(String configKey, Object defaultValue) {
+    return evaluate(configKey, defaultValue, null);
+  }
+
+  @Override
+  public ConfigEvaluation evaluate(String configKey, Object defaultValue, Context context) {
     validateConfigKey(configKey);
     validateDefault(defaultValue);
 
@@ -507,7 +515,7 @@ public final class DefaultConfigDirectorClient implements ConfigDirectorClient {
     return evaluate(configKey, definition, defaultValue, context, segments);
   }
 
-  private Object evaluate(
+  private ConfigEvaluation evaluate(
       String configKey,
       Config definition,
       Object defaultValue,
@@ -520,35 +528,39 @@ public final class DefaultConfigDirectorClient implements ConfigDirectorClient {
       logger.debug(
           "[ConfigDirectorClient] No config state found for {}, returning the default value",
           configKey);
-      report(
+      ConfigEvaluation evaluation =
           new ConfigEvaluation(
               configKey,
               defaultValue,
               true,
               reason,
               TelemetryValue.idFor(defaultValue, null),
-              context),
-          defaultValue,
-          null);
-      return defaultValue;
+              context);
+      report(evaluation, defaultValue, null, null, null);
+      return evaluation;
     }
 
-    ConfigState state =
-        evaluator.evaluate(definition, new EvaluationContext(context, metadata), segments);
-    ParseResult result = ValueParser.parse(state, defaultValue);
+    ServedConfig served =
+        evaluator.evaluateWithReason(
+            definition, new EvaluationContext(context, metadata), segments);
+    ConfigType type = served.state().type();
+    ParseResult result = ValueParser.parse(served, defaultValue);
     logger.debug("[ConfigDirectorClient] Evaluated {} to {}", configKey, result.value());
     // The server identifies every value it sends, so the fallback only comes into play for a
     // default returned from here and for a payload that predates value IDs.
     String valueId =
-        result.valueId() == null
-            ? TelemetryValue.idFor(result.value(), state.type())
-            : result.valueId();
-    report(
+        result.valueId() == null ? TelemetryValue.idFor(result.value(), type) : result.valueId();
+    ConfigEvaluation evaluation =
         new ConfigEvaluation(
-            configKey, result.value(), result.usedDefault(), result.reason(), valueId, context),
-        defaultValue,
-        state.type());
-    return result.value();
+            configKey,
+            result.value(),
+            result.usedDefault(),
+            result.reason(),
+            valueId,
+            context,
+            result.variation());
+    report(evaluation, defaultValue, type, result.ruleId(), result.shareId());
+    return evaluation;
   }
 
   private Context contextToEvaluate(Context suppliedContext) {
@@ -578,8 +590,13 @@ public final class DefaultConfigDirectorClient implements ConfigDirectorClient {
     }
   }
 
-  private void report(ConfigEvaluation evaluation, Object defaultValue, ConfigType type) {
-    telemetry.recordEvaluation(evaluation, defaultValue, type);
+  private void report(
+      ConfigEvaluation evaluation,
+      Object defaultValue,
+      ConfigType type,
+      String ruleId,
+      String shareId) {
+    telemetry.recordEvaluation(evaluation, defaultValue, type, ruleId, shareId);
     if (!evaluationHandlers.isEmpty()) {
       emit(evaluationHandlers, new ConfigEvaluatedEvent(evaluation), "configEvaluated");
     }

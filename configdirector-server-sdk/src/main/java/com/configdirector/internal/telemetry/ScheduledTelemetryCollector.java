@@ -78,7 +78,12 @@ public final class ScheduledTelemetryCollector implements TelemetryCollector {
   // On the client's hot path, so it returns without doing any appreciable work: rendering is
   // cheap, and the hashing an oversized value needs waits for the flush thread.
   @Override
-  public void recordEvaluation(ConfigEvaluation evaluation, Object defaultValue, ConfigType type) {
+  public void recordEvaluation(
+      ConfigEvaluation evaluation,
+      Object defaultValue,
+      ConfigType type,
+      String ruleId,
+      String shareId) {
     if (!collecting.get()) {
       return;
     }
@@ -94,7 +99,9 @@ public final class ScheduledTelemetryCollector implements TelemetryCollector {
       contexts.add(contextKind, contextId, context);
     }
 
-    events.push(EvaluatedConfigEvent.of(evaluation, defaultValue, type, contextId, contextKind));
+    events.push(
+        EvaluatedConfigEvent.of(
+            evaluation, defaultValue, type, contextId, contextKind, ruleId, shareId));
   }
 
   @Override

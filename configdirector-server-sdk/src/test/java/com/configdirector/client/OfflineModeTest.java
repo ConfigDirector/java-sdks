@@ -212,6 +212,18 @@ class OfflineModeTest {
     }
 
     @Test
+    void a_served_value_carries_no_variation() {
+      offlineClient(connection -> connection.values(Map.of("new-checkout", true)));
+      client.initialize();
+
+      ConfigEvaluation evaluation = client.evaluate("new-checkout", false);
+
+      assertThat(evaluation.value()).isEqualTo(true);
+      assertThat(evaluation.reason()).isEqualTo(EvaluationReason.FOUND_MATCH);
+      assertThat(evaluation.variation()).isNull();
+    }
+
+    @Test
     void every_context_receives_the_same_value() {
       offlineClient(connection -> connection.values(Map.of("greeting", "hello from the file")));
       client.initialize();

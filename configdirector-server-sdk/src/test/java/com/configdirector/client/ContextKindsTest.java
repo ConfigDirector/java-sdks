@@ -189,10 +189,10 @@ class ContextKindsTest {
     }
 
     @Test
-    void a_context_of_any_kind_without_an_identifier_lands_in_the_first_bucket() {
+    void a_context_of_any_kind_without_an_identifier_skips_the_rollout() {
       ConfigDirectorClient client = readyClient();
 
-      assertThat(client.getString("bucketed", "in-code", kinded(null, "device"))).isEqualTo("low");
+      assertThat(client.getString("bucketed", "in-code", kinded(null, "device"))).isEqualTo("none");
     }
 
     @Test
@@ -249,11 +249,11 @@ class ContextKindsTest {
     }
 
     @Test
-    void takes_the_bucket_of_no_context_rather_than_the_in_code_default() {
+    void skips_a_rollout_as_no_context_does_rather_than_serving_the_in_code_default() {
       ConfigDirectorClient client = readyClient();
 
       assertThat(client.getString("bucketed", "in-code", kinded("user-1", "Device")))
-          .isEqualTo("low");
+          .isEqualTo("none");
     }
 
     @Test
@@ -274,7 +274,7 @@ class ContextKindsTest {
       Map<String, ConfigState> all = client.getAllConfigs(kinded("user-1", "Device"));
 
       assertThat(all.get("greeting").value()).isEqualTo("hello");
-      assertThat(all.get("bucketed").value()).isEqualTo("low");
+      assertThat(all.get("bucketed").value()).isEqualTo("none");
     }
 
     @Test

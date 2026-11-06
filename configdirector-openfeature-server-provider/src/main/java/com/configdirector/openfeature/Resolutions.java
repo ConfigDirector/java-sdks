@@ -1,6 +1,7 @@
 package com.configdirector.openfeature;
 
 import com.configdirector.ConfigEvaluation;
+import com.configdirector.Variation;
 import dev.openfeature.sdk.ErrorCode;
 import dev.openfeature.sdk.ProviderEvaluation;
 import dev.openfeature.sdk.Reason;
@@ -10,16 +11,18 @@ final class Resolutions {
   private Resolutions() {}
 
   static <T> ProviderEvaluation<T> of(T value, ConfigEvaluation evaluation) {
-    if (evaluation == null) {
-      return ProviderEvaluation.<T>builder().value(value).build();
-    }
-
     return switch (evaluation.reason()) {
       case FOUND_MATCH ->
           ProviderEvaluation.<T>builder()
               .value(value)
-              .variant(evaluation.valueId())
+              .variant(variantOf(evaluation))
               .reason(Reason.TARGETING_MATCH.toString())
+              .build();
+      case ROLLOUT_SKIPPED_NO_IDENTIFIER ->
+          ProviderEvaluation.<T>builder()
+              .value(value)
+              .variant(variantOf(evaluation))
+              .reason(Reason.DEFAULT.toString())
               .build();
       case VALUE_MISSING ->
           ProviderEvaluation.<T>builder().value(value).reason(Reason.DEFAULT.toString()).build();
@@ -45,6 +48,11 @@ final class Resolutions {
                       + ").")
               : ProviderEvaluation.<T>builder().value(value).build();
     };
+  }
+
+  private static String variantOf(ConfigEvaluation evaluation) {
+    Variation variation = evaluation.variation();
+    return variation == null || variation.name() == null ? evaluation.valueId() : variation.name();
   }
 
   private static <T> ProviderEvaluation<T> error(T value, ErrorCode errorCode, String message) {

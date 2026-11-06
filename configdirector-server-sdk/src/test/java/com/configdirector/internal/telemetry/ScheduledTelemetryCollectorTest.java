@@ -62,7 +62,8 @@ class ScheduledTelemetryCollectorTest {
   }
 
   private static void record(ScheduledTelemetryCollector collector, String key) {
-    collector.recordEvaluation(evaluation(key, "hello", null), "fallback", ConfigType.STRING);
+    collector.recordEvaluation(
+        evaluation(key, "hello", null), "fallback", ConfigType.STRING, null, null);
   }
 
   private static List<String> keysOf(EventReport report) {
@@ -132,7 +133,7 @@ class ScheduledTelemetryCollectorTest {
       String oversized = "x".repeat(TelemetryValue.CONFIG_VALUE_MAX_LENGTH + 1);
       ScheduledTelemetryCollector collector = collector();
       collector.recordEvaluation(
-          evaluation("a", oversized, null), "fallback", ConfigType.STRING);
+          evaluation("a", oversized, null), "fallback", ConfigType.STRING, null, null);
 
       collector.flush();
 
@@ -166,7 +167,8 @@ class ScheduledTelemetryCollectorTest {
     @Test
     void captures_the_context_an_evaluation_was_made_against() {
       ScheduledTelemetryCollector collector = collector();
-      collector.recordEvaluation(evaluation("a", "hello", user), "fallback", ConfigType.STRING);
+      collector.recordEvaluation(
+          evaluation("a", "hello", user), "fallback", ConfigType.STRING, null, null);
 
       collector.flush();
 
@@ -178,9 +180,12 @@ class ScheduledTelemetryCollectorTest {
     void captures_each_distinct_context_once() {
       ScheduledTelemetryCollector collector = collector();
       Context other = Context.builder().id("user-2").build();
-      collector.recordEvaluation(evaluation("a", "hello", user), "fallback", ConfigType.STRING);
-      collector.recordEvaluation(evaluation("a", "hello", user), "fallback", ConfigType.STRING);
-      collector.recordEvaluation(evaluation("a", "hello", other), "fallback", ConfigType.STRING);
+      collector.recordEvaluation(
+          evaluation("a", "hello", user), "fallback", ConfigType.STRING, null, null);
+      collector.recordEvaluation(
+          evaluation("a", "hello", user), "fallback", ConfigType.STRING, null, null);
+      collector.recordEvaluation(
+          evaluation("a", "hello", other), "fallback", ConfigType.STRING, null, null);
 
       collector.flush();
 
@@ -192,7 +197,7 @@ class ScheduledTelemetryCollectorTest {
       ScheduledTelemetryCollector collector = collector();
       Context unidentified = Context.builder().name("Ada").build();
       collector.recordEvaluation(
-          evaluation("a", "hello", unidentified), "fallback", ConfigType.STRING);
+          evaluation("a", "hello", unidentified), "fallback", ConfigType.STRING, null, null);
 
       collector.flush();
 
@@ -206,7 +211,8 @@ class ScheduledTelemetryCollectorTest {
       // reported.
       ScheduledTelemetryCollector collector = collector();
       Context anonymous = Context.builder().id("user-1").anonymous(true).build();
-      collector.recordEvaluation(evaluation("a", "hello", anonymous), "fallback", ConfigType.STRING);
+      collector.recordEvaluation(
+          evaluation("a", "hello", anonymous), "fallback", ConfigType.STRING, null, null);
 
       collector.flush();
 
@@ -217,7 +223,8 @@ class ScheduledTelemetryCollectorTest {
     @Test
     void a_flush_does_not_resend_contexts() {
       ScheduledTelemetryCollector collector = collector();
-      collector.recordEvaluation(evaluation("a", "hello", user), "fallback", ConfigType.STRING);
+      collector.recordEvaluation(
+          evaluation("a", "hello", user), "fallback", ConfigType.STRING, null, null);
       collector.flush();
 
       record(collector, "b");
@@ -232,7 +239,8 @@ class ScheduledTelemetryCollectorTest {
       ScheduledTelemetryCollector collector = collectorWith(100, NEVER);
       for (int index = 0; index < 32; index++) {
         Context each = Context.builder().id("user-" + index).build();
-        collector.recordEvaluation(evaluation("a", "hello", each), "fallback", ConfigType.STRING);
+        collector.recordEvaluation(
+            evaluation("a", "hello", each), "fallback", ConfigType.STRING, null, null);
       }
 
       collector.flush();
@@ -493,7 +501,11 @@ class ScheduledTelemetryCollectorTest {
     void an_evaluation_of_a_json_value_survives_the_round_trip() {
       ScheduledTelemetryCollector collector = collector();
       collector.recordEvaluation(
-          evaluation("a", Map.of("on", true), null), Map.of("on", false), ConfigType.JSON);
+          evaluation("a", Map.of("on", true), null),
+          Map.of("on", false),
+          ConfigType.JSON,
+          null,
+          null);
 
       collector.close();
 

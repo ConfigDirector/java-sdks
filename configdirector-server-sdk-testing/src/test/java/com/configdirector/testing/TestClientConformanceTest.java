@@ -213,6 +213,18 @@ class TestClientConformanceTest {
   }
 
   @Test
+  void an_evaluation_carries_no_variation() {
+    TestClient testClient = create(Map.of("new-checkout", true));
+    testClient.client().initialize();
+
+    ConfigEvaluation evaluation = testClient.client().evaluate("new-checkout", false);
+
+    assertThat(evaluation.value()).isEqualTo(true);
+    assertThat(evaluation.reason()).isEqualTo(EvaluationReason.FOUND_MATCH);
+    assertThat(evaluation.variation()).isNull();
+  }
+
+  @Test
   void s3_set_value_on_a_connected_client_changes_the_next_read() {
     TestClient testClient = create(Map.of("new-checkout", true));
     testClient.client().initialize();

@@ -53,6 +53,11 @@ import java.util.function.Consumer;
  * is not a string, is ignored as a whole: the evaluation still resolves successfully, to the value
  * for no context, and the SDK logs an error.
  *
+ * <p>A context with neither a targeting key nor an {@code id} skips percentage rollouts: the flag
+ * resolves to the default targeting rule value with the reason {@code DEFAULT}, and the targeting
+ * rules after the rollout are not tried. The {@code variant} is the variation's name when the
+ * config has variations and the variation served has a name, and otherwise the value's ID.
+ *
  * <p>If no config arrives within the connection timeout, or ConfigDirector rejects the server SDK
  * key, initialization fails with OpenFeature's {@link ProviderNotReadyError}: {@code
  * setProviderAndWait} throws it, and OpenFeature reports the {@code ERROR} state. Evaluations
@@ -80,7 +85,6 @@ public final class ConfigDirectorProvider extends EventProvider {
   private static final String NAME = "ConfigDirectorProvider";
   private static final SdkIdentity IDENTITY =
       SdkIdentity.of("java-openfeature-server-provider", ConfigDirectorProvider.class);
-  private static final ThreadLocal<ConfigEvaluation> CURRENT_EVALUATION = new ThreadLocal<>();
   private static final String NO_CONFIG_IN_TIME =
       "No config arrived from ConfigDirector within the connection timeout. Flags resolve to their "
           + "in-code default values until config arrives.";
@@ -159,7 +163,6 @@ public final class ConfigDirectorProvider extends EventProvider {
       String serverSdkKey, Consumer<ClientOptions> configure, Executor readinessCheckExecutor) {
     this.client = ClientFactory.create(serverSdkKey, configure, IDENTITY);
     this.readinessCheckExecutor = readinessCheckExecutor;
-    this.client.onConfigEvaluated(event -> CURRENT_EVALUATION.set(event.evaluation()));
     this.client.onConfigsUpdated(
         event ->
             emitProviderConfigurationChanged(
@@ -307,18 +310,15 @@ public final class ConfigDirectorProvider extends EventProvider {
     return evaluate(key, defaultValue, evaluationContext, (value, servedInCodeDefault) -> value);
   }
 
+  @SuppressWarnings("unchecked")
   private <T, R> ProviderEvaluation<R> evaluate(
       String key,
       T defaultValue,
       EvaluationContext evaluationContext,
       BiFunction<T, Boolean, R> convert) {
-    try {
-      T value = client.getValue(key, defaultValue, ContextMapper.toContext(evaluationContext));
-      ConfigEvaluation evaluation = CURRENT_EVALUATION.get();
-      boolean servedInCodeDefault = evaluation == null || evaluation.isDefault();
-      return Resolutions.of(convert.apply(value, servedInCodeDefault), evaluation);
-    } finally {
-      CURRENT_EVALUATION.remove();
-    }
+    ConfigEvaluation evaluation =
+        client.evaluate(key, defaultValue, ContextMapper.toContext(evaluationContext));
+    return Resolutions.of(
+        convert.apply((T) evaluation.value(), evaluation.isDefault()), evaluation);
   }
 }

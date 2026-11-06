@@ -10,9 +10,11 @@ import java.util.Objects;
  * organization.
  *
  * <p>{@code id} segments contexts in percentage rollouts, so changing it can move a context into a
- * different percentile. Trait values are JSON-shaped: {@link String}, {@link Number}, {@link
- * Boolean}, {@link java.util.List}, {@link java.util.Map}, or null. Anything else has no text form
- * and will not match a targeting rule.
+ * different percentile. A context without an {@code id} skips percentage rollouts: it is served the
+ * default targeting rule value, and the targeting rules after the rollout are not tried. For an
+ * anonymous visitor, use a stable identifier such as a session ID. Trait values are JSON-shaped:
+ * {@link String}, {@link Number}, {@link Boolean}, {@link java.util.List}, {@link java.util.Map},
+ * or null. Anything else has no text form and will not match a targeting rule.
  *
  * <p>A context with an invalid {@linkplain #kind() kind} is ignored as a whole: the client logs an
  * error and evaluates as if no context had been supplied.
@@ -61,7 +63,7 @@ public final class Context {
   /**
    * The context's identifier, unique among contexts of the same {@linkplain #kind() kind}.
    *
-   * @return the id, or null, in which case a percentage rollout assigns an unstable bucket
+   * @return the id, or null, in which case the context skips percentage rollouts
    */
   public String id() {
     return id;
@@ -149,9 +151,9 @@ public final class Context {
     private Builder() {}
 
     /**
-     * The context's identifier, which decides its bucket in a percentage rollout.
+     * The context's identifier, which decides its share in a percentage rollout.
      *
-     * @param id the identifier, or null for an unstable bucket
+     * @param id the identifier, or null to skip percentage rollouts
      * @return this builder, so calls chain
      */
     public Builder id(String id) {

@@ -93,6 +93,33 @@ class ConfigDirectorProviderTest {
         + "]}}";
   }
 
+  private static String experiment(String key, String rules) {
+    return quote(key)
+        + ":{\"id\":"
+        + quote("id-" + key)
+        + ",\"key\":"
+        + quote(key)
+        + ",\"type\":\"string\",\"variations\":["
+        + "{\"id\":\"control-id\",\"name\":\"control\",\"value\":\"Start\"},"
+        + "{\"id\":\"treatment-id\",\"name\":\"treatment\",\"value\":\"Try\"},"
+        + "{\"id\":\"unnamed-id\",\"name\":null,\"value\":\"Go\"}],"
+        + "\"target\":{\"defaultValue\":\"Start\",\"defaultValueId\":\"value-id-start\","
+        + "\"defaultVariationId\":\"control-id\",\"rules\":["
+        + rules
+        + "]}}";
+  }
+
+  private static String everyoneServed(String variationId, String value, String valueId) {
+    return "{\"id\":\"rollout-rule\",\"type\":\"percentage\",\"order\":1,\"percentages\":["
+        + "{\"id\":\"everyone-share\",\"percentage\":100,\"value\":"
+        + quote(value)
+        + ",\"valueId\":"
+        + quote(valueId)
+        + ",\"variationId\":"
+        + quote(variationId)
+        + "}]}";
+  }
+
   private static String rule(String attribute, String trait, String target, String value) {
     return "{\"id\":\"r1\",\"type\":\"conditional\",\"order\":1,\"target\":\"value\",\"value\":"
         + quote(value)
@@ -173,6 +200,86 @@ class ConfigDirectorProviderTest {
     assertThat(details.getReason()).isEqualTo(Reason.TARGETING_MATCH.toString());
     assertThat(details.getVariant()).isEqualTo("dv-greeting");
     assertThat(details.getErrorCode()).isNull();
+  }
+
+  @Test
+  void reports_the_variation_name_as_the_variant_on_an_experiment() {
+    Client client =
+        clientServing(
+            bundleOf(experiment("checkout", everyoneServed("treatment-id", "Try", "value-id-try"))));
+
+    FlagEvaluationDetails<String> details =
+        client.getStringDetails("checkout", "Hello", new ImmutableContext("user-1"));
+
+    assertThat(details.getValue()).isEqualTo("Try");
+    assertThat(details.getVariant()).isEqualTo("treatment");
+    assertThat(details.getReason()).isEqualTo(Reason.TARGETING_MATCH.toString());
+    assertThat(details.getErrorCode()).isNull();
+  }
+
+  @Test
+  void reports_the_value_id_as_the_variant_for_an_unnamed_variation() {
+    Client client =
+        clientServing(
+            bundleOf(experiment("checkout", everyoneServed("unnamed-id", "Go", "value-id-go"))));
+
+    FlagEvaluationDetails<String> details =
+        client.getStringDetails("checkout", "Hello", new ImmutableContext("user-1"));
+
+    assertThat(details.getValue()).isEqualTo("Go");
+    assertThat(details.getVariant()).isEqualTo("value-id-go");
+    assertThat(details.getReason()).isEqualTo(Reason.TARGETING_MATCH.toString());
+  }
+
+  @Test
+  void resolves_a_skipped_rollout_as_default_with_the_default_targeting_rule_variation_name() {
+    Client client =
+        clientServing(
+            bundleOf(experiment("checkout", everyoneServed("treatment-id", "Try", "value-id-try"))));
+
+    FlagEvaluationDetails<String> details =
+        client.getStringDetails("checkout", "Hello", new ImmutableContext());
+
+    assertThat(details.getValue()).isEqualTo("Start");
+    assertThat(details.getVariant()).isEqualTo("control");
+    assertThat(details.getReason()).isEqualTo(Reason.DEFAULT.toString());
+    assertThat(details.getErrorCode()).isNull();
+  }
+
+  @Test
+  void resolves_a_skipped_flag_rollout_as_default_with_the_value_id_as_the_variant() {
+    String flagWithARollout =
+        config(
+            "new-checkout",
+            "boolean",
+            "false",
+            "{\"id\":\"rollout-rule\",\"type\":\"percentage\",\"order\":1,\"percentages\":["
+                + "{\"id\":\"on-share\",\"percentage\":100,\"value\":\"true\","
+                + "\"valueId\":\"value-id-true\"}]}");
+    Client client = clientServing(bundleOf(flagWithARollout));
+
+    FlagEvaluationDetails<Boolean> details =
+        client.getBooleanDetails("new-checkout", true, new ImmutableContext());
+
+    assertThat(details.getValue()).isFalse();
+    assertThat(details.getVariant()).isEqualTo("dv-new-checkout");
+    assertThat(details.getReason()).isEqualTo(Reason.DEFAULT.toString());
+  }
+
+  @Test
+  void reports_the_rule_share_and_variation_of_a_rollout_on_the_evaluation_events()
+      throws InterruptedException {
+    Client client =
+        clientServing(
+            bundleOf(experiment("checkout", everyoneServed("treatment-id", "Try", "value-id-try"))));
+
+    client.getStringValue("checkout", "Hello", new ImmutableContext("user-1"));
+    api.shutdown();
+
+    assertThat(server.nextTelemetryRequest().body())
+        .contains("\"ruleId\":\"rollout-rule\"")
+        .contains("\"shareId\":\"everyone-share\"")
+        .contains("\"variationId\":\"treatment-id\"");
   }
 
   @Test

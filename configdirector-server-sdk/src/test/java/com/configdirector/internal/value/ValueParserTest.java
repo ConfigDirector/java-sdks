@@ -5,6 +5,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.configdirector.ConfigState;
 import com.configdirector.ConfigType;
 import com.configdirector.EvaluationReason;
+import com.configdirector.Variation;
+import com.configdirector.internal.evaluation.ServedConfig;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.DisplayName;
@@ -24,8 +26,12 @@ class ValueParserTest {
     return new ConfigState("c1", "k", type, value, "vid-1");
   }
 
+  private static ServedConfig foundMatch(ConfigState state) {
+    return new ServedConfig(state, EvaluationReason.FOUND_MATCH);
+  }
+
   private static ParseResult parse(String value, Object defaultValue) {
-    return ValueParser.parse(state(value), defaultValue);
+    return ValueParser.parse(foundMatch(state(value)), defaultValue);
   }
 
   @SuppressWarnings("unchecked")
@@ -36,6 +42,69 @@ class ValueParserTest {
   @SuppressWarnings("unchecked")
   private static List<Object> asList(Object value) {
     return (List<Object>) value;
+  }
+
+  @Nested
+  @DisplayName("the reason a value was served with")
+  class ServedReason {
+
+    private static final ServedConfig SKIPPED_ROLLOUT =
+        new ServedConfig(
+            new ConfigState("c1", "k", ConfigType.STRING, "Start", "v-start"),
+            EvaluationReason.ROLLOUT_SKIPPED_NO_IDENTIFIER);
+
+    @Test
+    void is_kept_when_the_value_can_be_read() {
+      ParseResult result = ValueParser.parse(SKIPPED_ROLLOUT, "fallback");
+
+      assertThat(result.value()).isEqualTo("Start");
+      assertThat(result.reason()).isEqualTo(EvaluationReason.ROLLOUT_SKIPPED_NO_IDENTIFIER);
+    }
+
+    @Test
+    void gives_way_to_the_reason_the_in_code_default_value_is_returned() {
+      ParseResult result = ValueParser.parse(SKIPPED_ROLLOUT, 7);
+
+      assertThat(result.value()).isEqualTo(7);
+      assertThat(result.reason()).isEqualTo(EvaluationReason.INVALID_NUMBER);
+    }
+  }
+
+  @Nested
+  @DisplayName("the variation and rollout share")
+  class VariationAndRolloutShare {
+
+    private static final ConfigState SERVED_BY_A_ROLLOUT =
+        new ConfigState(
+            "c1",
+            "k",
+            ConfigType.STRING,
+            "Try",
+            "v-try",
+            new Variation("treatment-id", "treatment"),
+            "rule-id",
+            "share-id");
+
+    @Test
+    void a_value_that_can_be_read_carries_them() {
+      ParseResult result = ValueParser.parse(foundMatch(SERVED_BY_A_ROLLOUT), "fallback");
+
+      assertThat(result.value()).isEqualTo("Try");
+      assertThat(result.variation()).isEqualTo(new Variation("treatment-id", "treatment"));
+      assertThat(result.ruleId()).isEqualTo("rule-id");
+      assertThat(result.shareId()).isEqualTo("share-id");
+    }
+
+    @Test
+    void the_in_code_default_value_carries_none_of_them() {
+      ParseResult result = ValueParser.parse(foundMatch(SERVED_BY_A_ROLLOUT), 7);
+
+      assertThat(result.value()).isEqualTo(7);
+      assertThat(result.reason()).isEqualTo(EvaluationReason.INVALID_NUMBER);
+      assertThat(result.variation()).isNull();
+      assertThat(result.ruleId()).isNull();
+      assertThat(result.shareId()).isNull();
+    }
   }
 
   @Nested
@@ -99,7 +168,7 @@ class ValueParserTest {
         value = ConfigType.class,
         names = {"STRING", "ENUM", "URL", "CUSTOM"})
     void take_the_value_of_a_text_config_verbatim(ConfigType type) {
-      ParseResult result = ValueParser.parse(state(type, "true"), "x");
+      ParseResult result = ValueParser.parse(foundMatch(state(type, "true")), "x");
 
       assertThat(result.value()).isEqualTo("true");
       assertThat(result.usedDefault()).isFalse();
@@ -108,13 +177,13 @@ class ValueParserTest {
 
     @Test
     void take_a_json_documents_raw_text() {
-      assertThat(ValueParser.parse(state(ConfigType.JSON, "{\"a\":1}"), "x").value())
+      assertThat(ValueParser.parse(foundMatch(state(ConfigType.JSON, "{\"a\":1}")), "x").value())
           .isEqualTo("{\"a\":1}");
     }
 
     @Test
     void take_the_value_of_a_config_type_this_version_does_not_know() {
-      assertThat(ValueParser.parse(state(null, "26"), "x").value()).isEqualTo("26");
+      assertThat(ValueParser.parse(foundMatch(state(null, "26")), "x").value()).isEqualTo("26");
     }
 
     @ParameterizedTest
@@ -122,7 +191,7 @@ class ValueParserTest {
         value = ConfigType.class,
         names = {"BOOLEAN", "INTEGER", "FLOAT"})
     void fall_back_when_the_config_holds_a_boolean_or_a_number(ConfigType type) {
-      ParseResult result = ValueParser.parse(state(type, "26"), "x");
+      ParseResult result = ValueParser.parse(foundMatch(state(type, "26")), "x");
 
       assertThat(result.value()).isEqualTo("x");
       assertThat(result.usedDefault()).isTrue();

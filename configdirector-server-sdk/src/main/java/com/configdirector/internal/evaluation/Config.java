@@ -8,7 +8,7 @@ public record Config(
     String key,
     ConfigType type,
     TargetingRules target,
-    List<Variation> variations,
+    List<ConfigVariation> variations,
     TypeConstraints typeConstraints) {
 
   public Config {

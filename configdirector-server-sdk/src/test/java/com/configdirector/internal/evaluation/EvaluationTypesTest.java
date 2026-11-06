@@ -52,7 +52,7 @@ class EvaluationTypesTest {
 
     @Test
     void a_conditional_rule_normalizes_its_null_lists() {
-      ConditionalRule rule = new ConditionalRule("r", 1, null, "value", "v", null, null);
+      ConditionalRule rule = new ConditionalRule("r", 1, null, "value", "v", null, null, null);
 
       assertThat(rule.conditions()).isEmpty();
       assertThat(rule.percentages()).isEmpty();
@@ -65,7 +65,7 @@ class EvaluationTypesTest {
 
     @Test
     void targeting_rules_normalize_a_null_rule_list() {
-      assertThat(new TargetingRules("fallback", null, null).rules()).isEmpty();
+      assertThat(new TargetingRules("fallback", null, null, null).rules()).isEmpty();
     }
 
     @Test
@@ -74,6 +74,7 @@ class EvaluationTypesTest {
       TargetingRules target =
           new TargetingRules(
               "fallback",
+              null,
               null,
               List.of(
                   new PercentageRule("third", 9, List.of()),
@@ -88,6 +89,7 @@ class EvaluationTypesTest {
       TargetingRules target =
           new TargetingRules(
               "fallback",
+              null,
               null,
               List.of(
                   new PercentageRule("a", 2, List.of()),
@@ -122,7 +124,7 @@ class EvaluationTypesTest {
     @Test
     void both_rule_kinds_are_rules() {
       assertThat(new PercentageRule("p", 3, List.of())).isInstanceOf(Rule.class);
-      assertThat(new ConditionalRule("c", 3, List.of(), "value", null, null, List.of()))
+      assertThat(new ConditionalRule("c", 3, List.of(), "value", null, null, null, List.of()))
           .isInstanceOf(Rule.class);
     }
   }

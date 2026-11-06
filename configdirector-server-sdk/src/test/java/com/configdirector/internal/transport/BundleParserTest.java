@@ -14,6 +14,7 @@ import com.configdirector.internal.evaluation.Condition;
 import com.configdirector.internal.evaluation.ConditionalRule;
 import com.configdirector.internal.evaluation.Config;
 import com.configdirector.internal.evaluation.ConfigEvaluator;
+import com.configdirector.internal.evaluation.ConfigVariation;
 import com.configdirector.internal.evaluation.EvaluationContext;
 import com.configdirector.internal.evaluation.EnumTypeConstraints;
 import com.configdirector.internal.evaluation.NumericTypeConstraints;
@@ -267,6 +268,96 @@ class BundleParserTest {
               """);
 
       assertThat(((ConditionalRule) config.target().rules().get(0)).target()).isEqualTo("value");
+    }
+  }
+
+  @Nested
+  @DisplayName("variations")
+  class Variations {
+
+    private static final String EXPERIMENT =
+        """
+        {"configs":{"checkout-cta":{
+          "id":"c1","key":"checkout-cta","type":"string",
+          "variations":[{"id":"control-id","name":"control","value":"Start"},
+                        {"id":"treatment-id","name":null,"value":"Try"}],
+          "target":{"defaultValue":"Start","defaultValueId":"dv1","defaultVariationId":"control-id",
+            "rules":[
+              {"id":"r1","type":"conditional","order":1,"target":"value","value":"Try",
+               "valueId":"v-try","variationId":"treatment-id","conditions":[]},
+              {"id":"r2","type":"percentage","order":2,"percentages":[
+                {"id":"s1","percentage":100.0,"value":"Try","valueId":"v-try",
+                 "variationId":"treatment-id"}]}
+            ]}
+        }}}
+        """;
+
+    private static final String FLAG =
+        """
+        {"configs":{"new-checkout":{
+          "id":"c2","key":"new-checkout","type":"boolean","variations":[],
+          "target":{"defaultValue":"true","defaultValueId":"dv2","rules":[
+            {"id":"r1","type":"conditional","order":1,"target":"value","value":"false",
+             "valueId":"v-false","conditions":[]},
+            {"id":"r2","type":"percentage","order":2,"percentages":[
+              {"id":"s1","percentage":100.0,"value":"false","valueId":"v-false"}]}
+          ]}
+        }}}
+        """;
+
+    @Test
+    void reads_the_id_and_name_of_each_variation() {
+      Config config = onlyConfig(EXPERIMENT);
+
+      assertThat(config.variations())
+          .extracting(ConfigVariation::id)
+          .containsExactly("control-id", "treatment-id");
+      assertThat(config.variations())
+          .extracting(ConfigVariation::name)
+          .containsExactly("control", null);
+    }
+
+    @Test
+    void reads_an_empty_variation_name_as_no_name() {
+      Config config =
+          onlyConfig(
+              """
+              {"configs":{"k":{"id":"c1","key":"k","type":"string",
+                "variations":[{"id":"empty-name-id","name":"","value":"Begin"}],
+                "target":{"defaultValue":"Begin","rules":[]}}}}
+              """);
+
+      assertThat(config.variations()).extracting(ConfigVariation::name).containsOnlyNulls();
+    }
+
+    @Test
+    void reads_the_variation_id_beside_the_default_targeting_rule_value() {
+      assertThat(onlyConfig(EXPERIMENT).target().defaultVariationId()).isEqualTo("control-id");
+    }
+
+    @Test
+    void reads_the_variation_id_beside_a_rule_value() {
+      ConditionalRule rule = (ConditionalRule) onlyConfig(EXPERIMENT).target().rules().get(0);
+
+      assertThat(rule.variationId()).isEqualTo("treatment-id");
+    }
+
+    @Test
+    void reads_the_variation_id_beside_a_share_value() {
+      PercentageRule rule = (PercentageRule) onlyConfig(EXPERIMENT).target().rules().get(1);
+
+      assertThat(rule.percentages().get(0).variationId()).isEqualTo("treatment-id");
+    }
+
+    @Test
+    void a_flag_has_no_variation_ids() {
+      Config config = onlyConfig(FLAG);
+
+      assertThat(config.variations()).isEmpty();
+      assertThat(config.target().defaultVariationId()).isNull();
+      assertThat(((ConditionalRule) config.target().rules().get(0)).variationId()).isNull();
+      assertThat(((PercentageRule) config.target().rules().get(1)).percentages().get(0).variationId())
+          .isNull();
     }
   }
 

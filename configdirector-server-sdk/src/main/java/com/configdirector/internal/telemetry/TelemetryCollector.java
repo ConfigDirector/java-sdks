@@ -6,7 +6,12 @@ import java.time.Duration;
 
 public interface TelemetryCollector extends AutoCloseable {
 
-  void recordEvaluation(ConfigEvaluation evaluation, Object defaultValue, ConfigType type);
+  void recordEvaluation(
+      ConfigEvaluation evaluation,
+      Object defaultValue,
+      ConfigType type,
+      String ruleId,
+      String shareId);
 
   InvalidContextRecording recordInvalidContext(String kindSample);
 

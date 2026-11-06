@@ -88,7 +88,10 @@ class HttpEventReporterTest {
         new ConfigEvaluation(key, "hello", false, EvaluationReason.FOUND_MATCH, "server-id", context),
         "fallback",
         ConfigType.STRING,
-        context == null ? null : context.id(), context == null ? null : "user");
+        context == null ? null : context.id(),
+        context == null ? null : "user",
+        null,
+        null);
   }
 
   private static EventReport reportOf(EvaluatedConfigEvent... events) {
@@ -375,7 +378,10 @@ class HttpEventReporterTest {
                       "a", Map.of("on", true), false, EvaluationReason.FOUND_MATCH, null, null),
                   Map.of("on", false),
                   ConfigType.JSON,
-                  null, null)
+                  null,
+                  null,
+                  null,
+                  null)
               .compacted();
 
       reporterAgainst(200).report(reportOf(json));

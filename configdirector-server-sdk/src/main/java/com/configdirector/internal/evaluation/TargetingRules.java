@@ -4,7 +4,8 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 
-public record TargetingRules(String defaultValue, String defaultValueId, List<Rule> rules) {
+public record TargetingRules(
+    String defaultValue, String defaultValueId, String defaultVariationId, List<Rule> rules) {
 
   private static final Comparator<Rule> BY_ORDER =
       Comparator.comparing(Rule::order, Comparator.nullsLast(Comparator.naturalOrder()));

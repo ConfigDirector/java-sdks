@@ -9,6 +9,7 @@ public record ConditionalRule(
     String target,
     Object value,
     String valueId,
+    String variationId,
     List<Percentage> percentages)
     implements Rule {
 

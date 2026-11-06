@@ -6,6 +6,7 @@ import com.configdirector.ConfigEvaluation;
 import com.configdirector.ConfigType;
 import com.configdirector.Context;
 import com.configdirector.EvaluationReason;
+import com.configdirector.Variation;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.DisplayName;
@@ -22,7 +23,8 @@ class EvaluatedConfigEventTest {
   }
 
   private static EvaluatedConfigEvent event() {
-    return EvaluatedConfigEvent.of(evaluation("hello", "server-id"), "fallback", ConfigType.STRING, null, null);
+    return EvaluatedConfigEvent.of(
+        evaluation("hello", "server-id"), "fallback", ConfigType.STRING, null, null, null, null);
   }
 
   @Nested
@@ -53,7 +55,14 @@ class EvaluatedConfigEventTest {
     @Test
     void carries_the_context_it_was_told_about() {
       EvaluatedConfigEvent captured =
-          EvaluatedConfigEvent.of(evaluation("hello", null), "fallback", ConfigType.STRING, "user-1", "user");
+          EvaluatedConfigEvent.of(
+              evaluation("hello", null),
+              "fallback",
+              ConfigType.STRING,
+              "user-1",
+              "user",
+              null,
+              null);
 
       assertThat(captured.contextId()).isEqualTo("user-1");
     }
@@ -106,7 +115,9 @@ class EvaluatedConfigEventTest {
                   "other-config", "hello", false, EvaluationReason.FOUND_MATCH, "server-id", null),
               "fallback",
               ConfigType.STRING,
-              null, null);
+              null, null,
+              null,
+              null);
 
       assertThat(other).isNotEqualTo(event());
     }
@@ -114,7 +125,14 @@ class EvaluatedConfigEventTest {
     @Test
     void an_evaluation_for_another_context_does_not() {
       EvaluatedConfigEvent other =
-          EvaluatedConfigEvent.of(evaluation("hello", "server-id"), "fallback", ConfigType.STRING, "user-1", "user");
+          EvaluatedConfigEvent.of(
+              evaluation("hello", "server-id"),
+              "fallback",
+              ConfigType.STRING,
+              "user-1",
+              "user",
+              null,
+              null);
 
       assertThat(other).isNotEqualTo(event());
     }
@@ -122,7 +140,14 @@ class EvaluatedConfigEventTest {
     @Test
     void an_evaluation_that_produced_another_value_does_not() {
       EvaluatedConfigEvent other =
-          EvaluatedConfigEvent.of(evaluation("goodbye", "other-id"), "fallback", ConfigType.STRING, null, null);
+          EvaluatedConfigEvent.of(
+              evaluation("goodbye", "other-id"),
+              "fallback",
+              ConfigType.STRING,
+              null,
+              null,
+              null,
+              null);
 
       assertThat(other).isNotEqualTo(event());
     }
@@ -136,7 +161,8 @@ class EvaluatedConfigEventTest {
     void reduces_both_values() {
       String oversized = "x".repeat(TelemetryValue.CONFIG_VALUE_MAX_LENGTH + 1);
       EvaluatedConfigEvent captured =
-          EvaluatedConfigEvent.of(evaluation(oversized, null), oversized, ConfigType.STRING, null, null);
+          EvaluatedConfigEvent.of(
+              evaluation(oversized, null), oversized, ConfigType.STRING, null, null, null, null);
 
       EvaluatedConfigEvent compacted = captured.compacted();
 
@@ -162,7 +188,14 @@ class EvaluatedConfigEventTest {
     @Test
     void writes_the_field_names_the_server_reads() {
       Map<String, Object> wire =
-          EvaluatedConfigEvent.of(evaluation("hello", "server-id"), "fallback", ConfigType.STRING, "user-1", "user")
+          EvaluatedConfigEvent.of(
+              evaluation("hello", "server-id"),
+              "fallback",
+              ConfigType.STRING,
+              "user-1",
+              "user",
+              null,
+              null)
               .toWire();
 
       assertThat(wire)
@@ -180,7 +213,8 @@ class EvaluatedConfigEventTest {
     @Test
     void omits_the_context_and_the_type_when_there_are_none() {
       Map<String, Object> wire =
-          EvaluatedConfigEvent.of(evaluation("hello", null), "fallback", null, null, null).toWire();
+          EvaluatedConfigEvent.of(
+              evaluation("hello", null), "fallback", null, null, null, null, null).toWire();
 
       assertThat(wire).doesNotContainKeys("contextId", "type", "evaluatedValueId");
     }
@@ -192,7 +226,7 @@ class EvaluatedConfigEventTest {
               "my-config", "fallback", true, EvaluationReason.CONFIG_STATE_MISSING, null, null);
 
       Map<String, Object> wire =
-          EvaluatedConfigEvent.of(usedDefault, "fallback", null, null, null).toWire();
+          EvaluatedConfigEvent.of(usedDefault, "fallback", null, null, null, null, null).toWire();
 
       assertThat(wire)
           .containsEntry("evaluationReason", "config-state-missing")
@@ -203,12 +237,98 @@ class EvaluatedConfigEventTest {
     void reports_a_json_value_by_the_id_the_server_sent() {
       Map<String, Object> wire =
           EvaluatedConfigEvent.of(
-                  evaluation(Map.of("a", 1), "server-id"), Map.of("b", 2), ConfigType.JSON, null, null)
+                  evaluation(Map.of("a", 1), "server-id"),
+                  Map.of("b", 2),
+                  ConfigType.JSON,
+                  null,
+                  null,
+                  null,
+                  null)
               .toWire();
 
       assertThat(wire)
           .containsEntry("evaluatedValue", Map.of("valueId", "server-id", "type", "json"))
           .containsEntry("defaultValue", Map.of("value", "{\"b\":2}", "type", "json"));
+    }
+  }
+
+  @Nested
+  @DisplayName("the rule, share and variation")
+  class RuleShareAndVariation {
+
+    private static ConfigEvaluation evaluationServing(String variationId) {
+      return new ConfigEvaluation(
+          "my-config",
+          "hello",
+          false,
+          EvaluationReason.FOUND_MATCH,
+          "server-id",
+          null,
+          new Variation(variationId, "treatment"));
+    }
+
+    private static EvaluatedConfigEvent eventFor(
+        String ruleId, String shareId, String variationId) {
+      return EvaluatedConfigEvent.of(
+          evaluationServing(variationId),
+          "fallback",
+          ConfigType.STRING,
+          null,
+          null,
+          ruleId,
+          shareId);
+    }
+
+    @Test
+    void are_reported_when_a_rollout_served_the_value() {
+      Map<String, Object> wire = eventFor("rule-1", "share-1", "variation-1").toWire();
+
+      assertThat(wire)
+          .containsEntry("ruleId", "rule-1")
+          .containsEntry("shareId", "share-1")
+          .containsEntry("variationId", "variation-1");
+    }
+
+    @Test
+    void only_the_variation_is_reported_when_no_rollout_served_the_value() {
+      Map<String, Object> wire = eventFor(null, null, "variation-1").toWire();
+
+      assertThat(wire).containsEntry("variationId", "variation-1");
+      assertThat(wire).doesNotContainKeys("ruleId", "shareId");
+    }
+
+    @Test
+    void none_are_reported_for_a_config_without_variations() {
+      assertThat(event().toWire()).doesNotContainKeys("ruleId", "shareId", "variationId");
+    }
+
+    @Test
+    void survive_compaction() {
+      EvaluatedConfigEvent compacted = eventFor("rule-1", "share-1", "variation-1").compacted();
+
+      assertThat(compacted.ruleId()).isEqualTo("rule-1");
+      assertThat(compacted.shareId()).isEqualTo("share-1");
+      assertThat(compacted.variationId()).isEqualTo("variation-1");
+    }
+
+    @Test
+    void the_reason_for_a_skipped_rollout_is_spelled_the_way_the_other_sdks_do() {
+      ConfigEvaluation skipped =
+          new ConfigEvaluation(
+              "my-config",
+              "hello",
+              false,
+              EvaluationReason.ROLLOUT_SKIPPED_NO_IDENTIFIER,
+              "server-id",
+              null);
+
+      Map<String, Object> wire =
+          EvaluatedConfigEvent.of(skipped, "fallback", ConfigType.STRING, null, null, null, null)
+              .toWire();
+
+      assertThat(wire)
+          .containsEntry("evaluationReason", "rollout-skipped-no-identifier")
+          .containsEntry("usedDefault", false);
     }
   }
 
@@ -225,7 +345,10 @@ class EvaluatedConfigEventTest {
           new ConfigEvaluation(
               "my-config", "hello", false, EvaluationReason.FOUND_MATCH, null, anonymous);
 
-      assertThat(EvaluatedConfigEvent.of(evaluated, "fallback", null, null, null).contextId()).isNull();
+      assertThat(
+              EvaluatedConfigEvent.of(evaluated, "fallback", null, null, null, null, null)
+                  .contextId())
+          .isNull();
     }
   }
 }

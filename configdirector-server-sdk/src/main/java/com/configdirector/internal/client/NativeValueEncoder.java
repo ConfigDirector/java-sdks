@@ -3,8 +3,8 @@ package com.configdirector.internal.client;
 import com.configdirector.ConfigDirectorValidationException;
 import com.configdirector.ConfigType;
 import com.configdirector.internal.evaluation.Config;
+import com.configdirector.internal.evaluation.ConfigVariation;
 import com.configdirector.internal.evaluation.TargetingRules;
-import com.configdirector.internal.evaluation.Variation;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonNull;
@@ -72,8 +72,8 @@ final class NativeValueEncoder {
         configId,
         key,
         type,
-        new TargetingRules(text, valueId, List.of()),
-        List.of(new Variation(text, null)),
+        new TargetingRules(text, valueId, null, List.of()),
+        List.of(new ConfigVariation(null, text, null)),
         null);
   }
 

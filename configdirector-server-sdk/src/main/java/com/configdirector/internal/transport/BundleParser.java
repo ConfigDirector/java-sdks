@@ -8,6 +8,7 @@ import com.configdirector.internal.evaluation.JsonValues;
 import com.configdirector.internal.evaluation.NumericTypeConstraints;
 import com.configdirector.internal.evaluation.ConditionalRule;
 import com.configdirector.internal.evaluation.Config;
+import com.configdirector.internal.evaluation.ConfigVariation;
 import com.configdirector.internal.evaluation.Percentage;
 import com.configdirector.internal.evaluation.PercentageRule;
 import com.configdirector.internal.evaluation.Rule;
@@ -15,7 +16,6 @@ import com.configdirector.internal.evaluation.Segment;
 import com.configdirector.internal.evaluation.SegmentCondition;
 import com.configdirector.internal.evaluation.TargetingRules;
 import com.configdirector.internal.evaluation.TypeConstraints;
-import com.configdirector.internal.evaluation.Variation;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
@@ -112,6 +112,7 @@ public final class BundleParser {
         new TargetingRules(
             asString(target.get("defaultValue")),
             optionalString(target.get("defaultValueId")),
+            optionalString(target.get("defaultVariationId")),
             map(target.get("rules"), element -> parseRule(object(element)))),
         map(raw.get("variations"), element -> parseVariation(object(element))),
         parseTypeConstraints(raw.get("typeConstraints")));
@@ -134,6 +135,7 @@ public final class BundleParser {
         orDefault(optionalString(raw.get("target")), "value"),
         ruleValue(raw.get("value")),
         optionalString(raw.get("valueId")),
+        optionalString(raw.get("variationId")),
         percentages);
   }
 
@@ -172,14 +174,17 @@ public final class BundleParser {
         requiredString(raw, "id"),
         requiredNumber(raw, "percentage"),
         ruleValue(raw.get("value")),
-        optionalString(raw.get("valueId")));
+        optionalString(raw.get("valueId")),
+        optionalString(raw.get("variationId")));
   }
 
-  private static Variation parseVariation(JsonObject raw) {
+  private static ConfigVariation parseVariation(JsonObject raw) {
     JsonElement value = raw.get("value");
-    return new Variation(
+    String name = optionalString(raw.get("name"));
+    return new ConfigVariation(
+        optionalString(raw.get("id")),
         isScalar(value) ? scalar(value.getAsJsonPrimitive()) : asString(value),
-        optionalString(raw.get("name")));
+        name == null || name.isEmpty() ? null : name);
   }
 
   private static TypeConstraints parseTypeConstraints(JsonElement raw) {

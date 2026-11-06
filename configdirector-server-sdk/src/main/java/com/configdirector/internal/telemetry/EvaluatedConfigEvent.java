@@ -3,6 +3,7 @@ package com.configdirector.internal.telemetry;
 import com.configdirector.ConfigEvaluation;
 import com.configdirector.ConfigType;
 import com.configdirector.EvaluationReason;
+import com.configdirector.Variation;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -19,14 +20,20 @@ public record EvaluatedConfigEvent(
     TelemetryValue evaluatedValue,
     String evaluatedValueId,
     boolean usedDefault,
-    EvaluationReason reason) {
+    EvaluationReason reason,
+    String ruleId,
+    String shareId,
+    String variationId) {
 
   public static EvaluatedConfigEvent of(
       ConfigEvaluation evaluation,
       Object defaultValue,
       ConfigType type,
       String contextId,
-      String contextKind) {
+      String contextKind,
+      String ruleId,
+      String shareId) {
+    Variation variation = evaluation.variation();
     return new EvaluatedConfigEvent(
         contextId,
         contextKind,
@@ -37,7 +44,10 @@ public record EvaluatedConfigEvent(
         TelemetryValue.of(evaluation.value(), evaluation.valueId(), type),
         evaluation.valueId(),
         evaluation.isDefault(),
-        evaluation.reason());
+        evaluation.reason(),
+        ruleId,
+        shareId,
+        variation == null ? null : variation.id());
   }
 
   public EvaluatedConfigEvent compacted() {
@@ -51,7 +61,10 @@ public record EvaluatedConfigEvent(
         evaluatedValue.compacted(),
         evaluatedValueId,
         usedDefault,
-        reason);
+        reason,
+        ruleId,
+        shareId,
+        variationId);
   }
 
   public Map<String, Object> toWire() {
@@ -74,6 +87,15 @@ public record EvaluatedConfigEvent(
     }
     wire.put("usedDefault", usedDefault);
     wire.put("evaluationReason", reason.wireName());
+    if (ruleId != null) {
+      wire.put("ruleId", ruleId);
+    }
+    if (shareId != null) {
+      wire.put("shareId", shareId);
+    }
+    if (variationId != null) {
+      wire.put("variationId", variationId);
+    }
     return wire;
   }
 
