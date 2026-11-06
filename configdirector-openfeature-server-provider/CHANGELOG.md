@@ -8,6 +8,8 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.9.0] - 2026-11-06
+
 ### Added
 
 - The provider now implements OpenFeature's tracking. `client.track(eventName, context, details)`
@@ -40,6 +42,8 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - The evaluation counts the provider sends to ConfigDirector now say which variation was served, and
   which percentage rollout and share served it, so ConfigDirector can count the contexts each
   variation of an experiment reached.
+- Requires version 1.11.0 of `com.configdirector:server-sdk`, which has the `evaluate` and `track`
+  methods the provider now calls.
 
 ### Fixed
 

@@ -10,6 +10,8 @@ checks when a test client is created.
 
 ## [Unreleased]
 
+## [1.11.0] - 2026-11-06
+
 ### Added
 
 - `TestClient.trackedEvents()` returns the events the code under test tracked through
