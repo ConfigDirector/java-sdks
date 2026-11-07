@@ -8,6 +8,8 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.11.1] - 2026-11-07
+
 ### Fixed
 
 - A context without an `id` that skips a percentage rollout is now served by the targeting rules

@@ -8,6 +8,8 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.9.1] - 2026-11-07
+
 ### Fixed
 
 - An evaluation context with neither a targeting key nor an `id` that skips a percentage rollout is
@@ -16,6 +18,7 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   rule value, even when a later rule matched the context. A later rule that applies resolves with the
   reason `TARGETING_MATCH`; `DEFAULT` stays for a context resolved to the default targeting rule
   value after a skipped rollout.
+- Requires version 1.11.1 of `com.configdirector:server-sdk`, which carries the fix.
 
 ## [1.9.0] - 2026-11-06
 

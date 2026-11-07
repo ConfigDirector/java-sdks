@@ -10,6 +10,8 @@ checks when a test client is created.
 
 ## [Unreleased]
 
+## [1.11.1] - 2026-11-07
+
 ### Fixed
 
 - `TestClient.trackedEvents()` records a date inside `details` as the ISO 8601 text the SDK sends,
