@@ -22,10 +22,15 @@ import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
+import java.time.ZonedDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -358,7 +363,7 @@ class TrackedEventsTest {
     client.track(
         "checkout-completed",
         null,
-        TrackOptions.builder().details(Map.of("at", Instant.EPOCH)).build());
+        TrackOptions.builder().details(Map.of("items", new String[] {"book"})).build());
 
     assertThat(warnings()).hasSize(3);
   }
@@ -790,10 +795,128 @@ class TrackedEventsTest {
     }
 
     @Test
-    void leaves_out_details_holding_a_date_sends_the_event_and_logs_a_warning() {
+    void writes_an_instant_inside_details_on_the_wire_as_iso_text() {
       startReadyClient();
 
-      trackWithDetails(Map.of("at", Instant.parse("2026-11-06T10:00:00Z")));
+      trackWithDetails(Map.of("endsAt", Instant.parse("2026-12-01T00:00:00Z")));
+
+      assertThat(rawReportSentOnClosing())
+          .contains("\"details\":{\"endsAt\":\"2026-12-01T00:00:00Z\"},");
+      assertThat(warnings()).isEmpty();
+    }
+
+    @Test
+    void sends_a_java_util_date_inside_details_as_iso_text_in_utc() {
+      startReadyClient();
+
+      trackWithDetails(Map.of("endsAt", Date.from(Instant.parse("2026-12-01T00:00:00Z"))));
+
+      assertThat(detailsSentOnClosing()).isEqualTo(json("{\"endsAt\":\"2026-12-01T00:00:00Z\"}"));
+      assertThat(warnings()).isEmpty();
+    }
+
+    @Test
+    void sends_an_offset_date_time_inside_details_as_iso_text_in_utc() {
+      startReadyClient();
+
+      trackWithDetails(Map.of("endsAt", OffsetDateTime.parse("2026-11-30T19:00:00-05:00")));
+
+      assertThat(detailsSentOnClosing()).isEqualTo(json("{\"endsAt\":\"2026-12-01T00:00:00Z\"}"));
+      assertThat(warnings()).isEmpty();
+    }
+
+    @Test
+    void sends_a_zoned_date_time_inside_details_as_iso_text_in_utc() {
+      startReadyClient();
+
+      trackWithDetails(
+          Map.of("endsAt", ZonedDateTime.parse("2026-11-30T19:00:00-05:00[America/New_York]")));
+
+      assertThat(detailsSentOnClosing()).isEqualTo(json("{\"endsAt\":\"2026-12-01T00:00:00Z\"}"));
+      assertThat(warnings()).isEmpty();
+    }
+
+    @Test
+    void sends_a_date_nested_in_a_map_inside_details_as_iso_text() {
+      startReadyClient();
+
+      trackWithDetails(
+          Map.of("trial", Map.of("endsAt", OffsetDateTime.parse("2026-11-30T19:00:00-05:00"))));
+
+      assertThat(detailsSentOnClosing())
+          .isEqualTo(json("{\"trial\":{\"endsAt\":\"2026-12-01T00:00:00Z\"}}"));
+      assertThat(warnings()).isEmpty();
+    }
+
+    @Test
+    void sends_a_date_nested_in_a_list_inside_details_as_iso_text() {
+      startReadyClient();
+
+      trackWithDetails(
+          Map.of("reminders", List.of(OffsetDateTime.parse("2026-11-30T19:00:00-05:00"))));
+
+      assertThat(detailsSentOnClosing())
+          .isEqualTo(json("{\"reminders\":[\"2026-12-01T00:00:00Z\"]}"));
+      assertThat(warnings()).isEmpty();
+    }
+
+    @Test
+    void sends_details_of_exactly_1024_bytes_measured_on_the_text_of_a_date() {
+      startReadyClient();
+
+      trackWithDetails(
+          Map.of(
+              "endsAt", ZonedDateTime.parse("2026-11-30T19:00:00-05:00[America/New_York]"),
+              "note", "a".repeat(981)));
+
+      assertThat(detailsSentOnClosing())
+          .isEqualTo(
+              json(
+                  "{\"endsAt\":\"2026-12-01T00:00:00Z\",\"note\":\"" + "a".repeat(981) + "\"}"));
+      assertThat(warnings()).isEmpty();
+    }
+
+    @Test
+    void leaves_out_details_of_1025_bytes_measured_on_the_text_of_a_date() {
+      startReadyClient();
+
+      trackWithDetails(
+          Map.of(
+              "endsAt", OffsetDateTime.parse("2026-12-01T00:00:00Z"),
+              "note", "a".repeat(982)));
+
+      assertThat(firstTrackedEventWithoutItsTimeSentOnClosing())
+          .isEqualTo(json(EVENT_WITHOUT_ITS_DETAILS));
+      assertThat(warnings()).hasSize(1);
+    }
+
+    @Test
+    void leaves_out_details_holding_a_local_date_sends_the_event_and_logs_a_warning() {
+      startReadyClient();
+
+      trackWithDetails(Map.of("endsOn", LocalDate.parse("2026-12-01")));
+
+      assertThat(firstTrackedEventWithoutItsTimeSentOnClosing())
+          .isEqualTo(json(EVENT_WITHOUT_ITS_DETAILS));
+      assertThat(warnings()).hasSize(1);
+    }
+
+    @Test
+    void leaves_out_details_holding_a_local_date_time_sends_the_event_and_logs_a_warning() {
+      startReadyClient();
+
+      trackWithDetails(Map.of("endsAt", LocalDateTime.parse("2026-12-01T00:00:00")));
+
+      assertThat(firstTrackedEventWithoutItsTimeSentOnClosing())
+          .isEqualTo(json(EVENT_WITHOUT_ITS_DETAILS));
+      assertThat(warnings()).hasSize(1);
+    }
+
+    @Test
+    void leaves_out_details_holding_a_java_sql_date_sends_the_event_and_logs_a_warning() {
+      startReadyClient();
+
+      trackWithDetails(Map.of("endsOn", java.sql.Date.valueOf("2026-12-01")));
 
       assertThat(firstTrackedEventWithoutItsTimeSentOnClosing())
           .isEqualTo(json(EVENT_WITHOUT_ITS_DETAILS));

@@ -18,6 +18,7 @@ import com.configdirector.EvaluationReason;
 import com.configdirector.TrackOptions;
 import java.math.BigDecimal;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -350,6 +351,26 @@ class TestClientConformanceTest {
         .containsExactly(
             new TrackedEvent(
                 "checkout-completed", null, null, Collections.singletonMap("ratio", null)));
+  }
+
+  @Test
+  void records_a_date_inside_details_as_the_text_production_sends() {
+    TestClient testClient = create(Map.of());
+
+    testClient
+        .client()
+        .track(
+            "trial-started",
+            null,
+            TrackOptions.builder()
+                .details(Map.of("endsAt", Instant.parse("2026-12-01T00:00:00Z")))
+                .build());
+
+    assertThat(testClient.trackedEvents())
+        .containsExactly(
+            new TrackedEvent(
+                "trial-started", null, null, Map.of("endsAt", "2026-12-01T00:00:00Z")));
+    assertThat(warnings()).isEmpty();
   }
 
   @Test

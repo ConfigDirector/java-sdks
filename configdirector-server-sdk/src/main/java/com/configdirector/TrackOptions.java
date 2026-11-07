@@ -78,8 +78,11 @@ public final class TrackOptions {
     /**
      * Details of the event, such as the plan a customer chose. Values are {@link String}, {@link
      * Number}, {@link Boolean}, {@link Map} with {@link String} keys, {@link java.util.Collection},
-     * or null. Details with more than 20 top-level keys, larger than 1 KB as JSON, or holding any
-     * other type of value are left out and the event is still reported.
+     * or null. An {@link java.time.Instant}, {@link java.util.Date}, {@link
+     * java.time.OffsetDateTime} or {@link java.time.ZonedDateTime}, at any depth, is sent as ISO
+     * 8601 text in UTC, such as {@code 2026-12-01T00:00:00Z}. Details with more than 20 top-level
+     * keys, larger than 1 KB as JSON, or holding any other type of value, such as a {@link
+     * java.time.LocalDate}, are left out and the event is still reported.
      *
      * @param details the details, or null for none
      * @return this builder, so calls chain

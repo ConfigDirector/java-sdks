@@ -14,7 +14,8 @@ import java.util.Map;
  * @param value the value the event was tracked with, or null when there was none or it was not a
  *     finite number. A {@code Float} is recorded as the {@code Double} with the same digits
  * @param details the details the event was tracked with, an unmodifiable copy, or null when there
- *     were none or they were outside the limits
+ *     were none or they were outside the limits. A date is recorded as the ISO 8601 text the SDK
+ *     sends
  */
 public record TrackedEvent(String name, Context context, Number value, Map<String, Object> details) {
 

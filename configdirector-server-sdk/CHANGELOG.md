@@ -8,6 +8,14 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- A date inside the `details` of a tracked event is sent as ISO 8601 text in UTC, such as
+  `2026-12-01T00:00:00Z`, at any depth, instead of the details being left out. This covers `Instant`,
+  `java.util.Date`, `OffsetDateTime` and `ZonedDateTime`, and the text counts toward the 1 KB limit.
+  A `LocalDate`, a `LocalDateTime` and any other type of value still leave the details out with the
+  warning.
+
 ## [1.11.0] - 2026-11-06
 
 ### Added

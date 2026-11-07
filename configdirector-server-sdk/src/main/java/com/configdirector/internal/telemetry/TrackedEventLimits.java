@@ -3,9 +3,13 @@ package com.configdirector.internal.telemetry;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
+import java.time.OffsetDateTime;
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Date;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -119,6 +123,18 @@ final class TrackedEventLimits {
       if (value instanceof Number number) {
         Number written = writtenNumberOf(number);
         return isFinite(written) ? written : null;
+      }
+      if (value instanceof Instant moment) {
+        return moment.toString();
+      }
+      if (value instanceof Date moment) {
+        return moment.toInstant().toString();
+      }
+      if (value instanceof OffsetDateTime moment) {
+        return moment.toInstant().toString();
+      }
+      if (value instanceof ZonedDateTime moment) {
+        return moment.toInstant().toString();
       }
       if (value instanceof Map<?, ?> members) {
         return objectCopyOf(members);
