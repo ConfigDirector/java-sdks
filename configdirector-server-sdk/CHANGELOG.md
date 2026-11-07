@@ -10,6 +10,13 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- A context without an `id` that skips a percentage rollout is now served by the targeting rules
+  after it, as it is after a conditional rule it does not match. Since 1.11.0 the skipped rollout
+  ended the evaluation and the default targeting rule value was served, even when a later rule, such
+  as one on the app version, matched the context. The getters, `evaluate`, watches and
+  `getAllConfigs` serve the later rule's value with the reason `FOUND_MATCH`; the reason
+  `ROLLOUT_SKIPPED_NO_IDENTIFIER` stays for a context served the default targeting rule value after
+  a skipped rollout.
 - A date inside the `details` of a tracked event is sent as ISO 8601 text in UTC, such as
   `2026-12-01T00:00:00Z`, at any depth, instead of the details being left out. This covers `Instant`,
   `java.util.Date`, `OffsetDateTime` and `ZonedDateTime`, and the text counts toward the 1 KB limit.

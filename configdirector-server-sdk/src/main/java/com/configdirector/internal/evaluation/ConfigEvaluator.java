@@ -46,22 +46,21 @@ public final class ConfigEvaluator {
     }
 
     // Already ordered by TargetingRules, which sorts once at parse time.
+    boolean aRolloutWasSkipped = false;
     for (Rule rule : target.rules()) {
       RuleServing serving = evaluateRule(rule, config, context, segments);
-      if (serving instanceof RuleServing.NotMatched) {
-        continue;
-      }
       if (serving instanceof RuleServing.ServedValue servedValue) {
         return servedConfig(config, servedValue, EvaluationReason.FOUND_MATCH);
       }
       if (serving instanceof RuleServing.RolloutSkippedNoIdentifier) {
-        return servedConfig(
-            config,
-            defaultTargetingRuleValue(target),
-            EvaluationReason.ROLLOUT_SKIPPED_NO_IDENTIFIER);
+        aRolloutWasSkipped = true;
       }
     }
-    return servedConfig(config, defaultTargetingRuleValue(target), EvaluationReason.FOUND_MATCH);
+    EvaluationReason reason =
+        aRolloutWasSkipped
+            ? EvaluationReason.ROLLOUT_SKIPPED_NO_IDENTIFIER
+            : EvaluationReason.FOUND_MATCH;
+    return servedConfig(config, defaultTargetingRuleValue(target), reason);
   }
 
   private static RuleServing.ServedValue defaultTargetingRuleValue(TargetingRules target) {

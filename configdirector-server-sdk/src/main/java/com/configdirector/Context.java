@@ -10,9 +10,9 @@ import java.util.Objects;
  * organization.
  *
  * <p>{@code id} segments contexts in percentage rollouts, so changing it can move a context into a
- * different percentile. A context without an {@code id} skips percentage rollouts: it is served the
- * default targeting rule value, and the targeting rules after the rollout are not tried. For an
- * anonymous visitor, use a stable identifier such as a session ID. Trait values are JSON-shaped:
+ * different percentile. A context without an {@code id} skips percentage rollouts: the targeting
+ * rules after the rollout are tried, and it is served the default targeting rule value when none
+ * applies. For an anonymous visitor, use a stable identifier such as a session ID. Trait values are JSON-shaped:
  * {@link String}, {@link Number}, {@link Boolean}, {@link java.util.List}, {@link java.util.Map},
  * or null. Anything else has no text form and will not match a targeting rule.
  *

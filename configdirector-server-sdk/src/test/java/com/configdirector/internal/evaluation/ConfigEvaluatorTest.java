@@ -6,6 +6,7 @@ import com.configdirector.ConfigState;
 import com.configdirector.ConfigType;
 import com.configdirector.Context;
 import com.configdirector.EvaluationReason;
+import com.configdirector.Metadata;
 import com.configdirector.Variation;
 import java.util.List;
 import java.util.Map;
@@ -675,10 +676,61 @@ class ConfigEvaluatorTest {
     }
 
     @Test
-    void the_rules_after_a_skipped_rollout_are_not_tried() {
+    void the_rules_after_a_skipped_rollout_are_tried() {
       ServedConfig served =
           evaluateWithoutAnIdentifier(
               experiment(EVERYONE_GETS_THE_TREATMENT, LATER_RULE_FOR_EVERYONE));
+
+      assertThat(served.reason()).isEqualTo(EvaluationReason.FOUND_MATCH);
+      assertThat(served.state().value()).isEqualTo("Later");
+    }
+
+    @Test
+    void a_context_without_an_identifier_matching_a_conditional_rollout_is_served_a_later_rule_on_the_app_version() {
+      ConditionalRule proPlansGetTheTreatment =
+          new ConditionalRule(
+              "conditional-rollout-rule",
+              1,
+              List.of(
+                  new AttributeCondition("c", "traits", "=", "text", List.of("pro"), "/plan")),
+              "percentage",
+              null,
+              null,
+              null,
+              EVERYONE_GETS_THE_TREATMENT.percentages());
+      ConditionalRule version2GetsNewCopy =
+          new ConditionalRule(
+              "later-rule",
+              3,
+              List.of(
+                  new AttributeCondition("c", "appVersion", ">=", "semver", List.of("2.0.0"), null)),
+              "value",
+              "New copy for 2.x",
+              "v-new-copy",
+              null,
+              List.of());
+      EvaluationContext proPlanOnVersion2WithoutAnIdentifier =
+          new EvaluationContext(
+              Context.builder().trait("plan", "pro").build(), new Metadata(null, "2.1.0"));
+
+      ServedConfig served =
+          evaluator.evaluateWithReason(
+              experiment(proPlansGetTheTreatment, version2GetsNewCopy),
+              proPlanOnVersion2WithoutAnIdentifier,
+              Map.of());
+
+      assertThat(served.reason()).isEqualTo(EvaluationReason.FOUND_MATCH);
+      assertThat(served.state().value()).isEqualTo("New copy for 2.x");
+    }
+
+    @Test
+    void the_default_after_a_skipped_rollout_that_no_later_rule_matches_keeps_the_skip_reason() {
+      ConditionalRule laterRuleForNobody =
+          new ConditionalRule(
+              "later-rule", 3, List.of(never()), "value", "Later", "v-later", null, List.of());
+
+      ServedConfig served =
+          evaluateWithoutAnIdentifier(experiment(EVERYONE_GETS_THE_TREATMENT, laterRuleForNobody));
 
       assertThat(served.reason()).isEqualTo(EvaluationReason.ROLLOUT_SKIPPED_NO_IDENTIFIER);
       assertThat(served.state().value()).isEqualTo("Start");
@@ -718,14 +770,14 @@ class ConfigEvaluatorTest {
     }
 
     @Test
-    void a_rollout_rule_with_an_empty_share_list_is_skipped_too() {
+    void a_rollout_rule_with_an_empty_share_list_is_skipped_too_and_the_next_rule_is_tried() {
       PercentageRule withoutShares = new PercentageRule("no-shares-rule", 1, List.of());
 
       ServedConfig served =
           evaluateWithoutAnIdentifier(experiment(withoutShares, LATER_RULE_FOR_EVERYONE));
 
-      assertThat(served.reason()).isEqualTo(EvaluationReason.ROLLOUT_SKIPPED_NO_IDENTIFIER);
-      assertThat(served.state().value()).isEqualTo("Start");
+      assertThat(served.reason()).isEqualTo(EvaluationReason.FOUND_MATCH);
+      assertThat(served.state().value()).isEqualTo("Later");
     }
 
     @Test

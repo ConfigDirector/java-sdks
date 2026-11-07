@@ -131,6 +131,23 @@ class VariationsTest {
         + "]}]}}";
   }
 
+  /** The experiment with a rule after its rollout that serves pro plans "Get started". */
+  private static String experimentWithARuleAfterTheRollout() {
+    String proPlansGetStarted =
+        "{\"id\":\"33333333-3333-4333-8333-333333333335\",\"order\":2,\"type\":\"conditional\","
+            + "\"target\":\"value\",\"value\":\"Get started\",\"valueId\":\"value-id-get-started\","
+            + "\"variationId\":\""
+            + UNNAMED_ID
+            + "\",\"conditions\":["
+            + planIs("pro")
+            + "]}";
+    String rulesClosing = "]}}";
+    return EXPERIMENT.substring(0, EXPERIMENT.length() - rulesClosing.length())
+        + ","
+        + proPlansGetStarted
+        + rulesClosing;
+  }
+
   private static String bundleOf(String experiment) {
     return "{\"timestamp\":\"t1\",\"configs\":{\"checkout-cta-copy\":"
         + experiment
@@ -301,6 +318,19 @@ class VariationsTest {
       assertThat(evaluation.isDefault()).isTrue();
       assertThat(evaluation.reason()).isEqualTo(EvaluationReason.CLIENT_NOT_READY);
       assertThat(evaluation.variation()).isNull();
+    }
+
+    @Test
+    void serves_a_context_without_an_id_the_rule_after_a_skipped_rollout() {
+      ConfigDirectorClient ready = readyClient(experimentWithARuleAfterTheRollout());
+
+      ConfigEvaluation evaluation =
+          ready.evaluate(CONFIG_KEY, IN_CODE_DEFAULT_VALUE, PRO_CONTEXT_WITHOUT_AN_ID);
+
+      assertThat(evaluation.value()).isEqualTo("Get started");
+      assertThat(evaluation.reason()).isEqualTo(EvaluationReason.FOUND_MATCH);
+      assertThat(evaluation.isDefault()).isFalse();
+      assertThat(evaluation.variation()).isEqualTo(new Variation(UNNAMED_ID, null));
     }
 
     @Test
